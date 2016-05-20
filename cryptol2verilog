@@ -1,0 +1,26 @@
+#!/bin/bash
+
+set -e
+
+cryptolfile=$1
+func=$2
+
+cat > sawcmds.saw <<- EOM
+m <- cryptol_load "$cryptolfile";
+f <- cryptol_extract m "$func";
+write_aig "${func}.aig" f;
+EOM
+
+cat > abccmds.abc <<- EOM
+read "${func}.aig"
+dsd
+strash
+multi
+fraig
+rewrite -l
+balance -s -d -x
+write_verilog "${func}.v"
+EOM
+
+saw sawcmds.saw > /dev/null
+abc -f abccmds.abc > /dev/null
