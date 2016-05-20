@@ -22,5 +22,16 @@ balance -s -d -x
 write_verilog "${func}.v"
 EOM
 
-saw sawcmds.saw > /dev/null
-abc -f abccmds.abc > /dev/null
+cat > yosys.ys <<- EOM
+read_verilog "${func}.v"
+synth -run fine
+techmap; opt -fast
+dfflibmap -liberty gc_cells.lib
+abc -liberty gc_cells.lib
+clean
+write_verilog ${func}.v
+EOM
+
+saw sawcmds.saw
+abc -f abccmds.abc
+yosys yosys.ys
