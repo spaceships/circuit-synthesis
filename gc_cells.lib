@@ -4,7 +4,8 @@ library(gc) {
         pin(A) { direction: input; }
         pin(Y) {
             direction: output;
-            function: "A'"; }
+            function: "A'"; 
+        }
     }
 
     cell(XOR) {
@@ -18,7 +19,7 @@ library(gc) {
     }
 
     cell(AND) {
-        area: 1;
+        area: 10000;
         pin(A) { direction: input; }
         pin(B) { direction: input; }
         pin(Y) {
@@ -28,7 +29,7 @@ library(gc) {
     }
 
     cell(OR) {
-        area: 1;
+        area: 10000;
         pin(A) { direction: input; }
         pin(B) { direction: input; }
         pin(Y) {

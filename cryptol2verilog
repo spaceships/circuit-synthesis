@@ -13,10 +13,6 @@ EOM
 
 cat > abccmds.abc <<- EOM
 read "${func}.aig"
-dsd
-strash
-multi
-fraig
 rewrite -l
 balance -s -d -x
 write_verilog "${func}.v"
@@ -24,14 +20,14 @@ EOM
 
 cat > yosys.ys <<- EOM
 read_verilog "${func}.v"
-synth -run fine
+synth -run coarse
 techmap; opt -fast
 dfflibmap -liberty gc_cells.lib
 abc -liberty gc_cells.lib
-clean
 write_verilog ${func}.v
 EOM
 
-saw sawcmds.saw
-abc -f abccmds.abc
-yosys yosys.ys
+saw sawcmds.saw > /dev/null
+abc -f abccmds.abc > /dev/null
+yosys yosys.ys > /dev/null
+grep -c AND "${func}.v"

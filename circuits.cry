@@ -1,5 +1,5 @@
 cmul_16 : [15] -> [16]
-cmul_16 x = (zero # x) * 0x6004
+cmul_16 x = (zero # x) * 0x6FF4
 
 cmul_32 : [31] -> [32]
 cmul_32 x = (zero # x) * 0x72c701f4
@@ -16,14 +16,14 @@ cexp_32 x = (zero # x) ^^ 5
 cexp_64 : [8] -> [64]
 cexp_64 x = (zero # x) ^^ 8
 
-mul_16 : [8] -> [8] -> [16]
-mul_16 x y = (zero # x) * (zero # y)
+mul_16 : ([8], [8]) -> [16]
+mul_16 (x, y) = (zero # x) * (zero # y)
 
-mul_32 : [16] -> [16] -> [32]
-mul_32 x y = (zero # x) * (zero # y)
+mul_32 : ([16], [16]) -> [32]
+mul_32 (x, y) = (zero # x) * (zero # y)
 
-mul_64 : [32] -> [32] -> [64]
-mul_64 x y = (zero # x) * (zero # y)
+mul_64 : ([32], [32]) -> [64]
+mul_64 (x, y) = (zero # x) * (zero # y)
 
 foldl : {n, a, b} (fin n ) => (a -> b -> b) -> b -> [n]a -> b
 foldl f z0 xs = res ! 0
