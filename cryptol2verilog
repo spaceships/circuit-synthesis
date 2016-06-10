@@ -2,8 +2,12 @@
 
 set -e
 
-cryptolfile=$1
+cryptolfile=$(realpath $1)
 func=$2
+libertyfile=$(realpath $3)
+
+mkdir -p work
+cd work
 
 cat > sawcmds.saw <<- EOM
 m <- cryptol_load "$cryptolfile";
@@ -26,12 +30,15 @@ cat > yosys.ys <<- EOM
 read_verilog "${func}.v"
 synth -run fine
 techmap; opt -fast
-dfflibmap -liberty gc_cells.lib
-abc -liberty gc_cells.lib
+dfflibmap -liberty ${libertyfile}
+abc -liberty ${libertyfile}
 write_verilog ${func}.v
 EOM
 
-saw sawcmds.saw > /dev/null
-abc -f abccmds.abc > /dev/null
-yosys yosys.ys > /dev/null
-grep -c AND "${func}.v"
+#saw sawcmds.saw > /dev/null
+#abc -f abccmds.abc > /dev/null
+#yosys yosys.ys > /dev/null
+
+saw sawcmds.saw
+abc -f abccmds.abc
+yosys yosys.ys

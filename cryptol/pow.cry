@@ -1,0 +1,48 @@
+module Pow where
+
+sum : {a} (fin a) => [a] -> Bit
+sum xs = res ! 0
+  where
+    res = [xs@0] # [ x ^ z | x <- xs | z <- res ]
+
+pow : [8] -> ([8], [8]) -> Bit
+pow n (x,y) = sum ((zero # x) ^^ (zero # n) : [512])
+/*pow n (x,y) = sum (res@n)*/
+  /*where*/
+    /*res = [zero#x] # [ (zero#x)*(zero#z) | z <- res ]*/
+
+pow1 : ([8], [8]) -> Bit
+pow1 = pow 1
+
+pow2 : ([8], [8]) -> Bit
+pow2 = pow 2
+
+pow3 : ([8], [8]) -> Bit
+pow3 = pow 3
+
+pow4 : ([8], [8]) -> Bit
+pow4 = pow 4
+
+pow5 : ([8], [8]) -> Bit
+pow5 = pow 5
+
+pow6 : ([8], [8]) -> Bit
+pow6 = pow 6
+
+pow7 : ([8], [8]) -> Bit
+pow7 = pow 7
+
+pow8 : ([8], [8]) -> Bit
+pow8 = pow 8
+
+pow16 : ([8], [8]) -> Bit
+pow16 = pow 16
+
+pow32 : ([8], [8]) -> Bit
+pow32 = pow 32
+
+pow64 : ([8], [8]) -> Bit
+pow64 = pow 64
+
+pow128 : ([8], [8]) -> Bit
+pow128 = pow 128
