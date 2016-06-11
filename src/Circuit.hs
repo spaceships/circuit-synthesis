@@ -2,11 +2,10 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 
-module Zim15.Circuit where
+module Circuit where
 
-import Zim15.Util
-
-import CLT13.Util (forceM, pmap)
+import Util
+import Util (forceM, pmap)
 
 import Control.Monad.Identity
 import Control.Concurrent

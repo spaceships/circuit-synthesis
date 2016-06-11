@@ -3,9 +3,9 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module CLT13.Rand where
+module Rand where
 
-import CLT13.Util
+import Util
 
 import Crypto.Random
 import Crypto.Random.DRBG
