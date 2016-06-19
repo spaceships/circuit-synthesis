@@ -30,17 +30,19 @@ data Op = Add Ref Ref
         | Input ID
         deriving (Eq, Ord, Show)
 
-data Circuit = Circuit { outRef  :: Ref
+data Circuit = Circuit { outRefs :: [Ref]
                        , inpRefs :: M.Map ID Ref -- TODO: maybe dont need these maps
                        , refMap  :: M.Map Ref Op
                        , consts  :: [Integer]
                        } deriving (Show)
 
-type TestCase = ([Bool], Bool)
+emptyCirc = Circuit [] M.empty M.empty []
+
+type TestCase = ([Bool], [Bool])
 
 opArgs :: Op -> [Ref]
 opArgs (Add x y) = [x,y]
-opArgs (Sub 0 x) = [x]
+{-opArgs (Sub 0 x) = [x]-}
 opArgs (Sub x y) = [x,y]
 opArgs (Mul x y) = [x,y]
 opArgs (Const _) = []
@@ -53,27 +55,27 @@ nconsts :: Circuit -> Int
 nconsts = length . consts
 
 ydeg :: Circuit -> Int
-ydeg c = degree c (outRef c) (Const (-1))
+ydeg c = varDegree c (Const (-1))
 
 xdeg :: Circuit -> Int -> Int
 xdeg c i = xdegs c !! i
 
 xdegs :: Circuit -> [Int]
-xdegs c = pmap (degree c (outRef c) . Input) [0 .. ninputs c - 1]
+xdegs c = pmap (varDegree c . Input) [0 .. ninputs c - 1]
 
 depth :: Circuit -> Int
-depth c = foldCirc f (outRef c) c
+depth c = maximum $ foldCirc f c
   where
     f (Input _) []  = 0
     f (Const _) []  = 0
-    f (Sub 0 _) [x] = x
     f _         xs  = maximum xs + 1
 
-degree :: Circuit -> Ref -> Op -> Int
-degree c ref z = foldCirc f ref c
+-- i think it makes sense that since these are just polynomials in a single
+-- variable then finding the degree is this easy
+varDegree :: Circuit -> Op -> Int
+varDegree c z = maximum $ foldCirc f c
   where
     f (Add _ _) [x,y] = max x y
-    f (Sub 0 _) [x]   = x
     f (Sub _ _) [x,y] = max x y
     f (Mul _ _) [x,y] = x + y
     f x _ = if eq x z then 1 else 0
@@ -82,12 +84,23 @@ degree c ref z = foldCirc f ref c
     eq (Const _) (Const _) = True
     eq _         _         = False
 
+-- TODO make me better! does this really reflect the degree of the multivariate
+-- polynomial corresponding to C?
+circDegree :: Circuit -> Int
+circDegree c = maximum $ foldCirc f c
+  where
+    f (Add _ _) [x,y] = max x y
+    f (Sub _ _) [x,y] = max x y
+    f (Mul _ _) [x,y] = x + y
+    f (Input id) _ = 1
+    f (Const id) _ = 1
+
 -- note: inputs are little endian: [x0, x1, ..., xn]
-evalMod :: (Show a, Integral a) => Circuit -> [a] -> [a] -> a -> a
-evalMod c xs ys q = foldCirc eval (outRef c) c
+evalMod :: (Show a, Integral a) => Circuit -> [a] -> [a] -> a -> [a]
+evalMod c xs ys q = foldCirc eval c
   where
     eval (Add _ _) [x,y] = x + y % q
-    eval (Sub 0 _) [x]   = 1 - x % q
+    {-eval (Sub 0 _) [x]   = 1 - x % q-}
     eval (Sub _ _) [x,y] = x - y % q
     eval (Mul _ _) [x,y] = x * y % q
     eval (Input i) []    = xs !! i
@@ -95,12 +108,12 @@ evalMod c xs ys q = foldCirc eval (outRef c) c
     eval op        args  = error ("[evalMod] weird input: " ++ show op ++ " " ++ show args)
 
 -- note: inputs are little endian: [x0, x1, ..., xn]
-plainEval :: Circuit -> [Bool] -> Bool
-plainEval c xs = foldCirc eval (outRef c) c /= 0
+plainEval :: Circuit -> [Bool] -> [Bool]
+plainEval c xs = map (/= 0) (foldCirc eval c)
   where
     eval :: Op -> [Integer] -> Integer
     eval (Add _ _) [x,y] = x + y
-    eval (Sub 0 _) [x]   = 1 - x
+    {-eval (Sub 0 _) [x]   = 1 - x-}
     eval (Sub _ _) [x,y] = x - y
     eval (Mul _ _) [x,y] = x * y
     eval (Input i) []    = b2i (xs !! i)
@@ -108,58 +121,61 @@ plainEval c xs = foldCirc eval (outRef c) c /= 0
     eval op        args  = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
 
 -- note: inputs are little endian: [x0, x1, ..., xn]
-plainEvalIO :: Circuit -> [Bool] -> IO Bool
+plainEvalIO :: Circuit -> [Bool] -> IO [Bool]
 plainEvalIO c xs = do
-    z <- foldCircIO eval c
-    return $ z /= 0
+    zs <- foldCircIO eval c
+    return $ map (/= 0) zs
   where
     eval :: Op -> [Integer] -> Integer
     eval (Add _ _) [x,y] = x + y
-    eval (Sub 0 _) [x]   = 1 - x
+    {-eval (Sub 0 _) [x]   = 1 - x-}
     eval (Sub _ _) [x,y] = x - y
     eval (Mul _ _) [x,y] = x * y
     eval (Input i) []    = b2i (xs !! i)
     eval (Const i) []    = fromIntegral (consts c !! i)
     eval op        args  = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
 
-ensure :: Bool -> (Circuit -> [Bool] -> IO Bool) -> Circuit -> [TestCase] -> IO Bool
+ensure :: Bool -> (Circuit -> [Bool] -> IO [Bool]) -> Circuit -> [TestCase] -> IO Bool
 ensure verbose eval c ts = and <$> mapM ensure' (zip [(0::Int)..] ts)
   where
     toBit :: Bool -> Char
     toBit b = if b then '1' else '0'
 
-    ensure' (i, (inps, out)) = do
+    toBits :: [Bool] -> String
+    toBits = map toBit
+
+    ensure' (i, (inps, outs)) = do
         res <- eval c (reverse inps)
-        if res == out then do
-            let s = printf "test %d succeeded: input:%s expected:%c got:%c"
-                            i (map toBit inps) (toBit out) (toBit res)
+        if res == outs then do
+            let s = printf "test %d succeeded: input:%s expected:%s got:%s"
+                            i (toBits inps) (toBits outs) (toBits res)
             when verbose (putStrLn s)
             return True
         else do
-            let s = printf "test %d failed! input:%s expected:%c got:%c"
-                            i (map toBit inps) (toBit out) (toBit res)
+            let s = printf "test %d failed! input:%s expected:%s got:%s"
+                            i (toBits inps) (toBits outs) (toBits res)
             putStrLn (red s)
             return False
 
-foldCirc :: (Op -> [a] -> a) -> Ref -> Circuit -> a
-foldCirc f start c = runIdentity (foldCircM f' start c)
+foldCirc :: (Op -> [a] -> a) -> Circuit -> [a]
+foldCirc f c = runIdentity (foldCircM f' c)
   where
     f' op _ xs = return (f op xs)
 
-foldCircM :: Monad m => (Op -> Ref -> [a] -> m a) -> Ref -> Circuit -> m a
-foldCircM f start (Circuit {..}) = evalStateT (eval start) M.empty
+foldCircM :: Monad m => (Op -> Ref -> [a] -> m a) -> Circuit -> m [a]
+foldCircM f c = evalStateT (mapM eval (outRefs c)) M.empty
   where
     eval ref = gets (M.lookup ref) >>= \case
         Just val -> return val
         Nothing  -> do
-            let op = refMap ! ref
+            let op = refMap c ! ref
             argVals <- mapM eval (opArgs op)
             val     <- lift (f op ref argVals)
             modify (M.insert ref val)
             return val
 
 -- evaluate the circuit in parallel
-foldCircIO :: NFData a => (Op -> [a] -> a) -> Circuit -> IO a
+foldCircIO :: NFData a => (Op -> [a] -> a) -> Circuit -> IO [a]
 foldCircIO f c = do
     let refs = M.keys (refMap c)
     mem <- (M.fromList . zip refs) <$> replicateM (length refs) newEmptyTMVarIO
@@ -181,10 +197,10 @@ foldCircIO f c = do
     forM_ (zip [(0 :: Int)..] lvls) $ \(_, lvl) -> do
         {-printf "evaluating level %d size=%d\n" i (length lvl)-}
         parallelInterleaved (map eval lvl)
-    atomically (readTMVar (mem ! outRef c))
+    mapM (atomically . readTMVar . (mem !)) (outRefs c)
 
 topologicalOrder :: Circuit -> [Ref]
-topologicalOrder c = reverse $ execState (foldCircM eval (outRef c) c) []
+topologicalOrder c = reverse $ execState (foldCircM eval c) []
   where
     eval :: Op -> Ref -> [a] -> State [Ref] ()
     eval _ ref _ = modify (ref:)
@@ -227,10 +243,3 @@ constNegation c = not $ all refOk (M.keys (refMap c))
         Mul x y -> notConst x || notConst y
         Input _ -> True
         Const _ -> False
-
-notGates :: Circuit -> [Ref]
-notGates c = execState (foldCircM eval (outRef c) c) []
-  where
-    eval :: Op -> Ref -> [a] -> State [Ref] ()
-    eval (Sub 0 _) ref _ = modify (ref:)
-    eval _         _   _ = return ()

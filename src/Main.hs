@@ -3,7 +3,9 @@ module Main where
 import Circuit
 import Util
 import Rand
-import qualified Circuit.AcircParser as Acirc
+import Circuit.Parser (CircuitParser)
+import qualified Circuit.AcircParser    as Acirc
+import qualified Circuit.VerilogParser  as Verilog
 
 import Control.Monad
 import Options
@@ -40,23 +42,27 @@ instance Options MainOptions where
 
 main :: IO ()
 main = runCommand $ \opts args -> do
-    let [fp] = args
-    (c,ts) <- Acirc.parseCirc <$> readFile fp
+    when (length args == 0) $ do
+         putStrLn "[error] input circuit required"
+         exitFailure
+    let inputFile = head args
+        parser    = parserFor inputFile :: CircuitParser
+    (c,ts) <- parser <$> readFile inputFile
     when (opt_info opts) $ printCircInfo c
     ts' <- case opt_gentests opts of
         Nothing -> return ts
         Just i  -> replicateM i (genTest c)
-    when (opt_eval opts) $ evalPlaintextCircuit opts c ts'
+    when (opt_eval opts) $ evalTests opts c ts'
     exitSuccess
 
 printCircInfo :: Circuit -> IO ()
-printCircInfo c = printf "circuit info: depth=%d n=%d m=%d xdegs=%s ydeg=%s total degree=%d\n"
+printCircInfo c = printf "circuit info: depth=%d n=%d m=%d xdegs=%s ydeg=%s total degree=(%d, %d)\n"
                          (depth c) (ninputs c) (nconsts c)
                          (show (xdegs c)) (show (ydeg c))
-                         (sum (ydeg c : (xdegs c)))
+                         (sum (ydeg c : (xdegs c))) (circDegree c)
 
-evalPlaintextCircuit :: MainOptions -> Circuit -> [TestCase] -> IO ()
-evalPlaintextCircuit opts c ts = do
+evalTests :: MainOptions -> Circuit -> [TestCase] -> IO ()
+evalTests opts c ts = do
     pr "evaluating plaintext circuit tests"
     ok <- ensure (opt_verbose opts) plainEvalIO c ts
     if ok then pr "ok" else pr "failed"
@@ -75,3 +81,10 @@ getKappa c = δ + 2*n + n*(2*n-1)
     n = ninputs c
     δ = ydeg c + sum (xdegs c)
 
+parserFor :: String -> CircuitParser
+parserFor filename = case extension filename of
+    "acirc" -> Acirc.parseCirc
+    "v"     -> Verilog.parseCirc
+    ext     -> error $ printf "[error] unknown circuit type: \"%s\"" ext
+  where
+    extension = reverse . takeWhile (/= '.') . reverse

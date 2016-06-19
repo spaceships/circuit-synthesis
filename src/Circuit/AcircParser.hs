@@ -3,30 +3,12 @@ module Circuit.AcircParser
   ) where
 
 import Circuit
+import Circuit.Parser
 import Util (readBitstring)
 
 import Control.Monad (when)
 import Text.Parsec hiding (spaces, parseTest)
 import qualified Data.Map as M
-
-data ParseSt = ParseSt { st_circ :: Circuit
-                       , st_ts   :: [TestCase]
-                       , st_ys   :: M.Map ID Integer
-                       }
-
-type ParseCirc = Parsec String ParseSt
-
-getCirc :: ParseCirc Circuit
-getCirc = st_circ <$> getState
-
-modifyCirc :: (Circuit -> Circuit) -> ParseCirc ()
-modifyCirc f = modifyState (\st -> st { st_circ = f (st_circ st) })
-
-addTest :: TestCase -> ParseCirc ()
-addTest t = modifyState (\st -> st { st_ts = t : st_ts st})
-
-insertConst :: ID -> Integer -> ParseCirc ()
-insertConst i c = modifyState (\st -> st { st_ys = M.insert i c (st_ys st)})
 
 parseCirc :: String -> (Circuit, [TestCase])
 parseCirc s = case runParser (circParser >> getState) emptySt "" s of
@@ -37,8 +19,6 @@ parseCirc s = case runParser (circParser >> getState) emptySt "" s of
     circParser = start >> rest >> eof
     start = many $ choice [parseParam, parseTest]
     rest  = many $ choice [try parseGate, try parseInput]
-    emptyCirc = Circuit (-1) M.empty M.empty []
-    emptySt   = ParseSt emptyCirc [] M.empty
 
 parseParam :: ParseCirc ()
 parseParam = do
@@ -52,9 +32,9 @@ parseTest = do
     spaces
     inps <- many (oneOf ['0','1'])
     spaces
-    out <- oneOf ['0','1']
+    outs <- many (oneOf ['0','1'])
     let inp = readBitstring inps
-        res = out == '1'
+        res = readBitstring outs
     addTest (inp, res)
     endLine
 
@@ -91,11 +71,7 @@ parseGate = do
     spaces
     gateType <- oneOfStr ["gate", "output"]
     when (gateType == "output") $ do
-        c <- getCirc
-        if outRef c > 0 then
-            error ("multiple outputs defined! ref" ++ show ref)
-        else
-            modifyCirc (\c' -> c' { outRef = ref })
+        markOutput ref
     spaces
     opType <- oneOfStr ["ADD", "SUB", "MUL"]
     spaces
@@ -109,28 +85,3 @@ parseGate = do
             g     -> error ("[parser] unkonwn gate type " ++ g)
     insertOp ref op
     endLine
-
-safeInsert :: Ord a => String -> a -> b -> M.Map a b -> M.Map a b
-safeInsert errorMsg x y m =
-    if M.member x m
-       then error errorMsg
-       else M.insert x y m
-
-oneOfStr :: [String] -> ParseCirc String
-oneOfStr = foldr (\s m -> string s <|> m) (fail "no strings")
-
-spaces :: ParseCirc ()
-spaces = skipMany (oneOf " \t")
-
-endLine :: ParseCirc ()
-endLine = do
-    skipMany (char ' ')
-    eof <|> (endOfLine >> return ())
-    return ()
-
-insertOp :: Ref -> Op -> ParseCirc ()
-insertOp ref op = do
-    refs <- refMap <$> getCirc
-    if M.member ref refs
-        then error ("redefinition of ref " ++ show ref)
-        else modifyCirc (\c -> c { refMap = M.insert ref op refs })
