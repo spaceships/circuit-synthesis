@@ -4,7 +4,7 @@ module Circuit.AcircParser
 
 import Circuit
 import Circuit.Parser
-import Util (readBitstring)
+import Util (readBitstring, safeInsert)
 
 import Control.Monad (when)
 import Text.Parsec hiding (spaces, parseTest)
@@ -13,8 +13,7 @@ import qualified Data.Map as M
 parseCirc :: String -> (Circuit, [TestCase])
 parseCirc s = case runParser (circParser >> getState) emptySt "" s of
     Left err -> error (show err)
-    Right st -> let ys = map snd $ M.toAscList (st_ys st)
-                in ((st_circ st) { circ_consts = ys }, reverse (st_ts st))
+    Right st -> (st_circ st, reverse (st_tests st))
   where
     circParser = start >> rest >> eof
     start = many $ choice [parseParam, parseTest]
@@ -40,7 +39,7 @@ parseTest = do
 
 parseInput :: ParseCirc ()
 parseInput = do
-    gateRef <- read <$> many1 digit
+    gateRef <- Ref <$> read <$> many1 digit
     spaces
     string "input"
     spaces
@@ -50,24 +49,21 @@ parseInput = do
 parseX :: Ref -> ParseCirc ()
 parseX ref = do
     char 'x'
-    inpId <- read <$> many1 digit
-    insertOp ref (Input inpId)
-    refs <- circ_inprefs <$> getCirc
-    let circ_inprefs' = safeInsert ("redefinition of x" ++ show inpId) inpId ref refs
-    modifyCirc (\c -> c { circ_inprefs = circ_inprefs' })
+    id <- Id <$> read <$> many1 digit
+    insertInput ref id
 
 parseY :: Ref -> ParseCirc ()
 parseY ref = do
     char 'y'
-    inpId <- read <$> many1 digit
+    id <- Id <$> read <$> many1 digit
     spaces
     val <- read <$> many1 digit
-    insertOp ref (Const inpId)
-    insertConst inpId val
+    insertConst ref id
+    insertSecret id val
 
 parseGate :: ParseCirc ()
 parseGate = do
-    ref <- read <$> many1 digit
+    ref <- Ref <$> read <$> many1 digit
     spaces
     gateType <- oneOfStr ["gate", "output"]
     when (gateType == "output") $ do
@@ -75,9 +71,9 @@ parseGate = do
     spaces
     opType <- oneOfStr ["ADD", "SUB", "MUL"]
     spaces
-    xref <- read <$> ((:) <$> option ' ' (char '-') <*> many1 digit)
+    xref <- Ref <$> read <$> ((:) <$> option ' ' (char '-') <*> many1 digit)
     spaces
-    yref <- read <$> many1 digit
+    yref <- Ref <$> read <$> many1 digit
     let op = case opType of
             "ADD" -> Add xref yref
             "MUL" -> Mul xref yref

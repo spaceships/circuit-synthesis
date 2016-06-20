@@ -3,6 +3,7 @@
 module Circuit.Builder where
 
 import Circuit
+import Util
 
 import Control.Monad.State
 import qualified Data.Map as M
@@ -12,9 +13,9 @@ type Builder = State BuildSt
 data BuildSt = BuildSt {
       bs_circ        :: Circuit
     , bs_next_ref    :: Ref
-    , bs_next_inp    :: ID
-    , bs_next_const  :: ID
-    , bs_consts      :: M.Map ID Integer
+    , bs_next_inp    :: Id
+    , bs_next_const  :: Id
+    , bs_consts      :: M.Map Id Integer
     , bs_refmap      :: M.Map String Ref
     , bs_dedup       :: M.Map Op Ref
     }
@@ -22,22 +23,39 @@ data BuildSt = BuildSt {
 emptyBuild :: BuildSt
 emptyBuild = BuildSt emptyCirc 0 0 0 M.empty M.empty M.empty
 
-getCirc :: MonadState BuildSt m => m Circuit
-getCirc = bs_circ <$> get
+getCirc :: Builder Circuit
+getCirc = gets bs_circ
 
-modifyCirc :: MonadState BuildSt m => (Circuit -> Circuit) -> m ()
+modifyCirc :: (Circuit -> Circuit) -> Builder ()
 modifyCirc f = modify (\st -> st { bs_circ = f (bs_circ st) })
 
-insertConst :: MonadState BuildSt m => ID -> Integer -> m ()
-insertConst i c = modify (\st -> st { bs_consts = M.insert i c (bs_consts st)})
-
-insertOp :: MonadState BuildSt m => Ref -> Op -> m ()
+insertOp :: Ref -> Op -> Builder ()
 insertOp ref op = do
     refs <- circ_refmap <$> getCirc
     when (M.member ref refs) $
         error ("redefinition of ref " ++ show ref)
     modifyCirc (\c -> c { circ_refmap = M.insert ref op refs })
     modify (\st -> st { bs_dedup = M.insert op ref (bs_dedup st)})
+
+insertConst :: Ref -> Id -> Builder ()
+insertConst ref id = do
+    refs <- circ_consts <$> getCirc
+    let circ_consts' = safeInsert ("redefinition of y" ++ show id) id ref refs
+    modifyCirc (\c -> c { circ_consts = circ_consts' })
+    insertOp ref (Const id)
+
+insertSecret :: Id -> Integer -> Builder ()
+insertSecret id val = do
+    ys <- circ_secrets <$> getCirc
+    let ys' = safeInsert ("reassignment of y" ++ show id) id val ys
+    modifyCirc (\c -> c { circ_secrets = ys' })
+
+insertInput :: Ref -> Id -> Builder ()
+insertInput ref id = do
+    refs <- circ_inputs <$> getCirc
+    let circ_inputs' = safeInsert ("redefinition of x" ++ show id) id ref refs
+    modifyCirc (\c -> c { circ_inputs = circ_inputs' })
+    insertOp ref (Input id)
 
 newOp :: Op -> Builder Ref
 newOp op = do
@@ -56,13 +74,13 @@ nextRef = do
     modify (\st -> st { bs_next_ref = ref + 1 })
     return ref
 
-nextInputId :: Builder ID
+nextInputId :: Builder Id
 nextInputId = do
     id <- gets bs_next_inp
     modify (\st -> st { bs_next_inp = id + 1 })
     return id
 
-nextConstId :: Builder ID
+nextConstId :: Builder Id
 nextConstId = do
     id <- gets bs_next_const
     modify (\st -> st { bs_next_const = id + 1 })
@@ -79,19 +97,34 @@ buildCircuit = bs_circ . flip execState emptyBuild
 
 input :: Builder Ref
 input = do
-    id  <- nextInputId
-    newOp (Input id)
+    id   <- nextInputId
+    ref  <- nextRef
+    insertInput ref id
+    return ref
 
 inputs :: Int -> Builder [Ref]
 inputs n = replicateM n input
 
-secret :: Builder Ref
-secret = do
-    id  <- nextConstId
-    newOp (Const id)
+constant :: Builder Ref
+constant = do
+    id   <- nextConstId
+    ref  <- nextRef
+    insertConst ref id
+    return ref
 
-secrets :: Int -> Builder [Ref]
-secrets n = replicateM n secret
+consts :: Int -> Builder [Ref]
+consts n = replicateM n constant
+
+secret :: Integer -> Builder Ref
+secret val = do
+    id   <- nextConstId
+    ref  <- nextRef
+    insertConst ref id
+    insertSecret id val
+    return ref
+
+secrets :: [Integer] -> Builder [Ref]
+secrets vals = mapM secret vals
 
 circAdd :: Ref -> Ref -> Builder Ref
 circAdd x y = newOp (Add x y)
@@ -108,14 +141,20 @@ circSum (x:xs) = foldM (\a b -> newOp (Add a b)) x xs
 output :: [Ref] -> Builder ()
 output xs = mapM_ markOutput xs
 
+-- NOTE: unconnected secrets from the subcircuit will be secrets in the
+-- resulting composite circuit.
 subcircuit :: Circuit -> [Ref] -> [Ref] -> Builder [Ref]
 subcircuit c xs ys = foldCircM translate c
   where
-    translate (Input id) _ _ = if (id >= length xs) then input  else return (xs!!id)
-    translate (Const id) _ _ = if (id >= length ys) then secret else return (ys!!id)
     translate (Add _ _) _ [x,y] = circAdd x y
     translate (Sub _ _) _ [x,y] = circSub x y
     translate (Mul _ _) _ [x,y] = circMul x y
+    translate (Input id) _ _ = if (getId id >= length xs) then input else return (xs !! getId id)
+    translate (Const id) _ _ = if (getId id >= length ys)
+                                  then if M.member id (circ_secrets c)
+                                          then secret (circ_secrets c M.! id)
+                                          else constant
+                                  else return (ys !! getId id)
     eval op ref args = error ("[subCircuit] weird input: " ++ show op ++ " " ++ show args)
 
 subcircuit' :: Circuit -> [Ref] -> Builder [Ref]

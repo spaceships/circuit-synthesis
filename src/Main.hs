@@ -14,8 +14,9 @@ import System.Exit
 
 data MainOptions = MainOptions { opt_info     :: Bool
                                , opt_verbose  :: Bool
-                               , opt_eval     :: Bool
+                               , opt_test     :: Bool
                                , opt_gentests :: Maybe Int
+
                                }
 
 instance Options MainOptions where
@@ -31,9 +32,9 @@ instance Options MainOptions where
                      , optionDescription = "Be verbose."
                      })
         <*> defineOption optionType_bool
-            (\o -> o { optionShortFlags  = ['e']
-                     , optionLongFlags   = ["eval"]
-                     , optionDescription = "Evaluate the circuit on tests (random if none exist)."
+            (\o -> o { optionShortFlags  = ['t']
+                     , optionLongFlags   = ["test"]
+                     , optionDescription = "Run the circuit on tests (random if none exist)."
                      })
         <*> defineOption (optionType_maybe optionType_int)
             (\o -> o { optionLongFlags   = ["gen-tests"]
@@ -52,14 +53,8 @@ main = runCommand $ \opts args -> do
     ts' <- case opt_gentests opts of
         Nothing -> return ts
         Just i  -> replicateM i (genTest c)
-    when (opt_eval opts) $ evalTests opts c ts'
+    when (opt_test opts) $ evalTests opts c ts'
     exitSuccess
-
-printCircInfo :: Circuit -> IO ()
-printCircInfo c = printf "circuit info: depth=%d n=%d m=%d xdegs=%s ydeg=%s total degree=(%d, %d)\n"
-                         (depth c) (ninputs c) (nconsts c)
-                         (show (xdegs c)) (show (ydeg c))
-                         (sum (ydeg c : (xdegs c))) (circDegree c)
 
 evalTests :: MainOptions -> Circuit -> [TestCase] -> IO ()
 evalTests opts c ts = do
@@ -69,11 +64,6 @@ evalTests opts c ts = do
 
 dirName :: FilePath -> Int -> FilePath
 dirName fp λ = fp ++ "." ++ show λ
-
-genTest :: Circuit -> IO TestCase
-genTest c = do
-    inp <- num2Bits (ninputs c) <$> randIO (randInteger (ninputs c))
-    return (reverse inp, plainEval c inp)
 
 getKappa :: Circuit -> Int
 getKappa c = δ + 2*n + n*(2*n-1)

@@ -9,6 +9,7 @@ import Control.Parallel.Strategies
 import GHC.Prim
 import GHC.Types
 import qualified GHC.Integer.GMP.Internals as GMP
+import qualified Data.Map as M
 
 sizeBase2 :: Integer -> Int
 sizeBase2 x = fromIntegral (W# (GMP.sizeInBaseInteger x 2#))
@@ -55,7 +56,12 @@ num2Bits n x = reverse bs
     bs = [ x .&. 2^i > 0 | i <- [0 .. n-1] ]
 
 readBitstring :: String -> [Bool]
-readBitstring = map (== '1')
+readBitstring s = if take 2 s == "0b"
+                     then map (== '1') (drop 2 s)
+                     else error "[readBitstring] unknown bitstring"
+
+showBitstring :: [Bool] -> String
+showBitstring bs = "0b" ++ map (\b -> if b then '1' else '0') bs
 
 red :: String -> String
 red s = "\x1b[1;41m" ++ s ++ "\x1b[0m"
@@ -64,4 +70,9 @@ infixl 5 %
 (%) :: Integral a => a -> a -> a
 x % q = mod x q
 
+safeInsert :: Ord a => String -> a -> b -> M.Map a b -> M.Map a b
+safeInsert errorMsg x y m =
+    if M.member x m
+       then error errorMsg
+       else M.insert x y m
 

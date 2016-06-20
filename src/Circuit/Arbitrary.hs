@@ -1,4 +1,4 @@
-module Zim15.Circuit.Arbitrary
+module Circuit.Arbitrary
   ( arbitraryCircuit
   )
 where

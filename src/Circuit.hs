@@ -1,11 +1,13 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Circuit where
 
 import Util
 import Util (forceM, pmap)
+import Rand
 
 import Control.Monad.Identity
 import Control.Concurrent
@@ -19,50 +21,72 @@ import Text.Printf
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 
-type Ref = Int
-type ID  = Int
-type Val = Int
+newtype Ref = Ref { getRef :: Int } deriving (Eq, Ord, Show, NFData, Num)
+newtype Id  = Id  { getId  :: Int } deriving (Eq, Ord, Show, NFData, Num)
 
 data Op = Add Ref Ref
         | Sub Ref Ref
         | Mul Ref Ref
-        | Const ID
-        | Input ID
+        | Const Id
+        | Input Id
         deriving (Eq, Ord, Show)
 
 data Circuit = Circuit {
       circ_outrefs :: [Ref]
-    , circ_inprefs :: M.Map ID Ref -- TODO: maybe dont need these maps
+    , circ_inputs  :: M.Map Id Ref
+    , circ_consts  :: M.Map Id Ref
+    , circ_secrets :: M.Map Id Integer
     , circ_refmap  :: M.Map Ref Op
-    , circ_consts  :: [Integer]
     } deriving (Show)
 
-emptyCirc = Circuit [] M.empty M.empty []
+emptyCirc = Circuit [] M.empty M.empty M.empty M.empty
 
 type TestCase = ([Bool], [Bool])
 
+genTest :: Circuit -> IO TestCase
+genTest c = do
+    inp <- num2Bits (ninputs c) <$> randIO (randInteger (ninputs c))
+    return (reverse inp, plainEval c inp)
+
+genTestStr :: Circuit -> IO (String, String)
+genTestStr c = do
+    (inp, out) <- genTest c
+    return (showBitstring inp, showBitstring out)
+
+printCircInfo :: Circuit -> IO ()
+printCircInfo c = do
+    printf "circuit info: depth=%d ninputs=%d noutputs=%d nconsts=%d[%d]\n"
+            (depth c) (ninputs c) (noutputs c) (nconsts c) (nsecrets c)
+    printf "xdegs=%s ydeg=%s total degree=%d circdegree=%d\n"
+            (show (xdegs c)) (show (ydeg c)) (sum (ydeg c : (xdegs c))) (circDegree c)
+
 opArgs :: Op -> [Ref]
 opArgs (Add x y) = [x,y]
-{-opArgs (Sub 0 x) = [x]-}
 opArgs (Sub x y) = [x,y]
 opArgs (Mul x y) = [x,y]
 opArgs (Const _) = []
 opArgs (Input _) = []
 
 ninputs :: Circuit -> Int
-ninputs = M.size . circ_inprefs
+ninputs = M.size . circ_inputs
 
 nconsts :: Circuit -> Int
-nconsts = length . circ_consts
+nconsts = M.size . circ_consts
+
+nsecrets :: Circuit -> Int
+nsecrets = M.size . circ_secrets
+
+noutputs :: Circuit -> Int
+noutputs = length . circ_outrefs
 
 ydeg :: Circuit -> Int
-ydeg c = varDegree c (Const (-1))
+ydeg c = varDegree c (Const $ Id (-1))
 
 xdeg :: Circuit -> Int -> Int
 xdeg c i = xdegs c !! i
 
 xdegs :: Circuit -> [Int]
-xdegs c = pmap (varDegree c . Input) [0 .. ninputs c - 1]
+xdegs c = pmap (varDegree c . Input . Id) [0 .. ninputs c - 1]
 
 depth :: Circuit -> Int
 depth c = maximum $ foldCirc f c
@@ -97,15 +121,15 @@ circDegree c = maximum $ foldCirc f c
     f (Const id) _ = 1
 
 -- note: inputs are little endian: [x0, x1, ..., xn]
-evalMod :: (Show a, Integral a) => Circuit -> [a] -> [a] -> a -> [a]
-evalMod c xs ys q = foldCirc eval c
+evalMod :: (Show a, Integral a) => Circuit -> [a] -> a -> [a]
+evalMod c xs q = foldCirc eval c
   where
     eval (Add _ _) [x,y] = x + y % q
     {-eval (Sub 0 _) [x]   = 1 - x % q-}
     eval (Sub _ _) [x,y] = x - y % q
     eval (Mul _ _) [x,y] = x * y % q
-    eval (Input i) []    = xs !! i
-    eval (Const i) []    = ys !! i
+    eval (Input i) []    = xs !! getId i
+    eval (Const i) []    = fromIntegral (circ_secrets c M.! i)
     eval op        args  = error ("[evalMod] weird input: " ++ show op ++ " " ++ show args)
 
 -- note: inputs are little endian: [x0, x1, ..., xn]
@@ -114,12 +138,16 @@ plainEval c xs = map (/= 0) (foldCirc eval c)
   where
     eval :: Op -> [Integer] -> Integer
     eval (Add _ _) [x,y] = x + y
-    {-eval (Sub 0 _) [x]   = 1 - x-}
     eval (Sub _ _) [x,y] = x - y
     eval (Mul _ _) [x,y] = x * y
-    eval (Input i) []    = b2i (xs !! i)
-    eval (Const i) []    = fromIntegral (circ_consts c !! i)
+    eval (Input i) []    = b2i (xs !! getId i)
+    eval (Const i) []    = getSecret c i
     eval op        args  = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
+
+getSecret :: Circuit -> Id -> Integer
+getSecret c id = case M.lookup id (circ_secrets c) of
+    Just x  -> x
+    Nothing -> error ("[getSecret] no secret known for y" ++ show id)
 
 -- note: inputs are little endian: [x0, x1, ..., xn]
 plainEvalIO :: Circuit -> [Bool] -> IO [Bool]
@@ -129,11 +157,10 @@ plainEvalIO c xs = do
   where
     eval :: Op -> [Integer] -> Integer
     eval (Add _ _) [x,y] = x + y
-    {-eval (Sub 0 _) [x]   = 1 - x-}
     eval (Sub _ _) [x,y] = x - y
     eval (Mul _ _) [x,y] = x * y
-    eval (Input i) []    = b2i (xs !! i)
-    eval (Const i) []    = fromIntegral (circ_consts c !! i)
+    eval (Input i) []    = b2i (xs !! getId i)
+    eval (Const i) []    = getSecret c i
     eval op        args  = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
 
 ensure :: Bool -> (Circuit -> [Bool] -> IO [Bool]) -> Circuit -> [TestCase] -> IO Bool

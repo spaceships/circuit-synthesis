@@ -42,7 +42,7 @@ parseParam = do
 
 parseInput :: ParseCirc ()
 parseInput = do
-    gateRef <- read <$> many1 digit
+    gateRef <- Ref <$> read <$> many1 digit
     spaces
     string "input"
     spaces
@@ -52,20 +52,17 @@ parseInput = do
 parseX :: Ref -> ParseCirc ()
 parseX ref = do
     char 'x'
-    inpId <- read <$> many1 digit
-    insertOp ref (Input inpId)
-    refs <- circ_inprefs <$> getCirc
-    let circ_inprefs' = safeInsert ("redefinition of x" ++ show inpId) inpId ref refs
-    modifyCirc (\c -> c { circ_inprefs = circ_inprefs' })
+    id <- Id <$> read <$> many1 digit
+    insertInput ref id
 
-parseY :: Ref -> ParseCirc ()
-parseY ref = do
-    char 'y'
-    inpId <- read <$> many1 digit
-    spaces
-    val <- read <$> many1 digit
-    insertOp ref (Const inpId)
-    insertConst inpId val
+parseY = undefined
+{-parseY :: Ref -> ParseCirc ()-}
+{-parseY ref = do-}
+    {-char 'y'-}
+    {-id <- Id <$> read <$> many1 digit-}
+    {-spaces-}
+    {-val <- read <$> many1 digit-}
+    {-insertConst ref id-}
 
 {-parseGate :: ParseCirc ()-}
 {-parseGate = do-}
