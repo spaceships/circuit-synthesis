@@ -7,11 +7,12 @@ import qualified Data.Map as M
 
 type CircuitParser = String -> (Circuit, [TestCase])
 
-data ParseSt = ParseSt { st_circ   :: Circuit
-                       , st_ts     :: [TestCase]
-                       , st_ys     :: M.Map ID Integer
-                       , st_refmap :: M.Map String Ref
-                       }
+data ParseSt = ParseSt {
+      st_circ   :: Circuit
+    , st_ts     :: [TestCase]
+    , st_ys     :: M.Map ID Integer
+    , st_refmap :: M.Map String Ref
+    }
 
 emptySt = ParseSt emptyCirc [] M.empty M.empty
 
@@ -37,13 +38,13 @@ insertConst i c = modifyState (\st -> st { st_ys = M.insert i c (st_ys st)})
 
 insertOp :: Ref -> Op -> ParseCirc ()
 insertOp ref op = do
-    refs <- refMap <$> getCirc
+    refs <- circ_refmap <$> getCirc
     if M.member ref refs
         then error ("redefinition of ref " ++ show ref)
-        else modifyCirc (\c -> c { refMap = M.insert ref op refs })
+        else modifyCirc (\c -> c { circ_refmap = M.insert ref op refs })
 
 markOutput :: Ref -> ParseCirc ()
-markOutput ref = modifyCirc (\c -> c { outRefs = outRefs c ++ [ref] })
+markOutput ref = modifyCirc (\c -> c { circ_outrefs = circ_outrefs c ++ [ref] })
 
 --------------------------------------------------------------------------------
 -- custom parsers

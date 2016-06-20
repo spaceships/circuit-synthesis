@@ -30,11 +30,12 @@ data Op = Add Ref Ref
         | Input ID
         deriving (Eq, Ord, Show)
 
-data Circuit = Circuit { outRefs :: [Ref]
-                       , inpRefs :: M.Map ID Ref -- TODO: maybe dont need these maps
-                       , refMap  :: M.Map Ref Op
-                       , consts  :: [Integer]
-                       } deriving (Show)
+data Circuit = Circuit {
+      circ_outrefs :: [Ref]
+    , circ_inprefs :: M.Map ID Ref -- TODO: maybe dont need these maps
+    , circ_refmap  :: M.Map Ref Op
+    , circ_consts  :: [Integer]
+    } deriving (Show)
 
 emptyCirc = Circuit [] M.empty M.empty []
 
@@ -49,10 +50,10 @@ opArgs (Const _) = []
 opArgs (Input _) = []
 
 ninputs :: Circuit -> Int
-ninputs = M.size . inpRefs
+ninputs = M.size . circ_inprefs
 
 nconsts :: Circuit -> Int
-nconsts = length . consts
+nconsts = length . circ_consts
 
 ydeg :: Circuit -> Int
 ydeg c = varDegree c (Const (-1))
@@ -117,7 +118,7 @@ plainEval c xs = map (/= 0) (foldCirc eval c)
     eval (Sub _ _) [x,y] = x - y
     eval (Mul _ _) [x,y] = x * y
     eval (Input i) []    = b2i (xs !! i)
-    eval (Const i) []    = fromIntegral (consts c !! i)
+    eval (Const i) []    = fromIntegral (circ_consts c !! i)
     eval op        args  = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
 
 -- note: inputs are little endian: [x0, x1, ..., xn]
@@ -132,7 +133,7 @@ plainEvalIO c xs = do
     eval (Sub _ _) [x,y] = x - y
     eval (Mul _ _) [x,y] = x * y
     eval (Input i) []    = b2i (xs !! i)
-    eval (Const i) []    = fromIntegral (consts c !! i)
+    eval (Const i) []    = fromIntegral (circ_consts c !! i)
     eval op        args  = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
 
 ensure :: Bool -> (Circuit -> [Bool] -> IO [Bool]) -> Circuit -> [TestCase] -> IO Bool
@@ -163,12 +164,12 @@ foldCirc f c = runIdentity (foldCircM f' c)
     f' op _ xs = return (f op xs)
 
 foldCircM :: Monad m => (Op -> Ref -> [a] -> m a) -> Circuit -> m [a]
-foldCircM f c = evalStateT (mapM eval (outRefs c)) M.empty
+foldCircM f c = evalStateT (mapM eval (circ_outrefs c)) M.empty
   where
     eval ref = gets (M.lookup ref) >>= \case
         Just val -> return val
         Nothing  -> do
-            let op = refMap c ! ref
+            let op = circ_refmap c ! ref
             argVals <- mapM eval (opArgs op)
             val     <- lift (f op ref argVals)
             modify (M.insert ref val)
@@ -177,11 +178,11 @@ foldCircM f c = evalStateT (mapM eval (outRefs c)) M.empty
 -- evaluate the circuit in parallel
 foldCircIO :: NFData a => (Op -> [a] -> a) -> Circuit -> IO [a]
 foldCircIO f c = do
-    let refs = M.keys (refMap c)
+    let refs = M.keys (circ_refmap c)
     mem <- (M.fromList . zip refs) <$> replicateM (length refs) newEmptyTMVarIO
     let eval :: Ref -> IO ()
         eval ref = do
-            let op      = refMap c ! ref
+            let op      = circ_refmap c ! ref
                 argRefs = map (mem!) (opArgs op)
             -- this condition should never be hit since we parallelize over the topological levels
             whenM (or <$> mapM (atomically . isEmptyTMVar) argRefs) $ do
@@ -197,7 +198,7 @@ foldCircIO f c = do
     forM_ (zip [(0 :: Int)..] lvls) $ \(_, lvl) -> do
         {-printf "evaluating level %d size=%d\n" i (length lvl)-}
         parallelInterleaved (map eval lvl)
-    mapM (atomically . readTMVar . (mem !)) (outRefs c)
+    mapM (atomically . readTMVar . (mem !)) (circ_outrefs c)
 
 topologicalOrder :: Circuit -> [Ref]
 topologicalOrder c = reverse $ execState (foldCircM eval c) []
@@ -221,15 +222,15 @@ topoLevels c = map S.toAscList lvls
                             else x : putRef ref xs
 
     dependencies :: Ref -> [Ref]
-    dependencies ref = case refMap c ! ref of
+    dependencies ref = case circ_refmap c ! ref of
         Input _ -> []
         Const _ -> []
         op      -> opArgs op ++ concatMap dependencies (opArgs op)
 
 constNegation :: Circuit -> Bool
-constNegation c = not $ all refOk (M.keys (refMap c))
+constNegation c = not $ all refOk (M.keys (circ_refmap c))
   where
-    refOk ref = case refMap c ! ref of
+    refOk ref = case circ_refmap c ! ref of
         Add _ _ -> True
         Mul _ _ -> True
         Sub x y | x /= (-1) -> True
@@ -237,7 +238,7 @@ constNegation c = not $ all refOk (M.keys (refMap c))
         Input _ -> True
         Const _ -> True
 
-    notConst ref = case refMap c ! ref of
+    notConst ref = case circ_refmap c ! ref of
         Add x y -> notConst x || notConst y
         Sub x y -> notConst x || notConst y
         Mul x y -> notConst x || notConst y

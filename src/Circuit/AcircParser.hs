@@ -14,7 +14,7 @@ parseCirc :: String -> (Circuit, [TestCase])
 parseCirc s = case runParser (circParser >> getState) emptySt "" s of
     Left err -> error (show err)
     Right st -> let ys = map snd $ M.toAscList (st_ys st)
-                in ((st_circ st) { consts = ys }, reverse (st_ts st))
+                in ((st_circ st) { circ_consts = ys }, reverse (st_ts st))
   where
     circParser = start >> rest >> eof
     start = many $ choice [parseParam, parseTest]
@@ -52,9 +52,9 @@ parseX ref = do
     char 'x'
     inpId <- read <$> many1 digit
     insertOp ref (Input inpId)
-    refs <- inpRefs <$> getCirc
-    let inpRefs' = safeInsert ("redefinition of x" ++ show inpId) inpId ref refs
-    modifyCirc (\c -> c { inpRefs = inpRefs' })
+    refs <- circ_inprefs <$> getCirc
+    let circ_inprefs' = safeInsert ("redefinition of x" ++ show inpId) inpId ref refs
+    modifyCirc (\c -> c { circ_inprefs = circ_inprefs' })
 
 parseY :: Ref -> ParseCirc ()
 parseY ref = do
