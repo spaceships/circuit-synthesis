@@ -40,7 +40,7 @@ insertConst ref id = do
     refs <- circ_consts <$> getCirc
     let circ_consts' = safeInsert ("redefinition of y" ++ show id) id ref refs
     modifyCirc (\c -> c { circ_consts = circ_consts' })
-    insertOp ref (Const id)
+    insertOp ref (OpConst id)
 
 insertSecret :: Id -> Int -> ParseCirc ()
 insertSecret id val = do
@@ -53,7 +53,7 @@ insertInput ref id = do
     refs <- circ_inputs <$> getCirc
     let circ_inputs' = safeInsert ("redefinition of x" ++ show id) id ref refs
     modifyCirc (\c -> c { circ_inputs = circ_inputs' })
-    insertOp ref (Input id)
+    insertOp ref (OpInput id)
 
 markOutput :: Ref -> ParseCirc ()
 markOutput ref = modifyCirc (\c -> c { circ_outrefs = circ_outrefs c ++ [ref] })

@@ -34,7 +34,7 @@ parseTest = do
     outs <- many (oneOf ['0','1'])
     let inp = readBitstring inps
         res = readBitstring outs
-    addTest (inp, res)
+    addTest (toInput inp, res)
     endLine
 
 parseInput :: ParseCirc ()
@@ -75,9 +75,9 @@ parseGate = do
     spaces
     yref <- Ref <$> read <$> many1 digit
     let op = case opType of
-            "ADD" -> Add xref yref
-            "MUL" -> Mul xref yref
-            "SUB" -> Sub xref yref
+            "ADD" -> OpAdd xref yref
+            "MUL" -> OpMul xref yref
+            "SUB" -> OpSub xref yref
             g     -> error ("[parser] unkonwn gate type " ++ g)
     insertOp ref op
     endLine

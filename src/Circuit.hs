@@ -21,14 +21,35 @@ import Text.Printf
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 
-newtype Ref = Ref { getRef :: Int } deriving (Eq, Ord, Show, NFData, Num)
-newtype Id  = Id  { getId  :: Int } deriving (Eq, Ord, Show, NFData, Num)
+newtype Ref = Ref { getRef :: Int } deriving (Eq, Ord, NFData, Num, Show)
+newtype Id  = Id  { getId  :: Int } deriving (Eq, Ord, NFData, Num)
 
-data Op = Add Ref Ref
-        | Sub Ref Ref
-        | Mul Ref Ref
-        | Const Id
-        | Input Id
+instance Show Id where
+    show = show . getId
+
+type Input a = M.Map Id a
+
+toInput :: [Bool] -> Input Bool
+toInput = M.fromList . zip (map Id [0..])
+
+getInput :: Id -> Input a -> a
+getInput id inp = case M.lookup id inp of
+    Just x  -> x
+    Nothing -> error ("[getInput] no input provided for known for x" ++ show id)
+
+getSecret :: Circuit -> Id -> Integer
+getSecret c id = case M.lookup id (circ_secrets c) of
+    Just x  -> x
+    Nothing -> error ("[getSecret] no secret known for y" ++ show id)
+
+showBoolInput :: Input Bool -> String
+showBoolInput = showBitstring . map snd . M.toAscList
+
+data Op = OpAdd Ref Ref
+        | OpSub Ref Ref
+        | OpMul Ref Ref
+        | OpConst Id
+        | OpInput Id
         deriving (Eq, Ord, Show)
 
 data Circuit = Circuit {
@@ -41,17 +62,17 @@ data Circuit = Circuit {
 
 emptyCirc = Circuit [] M.empty M.empty M.empty M.empty
 
-type TestCase = ([Bool], [Bool])
+type TestCase = (Input Bool, [Bool])
 
 genTest :: Circuit -> IO TestCase
 genTest c = do
-    inp <- num2Bits (ninputs c) <$> randIO (randInteger (ninputs c))
-    return (reverse inp, plainEval c inp)
+    inp <- toInput <$> num2Bits (ninputs c) <$> randIO (randInteger (ninputs c))
+    return (inp, plainEval c inp)
 
 genTestStr :: Circuit -> IO (String, String)
 genTestStr c = do
     (inp, out) <- genTest c
-    return (showBitstring inp, showBitstring out)
+    return (showBoolInput inp, showBitstring out)
 
 printCircInfo :: Circuit -> IO ()
 printCircInfo c = do
@@ -61,11 +82,11 @@ printCircInfo c = do
             (show (xdegs c)) (show (ydeg c)) (sum (ydeg c : (xdegs c))) (circDegree c)
 
 opArgs :: Op -> [Ref]
-opArgs (Add x y) = [x,y]
-opArgs (Sub x y) = [x,y]
-opArgs (Mul x y) = [x,y]
-opArgs (Const _) = []
-opArgs (Input _) = []
+opArgs (OpAdd x y) = [x,y]
+opArgs (OpSub x y) = [x,y]
+opArgs (OpMul x y) = [x,y]
+opArgs (OpConst _) = []
+opArgs (OpInput _) = []
 
 ninputs :: Circuit -> Int
 ninputs = M.size . circ_inputs
@@ -80,19 +101,19 @@ noutputs :: Circuit -> Int
 noutputs = length . circ_outrefs
 
 ydeg :: Circuit -> Int
-ydeg c = varDegree c (Const $ Id (-1))
+ydeg c = varDegree c (OpConst $ Id (-1))
 
 xdeg :: Circuit -> Int -> Int
 xdeg c i = xdegs c !! i
 
 xdegs :: Circuit -> [Int]
-xdegs c = pmap (varDegree c . Input . Id) [0 .. ninputs c - 1]
+xdegs c = pmap (varDegree c . OpInput . Id) [0 .. ninputs c - 1]
 
 depth :: Circuit -> Int
 depth c = maximum $ foldCirc f c
   where
-    f (Input _) []  = 0
-    f (Const _) []  = 0
+    f (OpInput _) []  = 0
+    f (OpConst _) []  = 0
     f _         xs  = maximum xs + 1
 
 -- i think it makes sense that since these are just polynomials in a single
@@ -100,13 +121,13 @@ depth c = maximum $ foldCirc f c
 varDegree :: Circuit -> Op -> Int
 varDegree c z = maximum $ foldCirc f c
   where
-    f (Add _ _) [x,y] = max x y
-    f (Sub _ _) [x,y] = max x y
-    f (Mul _ _) [x,y] = x + y
+    f (OpAdd _ _) [x,y] = max x y
+    f (OpSub _ _) [x,y] = max x y
+    f (OpMul _ _) [x,y] = x + y
     f x _ = if eq x z then 1 else 0
 
-    eq (Input x) (Input y) = x == y
-    eq (Const _) (Const _) = True
+    eq (OpInput x) (OpInput y) = x == y
+    eq (OpConst _) (OpConst _) = True
     eq _         _         = False
 
 -- TODO make me better! does this really reflect the degree of the multivariate
@@ -114,56 +135,48 @@ varDegree c z = maximum $ foldCirc f c
 circDegree :: Circuit -> Int
 circDegree c = maximum $ foldCirc f c
   where
-    f (Add _ _) [x,y] = max x y
-    f (Sub _ _) [x,y] = max x y
-    f (Mul _ _) [x,y] = x + y
-    f (Input id) _ = 1
-    f (Const id) _ = 1
+    f (OpAdd _ _) [x,y] = max x y
+    f (OpSub _ _) [x,y] = max x y
+    f (OpMul _ _) [x,y] = x + y
+    f (OpInput id) _ = 1
+    f (OpConst id) _ = 1
 
--- note: inputs are little endian: [x0, x1, ..., xn]
-evalMod :: (Show a, Integral a) => Circuit -> [a] -> a -> [a]
-evalMod c xs q = foldCirc eval c
+evalMod :: (Show a, Integral a) => Circuit -> Input a -> a -> [a]
+evalMod c inps q = foldCirc eval c
   where
-    eval (Add _ _) [x,y] = x + y % q
-    {-eval (Sub 0 _) [x]   = 1 - x % q-}
-    eval (Sub _ _) [x,y] = x - y % q
-    eval (Mul _ _) [x,y] = x * y % q
-    eval (Input i) []    = xs !! getId i
-    eval (Const i) []    = fromIntegral (circ_secrets c M.! i)
+    eval (OpAdd _ _) [x,y] = x + y % q
+    {-eval (OpSub 0 _) [x]   = 1 - x % q-}
+    eval (OpSub _ _) [x,y] = x - y % q
+    eval (OpMul _ _) [x,y] = x * y % q
+    eval (OpInput i) []    = getInput i inps
+    eval (OpConst i) []    = fromIntegral (getSecret c i)
     eval op        args  = error ("[evalMod] weird input: " ++ show op ++ " " ++ show args)
 
--- note: inputs are little endian: [x0, x1, ..., xn]
-plainEval :: Circuit -> [Bool] -> [Bool]
-plainEval c xs = map (/= 0) (foldCirc eval c)
+plainEval :: Circuit -> Input Bool -> [Bool]
+plainEval c inps = map (/= 0) (foldCirc eval c)
   where
     eval :: Op -> [Integer] -> Integer
-    eval (Add _ _) [x,y] = x + y
-    eval (Sub _ _) [x,y] = x - y
-    eval (Mul _ _) [x,y] = x * y
-    eval (Input i) []    = b2i (xs !! getId i)
-    eval (Const i) []    = getSecret c i
+    eval (OpAdd _ _) [x,y] = x + y
+    eval (OpSub _ _) [x,y] = x - y
+    eval (OpMul _ _) [x,y] = x * y
+    eval (OpInput i) []    = b2i (getInput i inps)
+    eval (OpConst i) []    = getSecret c i
     eval op        args  = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
 
-getSecret :: Circuit -> Id -> Integer
-getSecret c id = case M.lookup id (circ_secrets c) of
-    Just x  -> x
-    Nothing -> error ("[getSecret] no secret known for y" ++ show id)
-
--- note: inputs are little endian: [x0, x1, ..., xn]
-plainEvalIO :: Circuit -> [Bool] -> IO [Bool]
+plainEvalIO :: Circuit -> Input Bool -> IO [Bool]
 plainEvalIO c xs = do
     zs <- foldCircIO eval c
     return $ map (/= 0) zs
   where
     eval :: Op -> [Integer] -> Integer
-    eval (Add _ _) [x,y] = x + y
-    eval (Sub _ _) [x,y] = x - y
-    eval (Mul _ _) [x,y] = x * y
-    eval (Input i) []    = b2i (xs !! getId i)
-    eval (Const i) []    = getSecret c i
+    eval (OpAdd _ _) [x,y] = x + y
+    eval (OpSub _ _) [x,y] = x - y
+    eval (OpMul _ _) [x,y] = x * y
+    eval (OpInput i) []    = b2i (getInput i xs)
+    eval (OpConst i) []    = getSecret c i
     eval op        args  = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
 
-ensure :: Bool -> (Circuit -> [Bool] -> IO [Bool]) -> Circuit -> [TestCase] -> IO Bool
+ensure :: Bool -> (Circuit -> Input Bool -> IO [Bool]) -> Circuit -> [TestCase] -> IO Bool
 ensure verbose eval c ts = and <$> mapM ensure' (zip [(0::Int)..] ts)
   where
     toBit :: Bool -> Char
@@ -173,15 +186,15 @@ ensure verbose eval c ts = and <$> mapM ensure' (zip [(0::Int)..] ts)
     toBits = map toBit
 
     ensure' (i, (inps, outs)) = do
-        res <- eval c (reverse inps)
+        res <- eval c inps
         if res == outs then do
             let s = printf "test %d succeeded: input:%s expected:%s got:%s"
-                            i (toBits inps) (toBits outs) (toBits res)
+                            i (showBoolInput inps) (toBits outs) (toBits res)
             when verbose (putStrLn s)
             return True
         else do
             let s = printf "test %d failed! input:%s expected:%s got:%s"
-                            i (toBits inps) (toBits outs) (toBits res)
+                            i (showBoolInput inps) (toBits outs) (toBits res)
             putStrLn (red s)
             return False
 
@@ -250,24 +263,24 @@ topoLevels c = map S.toAscList lvls
 
     dependencies :: Ref -> [Ref]
     dependencies ref = case circ_refmap c ! ref of
-        Input _ -> []
-        Const _ -> []
+        OpInput _ -> []
+        OpConst _ -> []
         op      -> opArgs op ++ concatMap dependencies (opArgs op)
 
 constNegation :: Circuit -> Bool
 constNegation c = not $ all refOk (M.keys (circ_refmap c))
   where
     refOk ref = case circ_refmap c ! ref of
-        Add _ _ -> True
-        Mul _ _ -> True
-        Sub x y | x /= (-1) -> True
+        OpAdd _ _ -> True
+        OpMul _ _ -> True
+        OpSub x y | x /= (-1) -> True
                 | otherwise -> notConst y
-        Input _ -> True
-        Const _ -> True
+        OpInput _ -> True
+        OpConst _ -> True
 
     notConst ref = case circ_refmap c ! ref of
-        Add x y -> notConst x || notConst y
-        Sub x y -> notConst x || notConst y
-        Mul x y -> notConst x || notConst y
-        Input _ -> True
-        Const _ -> False
+        OpAdd x y -> notConst x || notConst y
+        OpSub x y -> notConst x || notConst y
+        OpMul x y -> notConst x || notConst y
+        OpInput _ -> True
+        OpConst _ -> False

@@ -42,7 +42,7 @@ insertConst ref id = do
     refs <- circ_consts <$> getCirc
     let circ_consts' = safeInsert ("redefinition of y" ++ show id) id ref refs
     modifyCirc (\c -> c { circ_consts = circ_consts' })
-    insertOp ref (Const id)
+    insertOp ref (OpConst id)
 
 insertSecret :: Id -> Integer -> Builder ()
 insertSecret id val = do
@@ -55,7 +55,7 @@ insertInput ref id = do
     refs <- circ_inputs <$> getCirc
     let circ_inputs' = safeInsert ("redefinition of x" ++ show id) id ref refs
     modifyCirc (\c -> c { circ_inputs = circ_inputs' })
-    insertOp ref (Input id)
+    insertOp ref (OpInput id)
 
 newOp :: Op -> Builder Ref
 newOp op = do
@@ -127,16 +127,16 @@ secrets :: [Integer] -> Builder [Ref]
 secrets vals = mapM secret vals
 
 circAdd :: Ref -> Ref -> Builder Ref
-circAdd x y = newOp (Add x y)
+circAdd x y = newOp (OpAdd x y)
 
 circSub :: Ref -> Ref -> Builder Ref
-circSub x y = newOp (Sub x y)
+circSub x y = newOp (OpSub x y)
 
 circMul :: Ref -> Ref -> Builder Ref
-circMul x y = newOp (Mul x y)
+circMul x y = newOp (OpMul x y)
 
 circSum :: [Ref] -> Builder Ref
-circSum (x:xs) = foldM (\a b -> newOp (Add a b)) x xs
+circSum (x:xs) = foldM (\a b -> newOp (OpAdd a b)) x xs
 
 output :: [Ref] -> Builder ()
 output xs = mapM_ markOutput xs
@@ -146,15 +146,15 @@ output xs = mapM_ markOutput xs
 subcircuit :: Circuit -> [Ref] -> [Ref] -> Builder [Ref]
 subcircuit c xs ys = foldCircM translate c
   where
-    translate (Add _ _) _ [x,y] = circAdd x y
-    translate (Sub _ _) _ [x,y] = circSub x y
-    translate (Mul _ _) _ [x,y] = circMul x y
-    translate (Input id) _ _ = if (getId id >= length xs) then input else return (xs !! getId id)
-    translate (Const id) _ _ = if (getId id >= length ys)
-                                  then if M.member id (circ_secrets c)
-                                          then secret (circ_secrets c M.! id)
-                                          else constant
-                                  else return (ys !! getId id)
+    translate (OpAdd _ _) _ [x,y] = circAdd x y
+    translate (OpSub _ _) _ [x,y] = circSub x y
+    translate (OpMul _ _) _ [x,y] = circMul x y
+    translate (OpInput id) _ _ = if (getId id >= length xs) then input else return (xs !! getId id)
+    translate (OpConst id) _ _ = if (getId id >= length ys)
+                                    then if M.member id (circ_secrets c)
+                                            then secret (circ_secrets c M.! id)
+                                            else constant
+                                    else return (ys !! getId id)
     eval op ref args = error ("[subCircuit] weird input: " ++ show op ++ " " ++ show args)
 
 subcircuit' :: Circuit -> [Ref] -> Builder [Ref]
