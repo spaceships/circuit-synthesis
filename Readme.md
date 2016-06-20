@@ -1,5 +1,5 @@
-requires: saw-script, abc, yosys
+circuit-synthesis
+=================
 
-usage: ./cryptol2verilog CRYPTOLFILE FUNCTION
-
-returns number of AND gates in optimized circuit
+Eventually this will be a sweet application to compose circuits, define
+low-level circuit structures, convert circuit formats, and optimize.
