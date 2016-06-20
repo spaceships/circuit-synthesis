@@ -1,0 +1,37 @@
+#!/bin/bash
+
+set -e
+
+num_test_cases=10
+
+scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+cryptolfile=$(pwd)/$1
+func=$2
+testfile=${2}_tests.cry
+
+cd /tmp
+
+cat > sawcmds.saw <<- EOM
+m <- cryptol_load "$cryptolfile";
+f <- cryptol_extract m "$func";
+write_aig "${func}.aig" f;
+EOM
+
+cat > abccmds.abc <<- EOM
+read "${func}.aig"
+strash
+multi
+fraig
+rewrite -l
+balance -s -d -x
+write "${func}.bench"
+EOM
+
+sizes=($(egrep "$func\\s*:\\s*" $cryptolfile | perl -ne '/\(\[(\d+)],\s*\[(\d+)\]\)/; print "$1 $2";'))
+xsize=${sizes[0]}
+ysize=${sizes[1]}
+
+saw sawcmds.saw > /dev/null
+abc -f abccmds.abc > /dev/null
+perl $scriptdir/bench2circ.pl $func.bench ${3:-arithmetic-circuit} $xsize $ysize

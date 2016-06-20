@@ -1,0 +1,18 @@
+module Rachael where
+
+/*brent : {n} (fin n) => [n] -> [2^^n]*/
+brent : [8] -> [256]
+/*brent x = [ x == i | i <- [0..2^^n-1] ]*/
+brent x = [ x == i | i <- [0..255] ]
+
+/*mariana : {n} (fin n, n>=2) => [n] -> [2^^n]*/
+mariana : [8] -> [256]
+mariana x = res ! 0
+  where
+    e0 = [True] # zero
+    /*res = [e0] # [ if b then e >> (2^^i : [n]) else e*/
+    res = [e0] # [ if b then e >> (2^^i : [8]) else e
+                 | b <- reverse x
+                 | i <- [0..]
+                 | e <- res
+                 ]

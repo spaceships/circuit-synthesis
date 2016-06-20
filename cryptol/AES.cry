@@ -66,26 +66,17 @@ gf28MatrixMult : {n, m, k} (fin m) => ([n][m]GF28, [m][k]GF28) -> [n][k]GF28
 gf28MatrixMult (xss, yss) = [ gf28VectorMult(xs, yss') | xs <- xss ]
    where yss' = transpose yss
 
-// The affine transform and its inverse
 xformByte : GF28 -> GF28
-xformByte b = gf28Add [b, (b >>> 4), (b >>> 5), (b >>> 6), (b >>> 7), c]
-   where c = 0x63
+xformByte b = gf28Add [(b >>> 2), (b >>> 5), (b >>> 7), d] where d = 0x05
 
-xformByte' : GF28 -> GF28
-xformByte' b = gf28Add [(b >>> 2), (b >>> 5), (b >>> 7), d] where d = 0x05
-// The SubBytes transform and its inverse
 SubByte : GF28 -> GF28
-SubByte b = xformByte (gf28Inverse b)
-
-SubByte' : GF28 -> GF28
-SubByte' b = sbox@b
+SubByte b = sbox@b
 
 SubBytes : State -> State
-SubBytes state = [ [ SubByte' b | b <- row ] | row <- state ]
-
+SubBytes state = [ [ SubByte b | b <- row ] | row <- state ]
 
 InvSubByte : GF28 -> GF28
-InvSubByte b = gf28Inverse (xformByte' b)
+InvSubByte b = gf28Inverse (xformByte b)
 
 InvSubBytes : State -> State
 InvSubBytes state =[ [ InvSubByte b | b <- row ] | row <- state ]
@@ -93,12 +84,12 @@ InvSubBytes state =[ [ InvSubByte b | b <- row ] | row <- state ]
 // The ShiftRows transform and its inverse
 ShiftRows : State -> State
 ShiftRows state = [ row <<< shiftAmount | row <- state
-                                        | shiftAmount <- [0 .. 3]
+                                        | shiftAmount <- [0 .. 3] : [_][16]
                   ]
 
 InvShiftRows : State -> State
 InvShiftRows state = [ row >>> shiftAmount | row <- state
-                                           | shiftAmount <- [0 .. 3]
+                                           | shiftAmount <- [0 .. 3] : [_][16]
                      ]
 
 // The MixColumns transform and its inverse
@@ -119,6 +110,7 @@ InvMixColumns state = gf28MatrixMult (m, state)
 // The AddRoundKey transform
 AddRoundKey : (RoundKey, State) -> State
 AddRoundKey (rk, s) = rk ^ s
+
 // Key expansion
 Rcon : [8] -> [4]GF28
 Rcon i = [(gf28Pow (<| x |>, i-1)), 0, 0, 0]
@@ -133,7 +125,7 @@ NextWord : ([8],[4][8],[4][8]) -> [4][8]
 NextWord(i, prev, old) = old ^ mask
    where mask = if i % `Nk == 0
                 then SubWord(RotWord(prev)) ^ Rcon (i / `Nk)
-                else if (`Nk > 6) && (i % `Nk == 4)
+                else if (`Nk > (6 : [3])) && (i % `Nk == 4)
                      then SubWord(prev)
                      else prev
 
@@ -153,7 +145,7 @@ checkKey = take`{16} (drop`{8} (keyWS ["abcd", "defg", "1234", "5678"]))
 checkKey2 = [transpose g | g <- groupBy`{4}checkKey]
 
 ExpandKey : [AESKeySize] -> KeySchedule
-ExpandKey key = (keys @ 0, keys @@ [1 .. (Nr - 1)], keys @ `Nr)
+ExpandKey key = (keys @ 0, keys @@ ([1 .. (Nr - 1)] : [_][4]), keys @ (`Nr : [4]))
   where   seed : [Nk][4][8]
           seed = split (split key)
           keys = ExpandKeyForever seed
@@ -165,6 +157,9 @@ fromKS (f, ms, l) = [ formKeyWords (transpose k) | k <- [f] # ms # [l] ]
 // AES rounds and inverses
 AESRound : (RoundKey, State) -> State
 AESRound (rk, s) = AddRoundKey (rk, MixColumns (ShiftRows (SubBytes s)))
+
+AESLinear : (RoundKey, State) -> State
+AESLinear (rk, s) = AddRoundKey (rk, MixColumns (ShiftRows s))
 
 AESFinalRound : (RoundKey, State) -> State
 AESFinalRound (rk, s) = AddRoundKey (rk, ShiftRows (SubBytes s))
@@ -243,14 +238,32 @@ property AESCorrect msg key = aesDecrypt (aesEncrypt (msg, key), key) == msg
 aes1Round : ([128], [128]) -> [128]
 aes1Round (pt, key) = stateToMsg (AESRound (msgToState key, msgToState pt))
 
+aes1LinearRound : ([128], [128]) -> [128]
+aes1LinearRound (pt, key) = stateToMsg (AESLinear (msgToState key, msgToState pt))
+
 b0 : ([128], [128]) -> Bit
 b0 (pt, key) = aes1Round (pt, key) @ 0
+
+b0_linear : ([128], [128]) -> Bit
+b0_linear (pt, key) = aes1LinearRound (pt, key) @ 0
 
 b0_2 : ([2], [128]) -> Bit
 b0_2 (pt, key) = aes1Round (pt # zero, key) @ 0
 
+b0_3 : ([3], [128]) -> Bit
+b0_3 (pt, key) = aes1Round (pt # zero, key) @ 0
+
 b0_4 : ([4], [128]) -> Bit
 b0_4 (pt, key) = aes1Round (pt # zero, key) @ 0
+
+b0_5 : ([5], [128]) -> Bit
+b0_5 (pt, key) = aes1Round (pt # zero, key) @ 0
+
+b0_6 : ([6], [128]) -> Bit
+b0_6 (pt, key) = aes1Round (pt # zero, key) @ 0
+
+b0_7 : ([7], [128]) -> Bit
+b0_7 (pt, key) = aes1Round (pt # zero, key) @ 0
 
 b0_8 : ([8], [128]) -> Bit
 b0_8 (pt, key) = aes1Round (pt # zero, key) @ 0
@@ -287,3 +300,31 @@ sbox6 (inp, key) = ((sbox @ inp)) @ 6
 
 sbox7 : ([8], [8]) -> Bit
 sbox7 (inp, key) = ((sbox @ inp)) @ 7
+
+
+
+toRachael : ([8],[0]) -> [256]
+toRachael (x,_) = [ x == i | i <- [0..255] ]
+
+foldl : {a, b, n} (fin n) => (a -> b -> a) -> a -> [n]b -> a
+foldl f acc xs = ys ! 0
+  where ys = [acc] # [f a x | a <- ys | x <- xs]
+
+sum : {a,n} (fin n, Arith a) => [n]a -> a
+sum xs = foldl (+) zero xs
+
+rachaelSubByte : GF28 -> GF28
+rachaelSubByte byte = [ sboxBit i byte | i <- [0..7] ]
+
+sboxBit : [8] -> [8] -> Bit
+sboxBit i byte = foldl (^) zero [ b && (s@i) | b <- toRachael (byte,zero) | s <- sbox ]
+
+rbox : [256] -> [8]
+rbox r = [ foldl (^) zero [ b && (s@i) | b <- r | s <- sbox ] | i <- [0..7] : [_][4] ]
+
+rachaelSubBytes : State -> State
+rachaelSubBytes state = [ [ rachaelSubByte b | b <- row ] | row <- state ]
+
+
+sbox0_r : ([8], [8]) -> Bit
+sbox0_r (inp, key) = sboxBit 0 inp

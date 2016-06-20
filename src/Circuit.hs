@@ -21,11 +21,14 @@ import Text.Printf
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 
-newtype Ref = Ref { getRef :: Int } deriving (Eq, Ord, NFData, Num, Show)
+newtype Ref = Ref { getRef :: Int } deriving (Eq, Ord, NFData, Num)
 newtype Id  = Id  { getId  :: Int } deriving (Eq, Ord, NFData, Num)
 
+instance Show Ref where
+    show ref = "r" ++ show (getRef ref)
+
 instance Show Id where
-    show = show . getId
+    show id = "i" ++ show (getId id)
 
 type Input a = M.Map Id a
 

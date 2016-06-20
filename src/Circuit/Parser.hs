@@ -11,11 +11,10 @@ type CircuitParser = String -> (Circuit, [TestCase])
 data ParseSt = ParseSt {
       st_circ   :: Circuit
     , st_tests  :: [TestCase]
-    , st_ys     :: M.Map Id Int
     , st_refmap :: M.Map String Ref
     }
 
-emptySt = ParseSt emptyCirc [] M.empty M.empty
+emptySt = ParseSt emptyCirc [] M.empty
 
 type ParseCirc = Parsec String ParseSt
 
@@ -42,11 +41,11 @@ insertConst ref id = do
     modifyCirc (\c -> c { circ_consts = circ_consts' })
     insertOp ref (OpConst id)
 
-insertSecret :: Id -> Int -> ParseCirc ()
+insertSecret :: Id -> Integer -> ParseCirc ()
 insertSecret id val = do
-    ys <- st_ys <$> getState
+    ys <- circ_secrets <$> getCirc
     let ys' = safeInsert ("reassignment of y" ++ show id) id val ys
-    modifyState (\st -> st { st_ys = ys' })
+    modifyCirc (\c -> c { circ_secrets = ys' })
 
 insertInput :: Ref -> Id -> ParseCirc ()
 insertInput ref id = do

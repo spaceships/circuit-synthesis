@@ -9,11 +9,17 @@ my %mapping;
 my %gates;
 my @inputorder;
 my @gateorder;
-my $outgate;
+my @outgates;
 my $nextref = 0;
 
 open(my $fh, '<', $ARGV[0]) or die "couldn't open $ARGV[0]: $!";
 my $type = $ARGV[1] || die "no type given";
+
+sub elem {
+    my $elem  = shift;
+    my $array = shift;
+    return grep {$_ == $elem} @$array;
+}
 
 #eventually take this and input to y from command line
 my ($nxs, $nys) = @ARGV[2..3];
@@ -34,7 +40,7 @@ while (<$fh>) {
   }
 
   elsif (/OUTPUT\((.*)\)/) {
-    $outgate = $1;
+    push @outgates, $1;
   }
 
   elsif (/([\w\d]+)\s+=\s+(\w+)\(([\w\d]+)\)/) {
@@ -55,31 +61,12 @@ while (<$fh>) {
 
 close $fh;
 
-my %get_depth_seen;
-sub get_depth {
-    my ($ref) = @_;
-    if (exists $get_depth_seen{$ref}) {
-        return $get_depth_seen{$ref};
-    }
-    my @gate = @{$gates{$ref}};
-    if ($gate[0] eq "input") {
-        $get_depth_seen{$ref} = 0;
-        return 0;
-    } else {
-        my $res = 1 + max(map {get_depth($_)} @{$gate[1]});
-        $get_depth_seen{$ref} = $res;
-        return $res;
-    }
-}
-
-my $outgateref = $mapping{$outgate};
-
-my $depth = get_depth($outgateref);
+my @outgaterefs = map { $mapping{$_} } @outgates;
+#my $outgateref = $mapping{$outgate};
 
 sub print_arith {
   # first input is const 1
   say ": nins $nxs";
-  say ": depth $depth";
   say "0 input y0 1";
   my $xctr = 0;
   my $yctr = 1;
@@ -95,7 +82,7 @@ sub print_arith {
     my $type = $gates{$var}->[0];
     my @args = map {$_+1} @{$gates{$var}->[1]};
     my $str = $var+1;
-    if ($var == $outgateref) {
+    if (elem($var, \@outgaterefs)) {
       $str .= " output ";
     } else {
       $str .= " gate ";
@@ -113,7 +100,6 @@ sub print_arith {
 
 sub print_bool {
   say ": nins $nxs";
-  say ": depth $depth";
   push @inputorder, @gateorder;
   for my $var (@inputorder) {
     my $type = $gates{$var}->[0];
@@ -122,7 +108,7 @@ sub print_bool {
       say "$var input";
     } else {
       my $str = $var;
-      if ($var == $outgateref) {
+      if (elem($var, @outgaterefs)) {
         $str .= " output ";
       } else {
         $str .= " gate ";
@@ -150,12 +136,12 @@ sub print_formula {
     } 
     else {
       my @argvars = map { &{$visit}($_) } @$args;
-      my $gatestr = ($var == $outgateref) ?  "output" : "gate";
+      my $gatestr = elem($var, @outgaterefs) ?  "output" : "gate";
       push @gates, "$nextref $gatestr $type @argvars";
       return $nextref++;
     }
   };
-  &$visit($outgateref);
+  map { &$visit($_) } @outgaterefs;
   say for @inputs;
   say for @gates;
 }

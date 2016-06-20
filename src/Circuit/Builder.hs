@@ -6,6 +6,7 @@ import Circuit
 import Util
 
 import Control.Monad.State
+import Text.Printf
 import qualified Data.Map as M
 
 type Builder = State BuildSt
@@ -124,7 +125,7 @@ secret val = do
     return ref
 
 secrets :: [Integer] -> Builder [Ref]
-secrets vals = mapM secret vals
+secrets = mapM secret
 
 circAdd :: Ref -> Ref -> Builder Ref
 circAdd x y = newOp (OpAdd x y)
@@ -144,18 +145,22 @@ output xs = mapM_ markOutput xs
 -- NOTE: unconnected secrets from the subcircuit will be secrets in the
 -- resulting composite circuit.
 subcircuit :: Circuit -> [Ref] -> [Ref] -> Builder [Ref]
-subcircuit c xs ys = foldCircM translate c
+subcircuit c xs ys
+    | length xs < ninputs c = error (printf "[subcircuit] not enough inputs got %d, need %d"
+                                            (show (length xs)) (show (ninputs c)))
+    | length ys < nconsts c = error (printf "[subcircuit] not enough consts got %d, need %d"
+                                            (show (length ys)) (show (nconsts c)))
+    | otherwise = foldCircM translate c
   where
     translate (OpAdd _ _) _ [x,y] = circAdd x y
     translate (OpSub _ _) _ [x,y] = circSub x y
     translate (OpMul _ _) _ [x,y] = circMul x y
-    translate (OpInput id) _ _ = if (getId id >= length xs) then input else return (xs !! getId id)
-    translate (OpConst id) _ _ = if (getId id >= length ys)
-                                    then if M.member id (circ_secrets c)
-                                            then secret (circ_secrets c M.! id)
-                                            else constant
-                                    else return (ys !! getId id)
+    translate (OpInput id) _ _ = return (xs !! getId id)
+    translate (OpConst id) _ _ = return (ys !! getId id)
     eval op ref args = error ("[subCircuit] weird input: " ++ show op ++ " " ++ show args)
 
+-- lift the subcircuit's secrets into the circuit
 subcircuit' :: Circuit -> [Ref] -> Builder [Ref]
-subcircuit' c xs = subcircuit c xs []
+subcircuit' c xs = do
+    ys <- secrets $ map snd (M.toAscList (circ_secrets c))
+    subcircuit c xs ys
