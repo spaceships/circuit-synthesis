@@ -24,30 +24,6 @@ import qualified Data.Set as S
 newtype Ref = Ref { getRef :: Int } deriving (Eq, Ord, NFData, Num)
 newtype Id  = Id  { getId  :: Int } deriving (Eq, Ord, NFData, Num)
 
-instance Show Ref where
-    show ref = "r" ++ show (getRef ref)
-
-instance Show Id where
-    show id = "i" ++ show (getId id)
-
-type Input a = M.Map Id a
-
-toInput :: [Bool] -> Input Bool
-toInput = M.fromList . zip (map Id [0..])
-
-getInput :: Id -> Input a -> a
-getInput id inp = case M.lookup id inp of
-    Just x  -> x
-    Nothing -> error ("[getInput] no input provided for known for x" ++ show id)
-
-getSecret :: Circuit -> Id -> Integer
-getSecret c id = case M.lookup id (circ_secrets c) of
-    Just x  -> x
-    Nothing -> error ("[getSecret] no secret known for y" ++ show id)
-
-showBoolInput :: Input Bool -> String
-showBoolInput = showBitstring . map snd . M.toAscList
-
 data Op = OpAdd Ref Ref
         | OpSub Ref Ref
         | OpMul Ref Ref
@@ -56,26 +32,40 @@ data Op = OpAdd Ref Ref
         deriving (Eq, Ord, Show)
 
 data Circuit = Circuit {
-      circ_outrefs :: [Ref]
-    , circ_inputs  :: M.Map Id Ref
-    , circ_consts  :: M.Map Id Ref
+      circ_outputs :: [Ref]
+    , circ_inputs  :: [Ref]
+    , circ_consts  :: [Ref]
     , circ_secrets :: M.Map Id Integer
     , circ_refmap  :: M.Map Ref Op
     } deriving (Show)
 
-emptyCirc = Circuit [] M.empty M.empty M.empty M.empty
+type TestCase = ([Bool], [Bool])
 
-type TestCase = (Input Bool, [Bool])
+--------------------------------------------------------------------------------
+-- instances and such
+
+emptyCirc = Circuit [] [] [] M.empty M.empty
+
+instance Show Ref where
+    show ref = "r" ++ show (getRef ref)
+
+instance Show Id where
+    show id = "i" ++ show (getId id)
+
+getSecret :: Circuit -> Id -> Integer
+getSecret c id = case M.lookup id (circ_secrets c) of
+    Just x  -> x
+    Nothing -> error ("[getSecret] no secret known for y" ++ show id)
 
 genTest :: Circuit -> IO TestCase
 genTest c = do
-    inp <- toInput <$> num2Bits (ninputs c) <$> randIO (randInteger (ninputs c))
+    inp <- num2Bits (ninputs c) <$> randIO (randInteger (ninputs c))
     return (inp, plainEval c inp)
 
 genTestStr :: Circuit -> IO (String, String)
 genTestStr c = do
     (inp, out) <- genTest c
-    return (showBoolInput inp, showBitstring out)
+    return (showBitstring inp, showBitstring out)
 
 printCircInfo :: Circuit -> IO ()
 printCircInfo c = do
@@ -92,16 +82,16 @@ opArgs (OpConst _) = []
 opArgs (OpInput _) = []
 
 ninputs :: Circuit -> Int
-ninputs = M.size . circ_inputs
+ninputs = length . circ_inputs
 
 nconsts :: Circuit -> Int
-nconsts = M.size . circ_consts
+nconsts = length . circ_consts
 
 nsecrets :: Circuit -> Int
 nsecrets = M.size . circ_secrets
 
 noutputs :: Circuit -> Int
-noutputs = length . circ_outrefs
+noutputs = length . circ_outputs
 
 ydeg :: Circuit -> Int
 ydeg c = varDegree c (OpConst $ Id (-1))
@@ -144,29 +134,28 @@ circDegree c = maximum $ foldCirc f c
     f (OpInput id) _ = 1
     f (OpConst id) _ = 1
 
-evalMod :: (Show a, Integral a) => Circuit -> Input a -> a -> [a]
+evalMod :: (Show a, Integral a) => Circuit -> [a] -> a -> [a]
 evalMod c inps q = foldCirc eval c
   where
     eval (OpAdd _ _) [x,y] = x + y % q
-    {-eval (OpSub 0 _) [x]   = 1 - x % q-}
     eval (OpSub _ _) [x,y] = x - y % q
     eval (OpMul _ _) [x,y] = x * y % q
-    eval (OpInput i) []    = getInput i inps
+    eval (OpInput i) []    = inps !! getId i
     eval (OpConst i) []    = fromIntegral (getSecret c i)
     eval op        args  = error ("[evalMod] weird input: " ++ show op ++ " " ++ show args)
 
-plainEval :: Circuit -> Input Bool -> [Bool]
+plainEval :: Circuit -> [Bool] -> [Bool]
 plainEval c inps = map (/= 0) (foldCirc eval c)
   where
     eval :: Op -> [Integer] -> Integer
     eval (OpAdd _ _) [x,y] = x + y
     eval (OpSub _ _) [x,y] = x - y
     eval (OpMul _ _) [x,y] = x * y
-    eval (OpInput i) []    = b2i (getInput i inps)
+    eval (OpInput i) []    = b2i (inps !! getId i)
     eval (OpConst i) []    = getSecret c i
     eval op        args  = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
 
-plainEvalIO :: Circuit -> Input Bool -> IO [Bool]
+plainEvalIO :: Circuit -> [Bool] -> IO [Bool]
 plainEvalIO c xs = do
     zs <- foldCircIO eval c
     return $ map (/= 0) zs
@@ -175,29 +164,26 @@ plainEvalIO c xs = do
     eval (OpAdd _ _) [x,y] = x + y
     eval (OpSub _ _) [x,y] = x - y
     eval (OpMul _ _) [x,y] = x * y
-    eval (OpInput i) []    = b2i (getInput i xs)
+    eval (OpInput i) []    = b2i (xs !! getId i)
     eval (OpConst i) []    = getSecret c i
     eval op        args  = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
 
-ensure :: Bool -> (Circuit -> Input Bool -> IO [Bool]) -> Circuit -> [TestCase] -> IO Bool
+ensure :: Bool -> (Circuit -> [Bool] -> IO [Bool]) -> Circuit -> [TestCase] -> IO Bool
 ensure verbose eval c ts = and <$> mapM ensure' (zip [(0::Int)..] ts)
   where
     toBit :: Bool -> Char
     toBit b = if b then '1' else '0'
 
-    toBits :: [Bool] -> String
-    toBits = map toBit
-
     ensure' (i, (inps, outs)) = do
         res <- eval c inps
         if res == outs then do
             let s = printf "test %d succeeded: input:%s expected:%s got:%s"
-                            i (showBoolInput inps) (toBits outs) (toBits res)
+                            i (showBitstring inps) (showBitstring outs) (showBitstring res)
             when verbose (putStrLn s)
             return True
         else do
             let s = printf "test %d failed! input:%s expected:%s got:%s"
-                            i (showBoolInput inps) (toBits outs) (toBits res)
+                            i (showBitstring inps) (showBitstring outs) (showBitstring res)
             putStrLn (red s)
             return False
 
@@ -207,7 +193,7 @@ foldCirc f c = runIdentity (foldCircM f' c)
     f' op _ xs = return (f op xs)
 
 foldCircM :: Monad m => (Op -> Ref -> [a] -> m a) -> Circuit -> m [a]
-foldCircM f c = evalStateT (mapM eval (circ_outrefs c)) M.empty
+foldCircM f c = evalStateT (mapM eval (circ_outputs c)) M.empty
   where
     eval ref = gets (M.lookup ref) >>= \case
         Just val -> return val
@@ -241,7 +227,7 @@ foldCircIO f c = do
     forM_ (zip [(0 :: Int)..] lvls) $ \(_, lvl) -> do
         {-printf "evaluating level %d size=%d\n" i (length lvl)-}
         parallelInterleaved (map eval lvl)
-    mapM (atomically . readTMVar . (mem !)) (circ_outrefs c)
+    mapM (atomically . readTMVar . (mem !)) (circ_outputs c)
 
 topologicalOrder :: Circuit -> [Ref]
 topologicalOrder c = reverse $ execState (foldCircM eval c) []

@@ -61,7 +61,10 @@ readBitstring s = if take 2 s == "0b"
                      else error "[readBitstring] unknown bitstring"
 
 showBitstring :: [Bool] -> String
-showBitstring bs = "0b" ++ map (\b -> if b then '1' else '0') bs
+showBitstring bs = "0b" ++ showBitstring' bs
+
+showBitstring' :: [Bool] -> String
+showBitstring' bs = map (\b -> if b then '1' else '0') bs
 
 red :: String -> String
 red s = "\x1b[1;41m" ++ s ++ "\x1b[0m"

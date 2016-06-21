@@ -40,9 +40,7 @@ insertOp ref op = do
 
 insertConst :: Ref -> Id -> Builder ()
 insertConst ref id = do
-    refs <- circ_consts <$> getCirc
-    let circ_consts' = safeInsert ("redefinition of y" ++ show id) id ref refs
-    modifyCirc (\c -> c { circ_consts = circ_consts' })
+    modifyCirc (\c -> c { circ_consts = circ_consts c ++ [ref] })
     insertOp ref (OpConst id)
 
 insertSecret :: Id -> Integer -> Builder ()
@@ -53,9 +51,7 @@ insertSecret id val = do
 
 insertInput :: Ref -> Id -> Builder ()
 insertInput ref id = do
-    refs <- circ_inputs <$> getCirc
-    let circ_inputs' = safeInsert ("redefinition of x" ++ show id) id ref refs
-    modifyCirc (\c -> c { circ_inputs = circ_inputs' })
+    modifyCirc (\c -> c { circ_inputs = circ_inputs c ++ [ref] })
     insertOp ref (OpInput id)
 
 newOp :: Op -> Builder Ref
@@ -88,7 +84,7 @@ nextConstId = do
     return id
 
 markOutput :: Ref -> Builder ()
-markOutput ref = modifyCirc (\c -> c { circ_outrefs = circ_outrefs c ++ [ref] })
+markOutput ref = modifyCirc (\c -> c { circ_outputs = circ_outputs c ++ [ref] })
 
 --------------------------------------------------------------------------------
 -- smart constructors

@@ -4,7 +4,7 @@ import Circuit
 import Util
 import Rand
 import Circuit.Parser (CircuitParser)
-import qualified Circuit.AcircParser    as Acirc
+import qualified Circuit.Acirc as Acirc
 import qualified Circuit.VerilogParser  as Verilog
 
 import Control.Monad
