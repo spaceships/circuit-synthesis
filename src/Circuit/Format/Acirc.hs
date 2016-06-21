@@ -1,4 +1,4 @@
-module Circuit.Acirc
+module Circuit.Format.Acirc
   ( parseCirc
   , showCirc
   , showTest

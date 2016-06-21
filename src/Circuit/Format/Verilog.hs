@@ -1,4 +1,4 @@
-module Circuit.VerilogParser
+module Circuit.Format.Verilog
   where
 
 import Circuit
