@@ -3,6 +3,7 @@ module Circuit.Parser where
 import Circuit
 import Util
 
+import Control.Monad
 import Text.Parsec hiding (spaces, parseTest)
 import qualified Data.Map as M
 
@@ -51,7 +52,7 @@ insertInput ref id = do
     insertOp ref (OpInput id)
 
 markOutput :: Ref -> ParseCirc ()
-markOutput ref = modifyCirc (\c -> c { circ_outputs = circ_outputs c ++ [ref] })
+markOutput ref = modifyCirc (\c -> c { circ_output = circ_output c ++ [ref] })
 
 --------------------------------------------------------------------------------
 -- custom parsers
@@ -65,5 +66,5 @@ spaces = skipMany (oneOf " \t")
 endLine :: ParseCirc ()
 endLine = do
     skipMany (char ' ')
-    eof <|> (endOfLine >> return ())
+    eof <|> void endOfLine
     return ()

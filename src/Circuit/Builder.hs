@@ -84,7 +84,7 @@ nextConstId = do
     return id
 
 markOutput :: Ref -> Builder ()
-markOutput ref = modifyCirc (\c -> c { circ_outputs = circ_outputs c ++ [ref] })
+markOutput ref = modifyCirc (\c -> c { circ_output = circ_output c ++ [ref] })
 
 --------------------------------------------------------------------------------
 -- smart constructors
@@ -136,7 +136,7 @@ circSum :: [Ref] -> Builder Ref
 circSum (x:xs) = foldM (\a b -> newOp (OpAdd a b)) x xs
 
 output :: [Ref] -> Builder ()
-output xs = mapM_ markOutput xs
+output = mapM_ markOutput
 
 -- NOTE: unconnected secrets from the subcircuit will be secrets in the
 -- resulting composite circuit.

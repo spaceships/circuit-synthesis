@@ -15,7 +15,7 @@ sizeBase2 :: Integer -> Int
 sizeBase2 x = fromIntegral (W# (GMP.sizeInBaseInteger x 2#))
 
 invMod :: Integer -> Integer -> Integer
-invMod x q = GMP.recipModInteger x q
+invMod = GMP.recipModInteger
 
 mulMod :: Integer -> Integer -> Integer -> Integer
 mulMod x y z = x * y `mod` z
@@ -55,16 +55,16 @@ num2Bits n x = reverse bs
   where
     bs = [ x .&. 2^i > 0 | i <- [0 .. n-1] ]
 
-readBitstring :: String -> [Bool]
-readBitstring s = if take 2 s == "0b"
+readBits :: String -> [Bool]
+readBits s = if take 2 s == "0b"
                      then map (== '1') (drop 2 s)
                      else error "[readBitstring] unknown bitstring"
 
-showBitstring :: [Bool] -> String
-showBitstring bs = "0b" ++ showBitstring' bs
+showBits :: [Bool] -> String
+showBits bs = "0b" ++ showBits' bs
 
-showBitstring' :: [Bool] -> String
-showBitstring' bs = map (\b -> if b then '1' else '0') bs
+showBits' :: [Bool] -> String
+showBits' = map (\b -> if b then '1' else '0')
 
 red :: String -> String
 red s = "\x1b[1;41m" ++ s ++ "\x1b[0m"

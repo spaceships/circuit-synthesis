@@ -28,9 +28,9 @@ arbitraryCircuit nxs nys width circdepth = circ <$> build
   where
     build :: Gen CircuitBuilder
     build = flip execStateT emptyBuild $ do
-        replicateM nxs    makeInp
-        replicateM nys    makeConst
-        forM [1..circdepth] $ \d -> do
+        replicateM_ nxs makeInp
+        replicateM_ nys makeConst
+        forM_ [1..circdepth] $ \d -> do
             ngates <- lift $ choose (1, width)
             replicateM_ ngates (makeGate d)
         lastRef <- makeGate (circdepth + 1)
@@ -48,7 +48,7 @@ makeInp = do
 makeConst :: StateT CircuitBuilder Gen ()
 makeConst = do
     i   <- nextConst
-    val <- lift $ arbitrary
+    val <- lift arbitrary
     putConst (b2i val)
     putGate 0 (Const i)
     return ()
@@ -65,13 +65,13 @@ makeGate level = loop 100
         stale <- lift $ frequency [(10, falseGen), (1, trueGen)]
         xref  <- existingRef (level-1) stale
         yref  <- existingRef (level-1) stale
-        if (xref == yref) then
-            loop (i+1)
-        else case (typ :: Int) of
-            0 -> putGate level (Add xref yref)
-            1 -> putGate level (Sub xref yref)
-            2 -> putGate level (Mul xref yref)
-            _ -> error "oops"
+        if xref == yref
+           then loop (i+1)
+           else case (typ :: Int) of
+               0 -> putGate level (Add xref yref)
+               1 -> putGate level (Sub xref yref)
+               2 -> putGate level (Mul xref yref)
+               _ -> error "oops"
 
 putGate :: Int -> Op -> StateT CircuitBuilder Gen Ref
 putGate level op = do
@@ -106,7 +106,7 @@ nextConst = do
     return i
 
 putConst :: Integer -> StateT CircuitBuilder Gen ()
-putConst val = modify $ \s -> s { circ = (circ s) { consts = val : (consts (circ s)) } }
+putConst val = modify $ \s -> s { circ = (circ s) { consts = val : consts (circ s) } }
 
 putInput :: ID -> Ref -> StateT CircuitBuilder Gen ()
 putInput i ref = modify $ \s -> s { circ = (circ s) { inpRefs = M.insert i ref (inpRefs (circ s)) } }

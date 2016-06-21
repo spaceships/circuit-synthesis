@@ -23,16 +23,16 @@ instance Options MainOptions where
     defineOptions = pure MainOptions
         <*> defineOption optionType_bool
             (\o -> o { optionLongFlags   = ["info"]
-                     , optionShortFlags  = ['i']
+                     , optionShortFlags  = "i"
                      , optionDescription = "Show circuit info."
                      })
         <*> defineOption optionType_bool
-            (\o -> o { optionShortFlags  = ['v']
+            (\o -> o { optionShortFlags  = "v"
                      , optionLongFlags   = ["verbose"]
                      , optionDescription = "Be verbose."
                      })
         <*> defineOption optionType_bool
-            (\o -> o { optionShortFlags  = ['t']
+            (\o -> o { optionShortFlags  = "t"
                      , optionLongFlags   = ["test"]
                      , optionDescription = "Run the circuit on tests (random if none exist)."
                      })
@@ -43,7 +43,7 @@ instance Options MainOptions where
 
 main :: IO ()
 main = runCommand $ \opts args -> do
-    when (length args == 0) $ do
+    when (null args) $ do
          putStrLn "[error] input circuit required"
          exitFailure
     let inputFile = head args

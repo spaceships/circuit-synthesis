@@ -1,4 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -6,7 +5,6 @@
 module Circuit where
 
 import Util
-import Util (forceM, pmap)
 import Rand
 
 import Control.Monad.Identity
@@ -32,7 +30,7 @@ data Op = OpAdd Ref Ref
         deriving (Eq, Ord, Show)
 
 data Circuit = Circuit {
-      circ_outputs :: [Ref]
+      circ_output  :: [Ref]
     , circ_inputs  :: [Ref]
     , circ_consts  :: [Ref]
     , circ_secrets :: M.Map Id Integer
@@ -65,14 +63,14 @@ genTest c = do
 genTestStr :: Circuit -> IO (String, String)
 genTestStr c = do
     (inp, out) <- genTest c
-    return (showBitstring inp, showBitstring out)
+    return (showBits inp, showBits out)
 
 printCircInfo :: Circuit -> IO ()
 printCircInfo c = do
     printf "circuit info: depth=%d ninputs=%d noutputs=%d nconsts=%d[%d]\n"
             (depth c) (ninputs c) (noutputs c) (nconsts c) (nsecrets c)
     printf "xdegs=%s ydeg=%s total degree=%d circdegree=%d\n"
-            (show (xdegs c)) (show (ydeg c)) (sum (ydeg c : (xdegs c))) (circDegree c)
+            (show (xdegs c)) (show (ydeg c)) (sum (ydeg c : xdegs c)) (circDegree c)
 
 opArgs :: Op -> [Ref]
 opArgs (OpAdd x y) = [x,y]
@@ -91,7 +89,7 @@ nsecrets :: Circuit -> Int
 nsecrets = M.size . circ_secrets
 
 noutputs :: Circuit -> Int
-noutputs = length . circ_outputs
+noutputs = length . circ_output
 
 ydeg :: Circuit -> Int
 ydeg c = varDegree c (OpConst $ Id (-1))
@@ -178,12 +176,12 @@ ensure verbose eval c ts = and <$> mapM ensure' (zip [(0::Int)..] ts)
         res <- eval c inps
         if res == outs then do
             let s = printf "test %d succeeded: input:%s expected:%s got:%s"
-                            i (showBitstring inps) (showBitstring outs) (showBitstring res)
+                            i (showBits inps) (showBits outs) (showBits res)
             when verbose (putStrLn s)
             return True
         else do
             let s = printf "test %d failed! input:%s expected:%s got:%s"
-                            i (showBitstring inps) (showBitstring outs) (showBitstring res)
+                            i (showBits inps) (showBits outs) (showBits res)
             putStrLn (red s)
             return False
 
@@ -193,7 +191,7 @@ foldCirc f c = runIdentity (foldCircM f' c)
     f' op _ xs = return (f op xs)
 
 foldCircM :: Monad m => (Op -> Ref -> [a] -> m a) -> Circuit -> m [a]
-foldCircM f c = evalStateT (mapM eval (circ_outputs c)) M.empty
+foldCircM f c = evalStateT (mapM eval (circ_output c)) M.empty
   where
     eval ref = gets (M.lookup ref) >>= \case
         Just val -> return val
@@ -227,7 +225,7 @@ foldCircIO f c = do
     forM_ (zip [(0 :: Int)..] lvls) $ \(_, lvl) -> do
         {-printf "evaluating level %d size=%d\n" i (length lvl)-}
         parallelInterleaved (map eval lvl)
-    mapM (atomically . readTMVar . (mem !)) (circ_outputs c)
+    mapM (atomically . readTMVar . (mem !)) (circ_output c)
 
 topologicalOrder :: Circuit -> [Ref]
 topologicalOrder c = reverse $ execState (foldCircM eval c) []
@@ -273,3 +271,10 @@ constNegation c = not $ all refOk (M.keys (circ_refmap c))
         OpMul x y -> notConst x || notConst y
         OpInput _ -> True
         OpConst _ -> False
+
+intermediateGates :: Circuit -> [Ref]
+intermediateGates c = filter intermediate (topologicalOrder c)
+  where
+    intermediate ref = notElem ref (circ_inputs c) &&
+                       notElem ref (circ_consts c) &&
+                       notElem ref (circ_output c)

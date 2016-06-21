@@ -6,7 +6,7 @@ module Circuit.Format.Acirc
 
 import Circuit
 import Circuit.Parser
-import Util (readBitstring, showBitstring', safeInsert)
+import Util (readBits, showBits', safeInsert)
 
 import Control.Monad (when)
 import Control.Monad.Writer
@@ -19,46 +19,33 @@ import qualified Data.Map as M
 -- printer
 
 showCirc :: Circuit -> String
-showCirc c = unlines (header ++ inputs ++ consts ++ gates ++ output)
+showCirc c = unlines (header ++ inputs ++ consts ++ igates ++ output)
   where
     header = [printf ": nins %d" (ninputs c), printf ": depth %d" (depth c)]
-    inputs = map (gateStr' False) (circ_inputs c)
-    consts = map (gateStr' False) (circ_consts c)
-    output = map (gateStr' True)  (circ_outputs c)
-    gates  = execWriter (foldCircM eval c)
+    inputs = map (gateStr False) (circ_inputs c)
+    consts = map (gateStr False) (circ_consts c)
+    igates = map (gateStr False) (intermediateGates c)
+    output = map (gateStr True)  (circ_output c)
 
-    eval :: Op -> Ref -> [()] -> Writer [String] ()
-    eval (OpInput _) _ _ = return ()
-    eval (OpConst _) _ _ = return ()
-    eval op ref _ = if ref `elem` circ_outputs c
-                       then return ()
-                       else tell [gateStr ref op False]
+    gateStr :: Bool -> Ref -> String
+    gateStr isOutput ref = case M.lookup ref (circ_refmap c) of
+        Nothing -> error (printf "[gateStr] unknown ref %s" (show ref))
+        Just (OpInput id) -> printf "%d input x%d" (getRef ref) (getId id)
+        Just (OpConst id) -> let secret = case M.lookup id (circ_secrets c) of
+                                            Nothing -> ""
+                                            Just y  -> show y
+                             in printf "%d input y%d %s" (getRef ref) (getId id) secret
+        Just (OpAdd x y) -> pr ref "ADD" x y isOutput
+        Just (OpSub x y) -> pr ref "SUB" x y isOutput
+        Just (OpMul x y) -> pr ref "MUL" x y isOutput
 
-    gateStr' :: Bool -> Ref -> String
-    gateStr' isOutput ref = case M.lookup ref (circ_refmap c) of
-        Nothing -> error (printf "[gateStr'] unknown ref %s" (show ref))
-        Just op -> gateStr ref op isOutput
-
-    gateStr :: Ref -> Op -> Bool -> String
-    gateStr ref (OpInput id) _ = printf "%d input x%d" (getRef ref) (getId id)
-    gateStr ref (OpConst id) _ = let secret = case M.lookup id (circ_secrets c) of
-                                                Nothing -> ""
-                                                Just y  -> show y
-                                 in printf "%d input y%d %s" (getRef ref) (getId id) (secret)
-
-    gateStr ref op isOutput  = printf "%d %s %s %d %d"
-                                    (getRef ref)
-                                    (if isOutput then "output" else "gate")
-                                    ty (getRef x) (getRef y)
-        where
-            (ty, x, y) = case op of OpAdd x y -> ("ADD", x, y)
-                                    OpSub x y -> ("SUB", x, y)
-                                    OpMul x y -> ("MUL", x, y)
-                                    _ -> error "[gateStr] input and const handled elsewhere"
+    pr ref gateTy x y isOutput = printf "%d %s %s %d %d" (getRef ref)
+                                        (if isOutput then "output" else "gate")
+                                        gateTy (getRef x) (getRef y)
 
 
 showTest :: TestCase -> String
-showTest (inp, out) = printf "# TEST %s %s" (showBitstring' inp) (showBitstring' out)
+showTest (inp, out) = printf "# TEST %s %s" (showBits' inp) (showBits' out)
 
 --------------------------------------------------------------------------------
 -- parser
@@ -82,11 +69,11 @@ parseTest :: ParseCirc ()
 parseTest = do
     string "# TEST"
     spaces
-    inps <- many (oneOf ['0','1'])
+    inps <- many (oneOf "01")
     spaces
-    outs <- many (oneOf ['0','1'])
-    let inp = readBitstring inps
-        res = readBitstring outs
+    outs <- many (oneOf "01")
+    let inp = readBits inps
+        res = readBits outs
     addTest (inp, res)
     endLine
 
@@ -119,8 +106,7 @@ parseGate = do
     ref <- Ref <$> read <$> many1 digit
     spaces
     gateType <- oneOfStr ["gate", "output"]
-    when (gateType == "output") $ do
-        markOutput ref
+    when (gateType == "output") $ markOutput ref
     spaces
     opType <- oneOfStr ["ADD", "SUB", "MUL"]
     spaces
