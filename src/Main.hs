@@ -49,7 +49,7 @@ main = runCommand $ \opts args -> do
     let inputFile = head args
         parser    = parserFor inputFile :: CircuitParser
     (c,ts) <- parser <$> readFile inputFile
-    when (opt_info opts) $ printCircInfo c
+    when (opt_info opts) $ printCircuitInfo c
     ts' <- case opt_gentests opts of
         Nothing -> return ts
         Just i  -> replicateM i (genTest c)
@@ -69,7 +69,7 @@ getKappa :: Circuit -> Int
 getKappa c = δ + 2*n + n*(2*n-1)
   where
     n = ninputs c
-    δ = ydeg c + sum (xdegs c)
+    δ = sum (degs c)
 
 parserFor :: String -> CircuitParser
 parserFor filename = case extension filename of

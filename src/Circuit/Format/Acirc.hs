@@ -25,7 +25,7 @@ showCirc c = unlines (header ++ inputs ++ consts ++ igates ++ output)
     inputs = map (gateStr False) (circ_inputs c)
     consts = map (gateStr False) (circ_consts c)
     igates = map (gateStr False) (intermediateGates c)
-    output = map (gateStr True)  (circ_output c)
+    output = map (gateStr True)  (circ_outputs c)
 
     gateStr :: Bool -> Ref -> String
     gateStr isOutput ref = case M.lookup ref (circ_refmap c) of

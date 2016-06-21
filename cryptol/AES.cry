@@ -303,9 +303,6 @@ sbox7 (inp, key) = ((sbox @ inp)) @ 7
 
 
 
-toRachael : ([8],[0]) -> [256]
-toRachael (x,_) = [ x == i | i <- [0..255] ]
-
 foldl : {a, b, n} (fin n) => (a -> b -> a) -> a -> [n]b -> a
 foldl f acc xs = ys ! 0
   where ys = [acc] # [f a x | a <- ys | x <- xs]
@@ -328,3 +325,9 @@ rachaelSubBytes state = [ [ rachaelSubByte b | b <- row ] | row <- state ]
 
 sbox0_r : ([8], [8]) -> Bit
 sbox0_r (inp, key) = sboxBit 0 inp
+
+toRachael : ([8],[0]) -> [256]
+toRachael (x,_) = [ x == i | i <- [0..255] ]
+
+linearParts : ([128], [0]) -> [128]
+linearParts (x, _) = stateToMsg (MixColumns (ShiftRows (msgToState x)))

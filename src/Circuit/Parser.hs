@@ -52,7 +52,7 @@ insertInput ref id = do
     insertOp ref (OpInput id)
 
 markOutput :: Ref -> ParseCirc ()
-markOutput ref = modifyCirc (\c -> c { circ_output = circ_output c ++ [ref] })
+markOutput ref = modifyCirc (\c -> c { circ_outputs = circ_outputs c ++ [ref] })
 
 --------------------------------------------------------------------------------
 -- custom parsers

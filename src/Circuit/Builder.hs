@@ -16,13 +16,12 @@ data BuildSt = BuildSt {
     , bs_next_ref    :: Ref
     , bs_next_inp    :: Id
     , bs_next_const  :: Id
-    , bs_consts      :: M.Map Id Integer
     , bs_refmap      :: M.Map String Ref
     , bs_dedup       :: M.Map Op Ref
     }
 
 emptyBuild :: BuildSt
-emptyBuild = BuildSt emptyCirc 0 0 0 M.empty M.empty M.empty
+emptyBuild = BuildSt emptyCirc 0 0 0 M.empty M.empty
 
 getCirc :: Builder Circuit
 getCirc = gets bs_circ
@@ -84,7 +83,7 @@ nextConstId = do
     return id
 
 markOutput :: Ref -> Builder ()
-markOutput ref = modifyCirc (\c -> c { circ_output = circ_output c ++ [ref] })
+markOutput ref = modifyCirc (\c -> c { circ_outputs = circ_outputs c ++ [ref] })
 
 --------------------------------------------------------------------------------
 -- smart constructors
@@ -143,9 +142,9 @@ output = mapM_ markOutput
 subcircuit :: Circuit -> [Ref] -> [Ref] -> Builder [Ref]
 subcircuit c xs ys
     | length xs < ninputs c = error (printf "[subcircuit] not enough inputs got %d, need %d"
-                                            (show (length xs)) (show (ninputs c)))
+                                            (length xs) (ninputs c))
     | length ys < nconsts c = error (printf "[subcircuit] not enough consts got %d, need %d"
-                                            (show (length ys)) (show (nconsts c)))
+                                            (length ys) (nconsts c))
     | otherwise = foldCircM translate c
   where
     translate (OpAdd _ _) _ [x,y] = circAdd x y

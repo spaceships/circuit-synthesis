@@ -19,6 +19,8 @@ import Text.Printf
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 
+import Debug.Trace
+
 newtype Ref = Ref { getRef :: Int } deriving (Eq, Ord, NFData, Num)
 newtype Id  = Id  { getId  :: Int } deriving (Eq, Ord, NFData, Num)
 
@@ -30,7 +32,7 @@ data Op = OpAdd Ref Ref
         deriving (Eq, Ord, Show)
 
 data Circuit = Circuit {
-      circ_output  :: [Ref]
+      circ_outputs :: [Ref]
     , circ_inputs  :: [Ref]
     , circ_consts  :: [Ref]
     , circ_secrets :: M.Map Id Integer
@@ -65,12 +67,12 @@ genTestStr c = do
     (inp, out) <- genTest c
     return (showBits inp, showBits out)
 
-printCircInfo :: Circuit -> IO ()
-printCircInfo c = do
-    printf "circuit info: depth=%d ninputs=%d noutputs=%d nconsts=%d[%d]\n"
-            (depth c) (ninputs c) (noutputs c) (nconsts c) (nsecrets c)
-    printf "xdegs=%s ydeg=%s total degree=%d circdegree=%d\n"
-            (show (xdegs c)) (show (ydeg c)) (sum (ydeg c : xdegs c)) (circDegree c)
+printCircuitInfo :: Circuit -> IO ()
+printCircuitInfo c = do
+    let ds = degs c
+    printf "circuit info: depth=%d ninputs=%d noutputs=%d nconsts=%d[%d] ngates=%d\n"
+            (depth c) (ninputs c) (noutputs c) (nconsts c) (nsecrets c) (ngates c)
+    printf "degs=%s total degree=%d\n" (show ds) (sum ds)
 
 opArgs :: Op -> [Ref]
 opArgs (OpAdd x y) = [x,y]
@@ -78,6 +80,9 @@ opArgs (OpSub x y) = [x,y]
 opArgs (OpMul x y) = [x,y]
 opArgs (OpConst _) = []
 opArgs (OpInput _) = []
+
+ngates :: Circuit -> Int
+ngates = M.size . circ_refmap
 
 ninputs :: Circuit -> Int
 ninputs = length . circ_inputs
@@ -89,37 +94,38 @@ nsecrets :: Circuit -> Int
 nsecrets = M.size . circ_secrets
 
 noutputs :: Circuit -> Int
-noutputs = length . circ_output
+noutputs = length . circ_outputs
 
 ydeg :: Circuit -> Int
-ydeg c = varDegree c (OpConst $ Id (-1))
+ydeg c = head (degs c)
 
 xdeg :: Circuit -> Int -> Int
-xdeg c i = xdegs c !! i
+xdeg c i = degs c !! (i+1)
 
-xdegs :: Circuit -> [Int]
-xdegs c = pmap (varDegree c . OpInput . Id) [0 .. ninputs c - 1]
+degs :: Circuit -> [Int]
+degs c = map (varDegree c) ids
+  where
+    ids = OpConst (Id (-1)) : map (OpInput . Id) [0 .. ninputs c - 1]
 
 depth :: Circuit -> Int
 depth c = maximum $ foldCirc f c
   where
     f (OpInput _) []  = 0
     f (OpConst _) []  = 0
-    f _         xs  = maximum xs + 1
+    f _           xs  = maximum xs + 1
 
--- i think it makes sense that since these are just polynomials in a single
--- variable then finding the degree is this easy
 varDegree :: Circuit -> Op -> Int
 varDegree c z = maximum $ foldCirc f c
   where
     f (OpAdd _ _) [x,y] = max x y
     f (OpSub _ _) [x,y] = max x y
     f (OpMul _ _) [x,y] = x + y
+
     f x _ = if eq x z then 1 else 0
 
     eq (OpInput x) (OpInput y) = x == y
     eq (OpConst _) (OpConst _) = True
-    eq _         _         = False
+    eq _         _             = False
 
 -- TODO make me better! does this really reflect the degree of the multivariate
 -- polynomial corresponding to C?
@@ -191,7 +197,7 @@ foldCirc f c = runIdentity (foldCircM f' c)
     f' op _ xs = return (f op xs)
 
 foldCircM :: Monad m => (Op -> Ref -> [a] -> m a) -> Circuit -> m [a]
-foldCircM f c = evalStateT (mapM eval (circ_output c)) M.empty
+foldCircM f c = evalStateT (mapM eval (circ_outputs c)) M.empty
   where
     eval ref = gets (M.lookup ref) >>= \case
         Just val -> return val
@@ -225,7 +231,7 @@ foldCircIO f c = do
     forM_ (zip [(0 :: Int)..] lvls) $ \(_, lvl) -> do
         {-printf "evaluating level %d size=%d\n" i (length lvl)-}
         parallelInterleaved (map eval lvl)
-    mapM (atomically . readTMVar . (mem !)) (circ_output c)
+    mapM (atomically . readTMVar . (mem !)) (circ_outputs c)
 
 topologicalOrder :: Circuit -> [Ref]
 topologicalOrder c = reverse $ execState (foldCircM eval c) []
@@ -277,4 +283,4 @@ intermediateGates c = filter intermediate (topologicalOrder c)
   where
     intermediate ref = notElem ref (circ_inputs c) &&
                        notElem ref (circ_consts c) &&
-                       notElem ref (circ_output c)
+                       notElem ref (circ_outputs c)
