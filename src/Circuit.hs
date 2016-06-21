@@ -74,6 +74,13 @@ printCircuitInfo c = do
             (depth c) (ninputs c) (noutputs c) (nconsts c) (nsecrets c) (ngates c)
     printf "degs=%s total degree=%d\n" (show ds) (sum ds)
 
+printCircuitInfoFreeNot :: Circuit -> IO ()
+printCircuitInfoFreeNot c = do
+    let ds = degs' True c
+    printf "circuit info: depth=%d ninputs=%d noutputs=%d nconsts=%d[%d] ngates=%d\n"
+            (depth c) (ninputs c) (noutputs c) (nconsts c) (nsecrets c) (ngates c)
+    printf "degs=%s total degree=%d\n" (show ds) (sum ds)
+
 opArgs :: Op -> [Ref]
 opArgs (OpAdd x y) = [x,y]
 opArgs (OpSub x y) = [x,y]
@@ -103,7 +110,11 @@ xdeg :: Circuit -> Int -> Int
 xdeg c i = degs c !! (i+1)
 
 degs :: Circuit -> [Int]
-degs c = map (varDegree c) ids
+degs = degs' False
+
+-- with optional Free Not optimization
+degs' :: Bool -> Circuit -> [Int]
+degs' freeNot c = map (varDegree' freeNot c) ids
   where
     ids = OpConst (Id (-1)) : map (OpInput . Id) [0 .. ninputs c - 1]
 
@@ -115,10 +126,16 @@ depth c = maximum $ foldCirc f c
     f _           xs  = maximum xs + 1
 
 varDegree :: Circuit -> Op -> Int
-varDegree c z = maximum $ foldCirc f c
+varDegree = varDegree' False
+
+-- with optional FreeNot optimization
+varDegree' :: Bool -> Circuit -> Op -> Int
+varDegree' freeNot c z = maximum $ foldCirc f c
   where
     f (OpAdd _ _) [x,y] = max x y
-    f (OpSub _ _) [x,y] = max x y
+    f (OpSub z _) [x,y] = if freeNot && (circ_refmap c M.! z == OpConst 0)
+                             then y
+                             else max x y
     f (OpMul _ _) [x,y] = x + y
 
     f x _ = if eq x z then 1 else 0
