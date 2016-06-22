@@ -57,6 +57,7 @@ getSecret c id = case M.lookup id (circ_secrets c) of
     Just x  -> x
     Nothing -> error ("[getSecret] no secret known for y" ++ show id)
 
+-- TODO: generate random keys somehow too
 genTest :: Circuit -> IO TestCase
 genTest c = do
     inp <- num2Bits (ninputs c) <$> randIO (randInteger (ninputs c))
@@ -189,13 +190,27 @@ plainEvalIO c xs = do
     eval (OpConst i) []    = getSecret c i
     eval op        args  = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
 
-ensure :: Bool -> (Circuit -> [Bool] -> IO [Bool]) -> Circuit -> [TestCase] -> IO Bool
-ensure verbose eval c ts = and <$> mapM ensure' (zip [(0::Int)..] ts)
+ensure :: Bool -> Circuit -> [TestCase] -> IO Bool
+ensure verbose c ts = and <$> mapM ensure' (zip [(0::Int)..] ts)
   where
-    toBit :: Bool -> Char
-    toBit b = if b then '1' else '0'
-
     ensure' (i, (inps, outs)) = do
+        let res = plainEval c inps
+        if res == outs then do
+            let s = printf "test %d succeeded: input:%s expected:%s got:%s"
+                            i (showBits inps) (showBits outs) (showBits res)
+            when verbose (putStrLn s)
+            return True
+        else do
+            let s = printf "test %d failed! input:%s expected:%s got:%s"
+                            i (showBits inps) (showBits outs) (showBits res)
+            putStrLn (red s)
+            return False
+
+
+ensureIO :: Bool -> (Circuit -> [Bool] -> IO [Bool]) -> Circuit -> [TestCase] -> IO Bool
+ensureIO verbose eval c ts = and <$> mapM ensureIO' (zip [(0::Int)..] ts)
+  where
+    ensureIO' (i, (inps, outs)) = do
         res <- eval c inps
         if res == outs then do
             let s = printf "test %d succeeded: input:%s expected:%s got:%s"

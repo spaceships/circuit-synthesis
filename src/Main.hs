@@ -59,7 +59,7 @@ main = runCommand $ \opts args -> do
 evalTests :: MainOptions -> Circuit -> [TestCase] -> IO ()
 evalTests opts c ts = do
     pr "evaluating plaintext circuit tests"
-    ok <- ensure (opt_verbose opts) plainEvalIO c ts
+    ok <- ensure (opt_verbose opts) c ts
     if ok then pr "ok" else pr "failed"
 
 dirName :: FilePath -> Int -> FilePath

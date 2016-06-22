@@ -1,15 +1,17 @@
 module Circuit.Format.Acirc
-  ( parseCirc
+  ( readAcirc
+  , writeAcirc
+  , parseCirc
   , showCirc
   , showTest
   ) where
 
 import Circuit
 import Circuit.Parser
-import Util (readBits, showBits', safeInsert)
+import Util (readBits', showBits', safeInsert)
 
-import Control.Monad (when)
-import Control.Monad.Writer
+import Control.Monad
+import qualified Control.Monad.State as S
 import Text.Parsec hiding (spaces, parseTest)
 import Text.Printf
 import qualified Data.Set as S
@@ -18,37 +20,67 @@ import qualified Data.Map as M
 --------------------------------------------------------------------------------
 -- printer
 
+writeAcirc :: FilePath -> Circuit -> IO ()
+writeAcirc fp c = do
+    s <- showCircWithTests 10 c
+    writeFile fp s
+
+showCircWithTests :: Int -> Circuit -> IO String
+showCircWithTests ntests c = do
+    ts <- map showTest <$> replicateM ntests (genTest c)
+    return (unlines ts ++ showCirc c)
+
 showCirc :: Circuit -> String
-showCirc c = unlines (header ++ inputs ++ consts ++ igates ++ output)
+showCirc c = unlines (header ++ gateLines)
   where
     header = [printf ": nins %d" (ninputs c), printf ": depth %d" (depth c)]
-    inputs = map (gateStr False) (circ_inputs c)
-    consts = map (gateStr False) (circ_consts c)
-    igates = map (gateStr False) (intermediateGates c)
-    output = map (gateStr True)  (circ_outputs c)
+    inputs = mapM (gateStr False) (circ_inputs c)
+    consts = mapM (gateStr False) (circ_consts c)
+    igates = mapM (gateStr False) (intermediateGates c)
+    output = mapM (gateStr True)  (circ_outputs c)
 
-    gateStr :: Bool -> Ref -> String
-    gateStr isOutput ref = case M.lookup ref (circ_refmap c) of
-        Nothing -> error (printf "[gateStr] unknown ref %s" (show ref))
-        Just (OpInput id) -> printf "%d input x%d" (getRef ref) (getId id)
-        Just (OpConst id) -> let secret = case M.lookup id (circ_secrets c) of
-                                            Nothing -> ""
-                                            Just y  -> show y
-                             in printf "%d input y%d %s" (getRef ref) (getId id) secret
-        Just (OpAdd x y) -> pr ref "ADD" x y isOutput
-        Just (OpSub x y) -> pr ref "SUB" x y isOutput
-        Just (OpMul x y) -> pr ref "MUL" x y isOutput
+    gateLines = concat $ S.evalState (sequence [inputs, consts, igates, output]) (M.empty, 0)
 
-    pr ref gateTy x y isOutput = printf "%d %s %s %d %d" (getRef ref)
-                                        (if isOutput then "output" else "gate")
-                                        gateTy (getRef x) (getRef y)
+    -- we need to minimize the number of refs we use since we may not output
+    -- them all
+    tr :: Ref -> S.State (M.Map Ref Int, Int) Int
+    tr ref = do
+        (m,i) <- S.get
+        case M.lookup ref m of
+            Just j  -> return j
+            Nothing -> do
+                S.put (M.insert ref i m, i+1)
+                return i
 
+    gateStr :: Bool -> Ref -> S.State (M.Map Ref Int, Int) String
+    gateStr isOutput ref = do
+        ref' <- tr ref
+        case M.lookup ref (circ_refmap c) of
+            Nothing -> error (printf "[gateStr] unknown ref %s" (show ref))
+            Just (OpInput id) -> return $ printf "%d input x%d" ref' (getId id)
+            Just (OpConst id) -> do
+                let secret = case M.lookup id (circ_secrets c) of
+                                Nothing -> ""
+                                Just y  -> show y
+                return $ printf "%d input y%d %s" ref' (getId id) secret
+            Just (OpAdd x y) -> pr ref' "ADD" x y isOutput
+            Just (OpSub x y) -> pr ref' "SUB" x y isOutput
+            Just (OpMul x y) -> pr ref' "MUL" x y isOutput
+
+    pr :: Int -> String -> Ref -> Ref -> Bool -> S.State (M.Map Ref Int, Int) String
+    pr ref' gateTy x y isOutput = do
+        x' <- tr x
+        y' <- tr y
+        return $ printf "%d %s %s %d %d" ref' (if isOutput then "output" else "gate") gateTy x' y'
 
 showTest :: TestCase -> String
-showTest (inp, out) = printf "# TEST %s %s" (showBits' inp) (showBits' out)
+showTest (inp, out) = printf "# TEST %s %s" (showBits' (reverse inp)) (showBits' (reverse out))
 
 --------------------------------------------------------------------------------
 -- parser
+
+readAcirc :: FilePath -> IO (Circuit, [TestCase])
+readAcirc fp = parseCirc <$> readFile fp
 
 parseCirc :: String -> (Circuit, [TestCase])
 parseCirc s = case runParser (circParser >> getState) emptySt "" s of
@@ -72,9 +104,9 @@ parseTest = do
     inps <- many (oneOf "01")
     spaces
     outs <- many (oneOf "01")
-    let inp = readBits inps
-        res = readBits outs
-    addTest (inp, res)
+    let inp = readBits' inps
+        res = readBits' outs
+    addTest (reverse inp, reverse res)
     endLine
 
 parseInput :: ParseCirc ()

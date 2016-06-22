@@ -60,6 +60,11 @@ readBits s = if take 2 s == "0b"
                      then map (== '1') (drop 2 s)
                      else error "[readBitstring] unknown bitstring"
 
+readBits' :: String -> [Bool]
+readBits' = map (\c -> if c `notElem` "01"
+                          then error ("[readBits'] unkonwn character " ++ [c])
+                          else c == '1')
+
 showBits :: [Bool] -> String
 showBits bs = "0b" ++ showBits' bs
 
