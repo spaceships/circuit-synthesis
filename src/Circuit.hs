@@ -63,11 +63,6 @@ genTest c = do
     inp <- num2Bits (ninputs c) <$> randIO (randInteger (ninputs c))
     return (inp, plainEval c inp)
 
-genTestStr :: Circuit -> IO (String, String)
-genTestStr c = do
-    (inp, out) <- genTest c
-    return (showBits inp, showBits out)
-
 printCircuitInfo :: Circuit -> IO ()
 printCircuitInfo c = do
     let ds = degs c

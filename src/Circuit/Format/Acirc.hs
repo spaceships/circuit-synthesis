@@ -4,11 +4,13 @@ module Circuit.Format.Acirc
   , parseCirc
   , showCirc
   , showTest
+  , genTestStr
+  , addTestsToFile
   ) where
 
 import Circuit
 import Circuit.Parser
-import Util (readBits', showBits', safeInsert)
+import Util (forceM, readBits', showBits', safeInsert)
 
 import Control.Monad
 import qualified Control.Monad.State as S
@@ -20,6 +22,14 @@ import qualified Data.Map as M
 --------------------------------------------------------------------------------
 -- printer
 
+addTestsToFile :: FilePath -> IO ()
+addTestsToFile fp = do
+    s <- readFile fp
+    let (c,_) = parseCirc s
+    ts <- replicateM 10 (genTestStr c)
+    forceM ts
+    writeFile fp (unlines ts ++ s)
+
 writeAcirc :: FilePath -> Circuit -> IO ()
 writeAcirc fp c = do
     s <- showCircWithTests 10 c
@@ -27,7 +37,7 @@ writeAcirc fp c = do
 
 showCircWithTests :: Int -> Circuit -> IO String
 showCircWithTests ntests c = do
-    ts <- map showTest <$> replicateM ntests (genTest c)
+    ts <- replicateM ntests (genTestStr c)
     return (unlines ts ++ showCirc c)
 
 showCirc :: Circuit -> String
@@ -75,6 +85,9 @@ showCirc c = unlines (header ++ gateLines)
 
 showTest :: TestCase -> String
 showTest (inp, out) = printf "# TEST %s %s" (showBits' (reverse inp)) (showBits' (reverse out))
+
+genTestStr :: Circuit -> IO String
+genTestStr = fmap showTest . genTest
 
 --------------------------------------------------------------------------------
 -- parser

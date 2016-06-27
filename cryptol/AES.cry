@@ -277,8 +277,8 @@ b0_32 (pt, key) = aes1Round (pt # zero, key) @ 0
 b0_64 : ([64], [128]) -> Bit
 b0_64 (pt, key) = aes1Round (pt # zero, key) @ 0
 
-sbox0 : ([8], [8]) -> Bit
-sbox0 (inp, key) = ((sbox @ inp)) @ 0
+sboxsum : ([8], [8]) -> Bit
+sboxsum (inp, key) = foldl (^) zero (key ^ (sbox @ inp))
 
 sbox1 : ([8], [8]) -> Bit
 sbox1 (inp, key) = ((sbox @ inp)) @ 1
