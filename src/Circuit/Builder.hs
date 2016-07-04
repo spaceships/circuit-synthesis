@@ -8,6 +8,7 @@ import Util
 import Control.Monad.State
 import Text.Printf
 import qualified Data.Map as M
+import Debug.Trace
 
 type Builder = State BuildSt
 
@@ -61,7 +62,7 @@ newOp op = do
             ref <- nextRef
             insertOp ref op
             return ref
-        Just ref ->
+        Just ref -> do
             return ref
 
 nextRef :: Builder Ref
