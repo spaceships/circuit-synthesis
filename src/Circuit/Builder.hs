@@ -134,8 +134,11 @@ circMul x y = newOp (OpMul x y)
 circSum :: [Ref] -> Builder Ref
 circSum (x:xs) = foldM (\a b -> newOp (OpAdd a b)) x xs
 
-output :: [Ref] -> Builder ()
-output = mapM_ markOutput
+outputs :: [Ref] -> Builder ()
+outputs = mapM_ markOutput
+
+output :: Ref -> Builder ()
+output = markOutput
 
 -- NOTE: unconnected secrets from the subcircuit will be secrets in the
 -- resulting composite circuit.

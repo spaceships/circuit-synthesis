@@ -77,6 +77,13 @@ printCircuitInfoFreeNot c = do
             (depth c) (ninputs c) (noutputs c) (nconsts c) (nsecrets c) (ngates c)
     printf "degs=%s total degree=%d\n" (show ds) (sum ds)
 
+printTruthTable :: Circuit -> IO ()
+printTruthTable c = forM_ inputs $ \inp -> do
+    let outp = plainEval c inp
+    printf "%s -> %s\n" (showBits' inp) (showBits' outp)
+  where
+    inputs = sequence (replicate (ninputs c) [False, True])
+
 opArgs :: Op -> [Ref]
 opArgs (OpAdd x y) = [x,y]
 opArgs (OpSub x y) = [x,y]
