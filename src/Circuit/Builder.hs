@@ -133,7 +133,10 @@ circMul :: Ref -> Ref -> Builder Ref
 circMul x y = newOp (OpMul x y)
 
 circSum :: [Ref] -> Builder Ref
-circSum (x:xs) = foldM (\a b -> newOp (OpAdd a b)) x xs
+circSum (x:xs) = foldM circAdd x xs
+
+circProd :: [Ref] -> Builder Ref
+circProd (x:xs) = foldM circMul x xs
 
 outputs :: [Ref] -> Builder ()
 outputs = mapM_ markOutput

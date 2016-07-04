@@ -329,5 +329,8 @@ sbox0_r (inp, key) = sboxBit 0 inp
 toRachael : ([8],[0]) -> [256]
 toRachael (x,_) = [ x == i | i <- [0..255] ]
 
+toRachael2 : ([2],[0]) -> [4]
+toRachael2 (x,_) = [ x == i | i <- [0..3] ]
+
 linearParts : ([128], [0]) -> [128]
 linearParts (x, _) = stateToMsg (MixColumns (ShiftRows (msgToState x)))

@@ -66,8 +66,10 @@ genTest c = do
 printCircuitInfo :: Circuit -> IO ()
 printCircuitInfo c = do
     let ds = degs c
-    printf "circuit info: depth=%d ninputs=%d noutputs=%d nconsts=%d[%d] ngates=%d\n"
-            (depth c) (ninputs c) (noutputs c) (nconsts c) (nsecrets c) (ngates c)
+    printf "circuit info: depth=%d ninputs=%d noutputs=%d nconsts=%d%s ngates=%d\n"
+            (depth c) (ninputs c) (noutputs c) (nconsts c)
+            (show (M.elems (circ_secrets c)))
+            (ngates c)
     printf "degs=%s total degree=%d\n" (show ds) (sum ds)
 
 printCircuitInfoFreeNot :: Circuit -> IO ()
@@ -83,6 +85,15 @@ printTruthTable c = forM_ inputs $ \inp -> do
     printf "%s -> %s\n" (showBits' inp) (showBits' outp)
   where
     inputs = sequence (replicate (ninputs c) [False, True])
+
+circEq :: Circuit -> Circuit -> IO Bool
+circEq c0 c1 = do
+    let n = 10
+    t0 <- replicateM n (genTest c0)
+    t1 <- replicateM n (genTest c1)
+    x  <- ensure False c1 t0
+    y  <- ensure False c0 t1
+    return (x && y)
 
 opArgs :: Op -> [Ref]
 opArgs (OpAdd x y) = [x,y]

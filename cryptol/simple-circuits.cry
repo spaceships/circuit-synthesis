@@ -44,3 +44,6 @@ maj_1000 x = sum [ if b then (1 : [16]) else 0 | b <- x ] > 500
 
 add_16 : ([16], [16]) -> [16]
 add_16 (x,y) = x + y
+
+eq_8 : ([16], [0]) -> Bit
+eq_8 (xs, y) = take `{8} xs == drop `{8} xs

@@ -275,6 +275,48 @@ sbox =
     ]
 -- }}}
 
+bitEq :: Ref -> Ref -> Ref -> Builder Ref
+bitEq one x y = do
+    w0 <- circMul x y
+    x' <- circSub one x
+    y' <- circSub one y
+    w1 <- circMul x' y'
+    circAdd w0 w1
+
+bitsEq :: Ref -> [Ref] -> [Ref] -> Builder Ref
+bitsEq one xs ys
+  | length xs /= length ys = error "[bitsEq] unequal length inputs"
+  | otherwise = do
+    zs <- mapM (uncurry (bitEq one)) (zip xs ys)
+    circProd zs
+
+bitSet :: Ref -> Ref -> Bool -> Builder Ref
+bitSet one x True  = return x
+bitSet one x False = circSub one x
+
+bitsSet :: Ref -> [Ref] -> [Bool] -> Builder Ref
+bitsSet one xs bs
+  | length xs /= length bs = error "[bitsSet] unequal length inputs"
+  | otherwise = do
+    zs <- mapM (uncurry (bitSet one)) (zip xs bs)
+    circProd zs
+
+toRachael :: Int -> Circuit
+toRachael n = buildCircuit $ do
+    xs  <- inputs n
+    one <- secret 1
+    let vals = sequence (replicate n [False, True])
+    zs <- mapM (bitsSet one xs) vals
+    outputs zs
+
+eq' :: Int -> Circuit
+eq' n = buildCircuit $ do
+    xs <- inputs n
+    ys <- inputs n
+    one <- secret 1
+    z <- bitsEq one xs ys
+    output z
+
 subByte :: Circuit
 subByte = buildCircuit $ do
     xs <- inputs 256
