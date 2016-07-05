@@ -18,6 +18,7 @@ import Data.Map.Strict ((!))
 import Text.Printf
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
+import qualified Data.Bimap as B
 
 import Debug.Trace
 
@@ -27,16 +28,17 @@ newtype Id  = Id  { getId  :: Int } deriving (Eq, Ord, NFData, Num)
 data Op = OpAdd Ref Ref
         | OpSub Ref Ref
         | OpMul Ref Ref
-        | OpConst Id
         | OpInput Id
+        | OpSecret Id
         deriving (Eq, Ord, Show)
 
 data Circuit = Circuit {
-      circ_outputs :: [Ref]
-    , circ_inputs  :: [Ref]
-    , circ_consts  :: [Ref]
-    , circ_secrets :: M.Map Id Integer
-    , circ_refmap  :: M.Map Ref Op
+      circ_outputs     :: [Ref]
+    , circ_inputs      :: [Ref]
+    , circ_secrets     :: M.Map Id Integer
+    , circ_secret_refs :: M.Map Ref Id
+    , circ_refmap      :: M.Map Ref Op
+    , circ_consts      :: B.Bimap Integer Ref
     } deriving (Show)
 
 type TestCase = ([Bool], [Bool])
@@ -44,7 +46,7 @@ type TestCase = ([Bool], [Bool])
 --------------------------------------------------------------------------------
 -- instances and such
 
-emptyCirc = Circuit [] [] [] M.empty M.empty
+emptyCirc = Circuit [] [] M.empty M.empty M.empty B.empty
 
 instance Show Ref where
     show ref = "r" ++ show (getRef ref)
@@ -70,7 +72,7 @@ printCircuitInfo c = do
             (depth c) (ninputs c) (noutputs c) (nconsts c)
             (show (M.elems (circ_secrets c)))
             (ngates c)
-    printf "degs=%s total degree=%d\n" (show ds) (sum ds)
+    printf "degs=%s var-degree=%d circ-degree=%d\n" (show ds) (sum ds) (circDegree c)
 
 printCircuitInfoFreeNot :: Circuit -> IO ()
 printCircuitInfoFreeNot c = do
@@ -96,11 +98,11 @@ circEq c0 c1 = do
     return (x && y)
 
 opArgs :: Op -> [Ref]
-opArgs (OpAdd x y) = [x,y]
-opArgs (OpSub x y) = [x,y]
-opArgs (OpMul x y) = [x,y]
-opArgs (OpConst _) = []
-opArgs (OpInput _) = []
+opArgs (OpAdd x y)  = [x,y]
+opArgs (OpSub x y)  = [x,y]
+opArgs (OpMul x y)  = [x,y]
+opArgs (OpSecret _) = []
+opArgs (OpInput  _) = []
 
 ngates :: Circuit -> Int
 ngates = M.size . circ_refmap
@@ -109,7 +111,7 @@ ninputs :: Circuit -> Int
 ninputs = length . circ_inputs
 
 nconsts :: Circuit -> Int
-nconsts = length . circ_consts
+nconsts = length . circ_secret_refs
 
 nsecrets :: Circuit -> Int
 nsecrets = M.size . circ_secrets
@@ -130,14 +132,14 @@ degs = degs' False
 degs' :: Bool -> Circuit -> [Int]
 degs' freeNot c = map (varDegree' freeNot c) ids
   where
-    ids = OpConst (Id (-1)) : map (OpInput . Id) [0 .. ninputs c - 1]
+    ids = OpSecret (Id (-1)) : map (OpInput . Id) [0 .. ninputs c-1]
 
 depth :: Circuit -> Int
 depth c = maximum $ foldCirc f c
   where
-    f (OpInput _) []  = 0
-    f (OpConst _) []  = 0
-    f _           xs  = maximum xs + 1
+    f (OpInput  _) [] = 0
+    f (OpSecret _) [] = 0
+    f _            xs = maximum xs + 1
 
 varDegree :: Circuit -> Op -> Int
 varDegree = varDegree' False
@@ -147,16 +149,16 @@ varDegree' :: Bool -> Circuit -> Op -> Int
 varDegree' freeNot c z = maximum $ foldCirc f c
   where
     f (OpAdd _ _) [x,y] = max x y
-    f (OpSub z _) [x,y] = if freeNot && (circ_refmap c M.! z == OpConst 0)
+    f (OpSub z _) [x,y] = if freeNot && (circ_refmap c M.! z == OpSecret 0)
                              then y
                              else max x y
     f (OpMul _ _) [x,y] = x + y
 
     f x _ = if eq x z then 1 else 0
 
-    eq (OpInput x) (OpInput y) = x == y
-    eq (OpConst _) (OpConst _) = True
-    eq _         _             = False
+    eq (OpInput  x) (OpInput  y) = x == y
+    eq (OpSecret _) (OpSecret _) = True
+    eq _ _ = False
 
 -- TODO make me better! does this really reflect the degree of the multivariate
 -- polynomial corresponding to C?
@@ -166,18 +168,20 @@ circDegree c = maximum $ foldCirc f c
     f (OpAdd _ _) [x,y] = max x y
     f (OpSub _ _) [x,y] = max x y
     f (OpMul _ _) [x,y] = x + y
-    f (OpInput id) _ = 1
-    f (OpConst id) _ = 1
+    f (OpInput  id) _ = 1
+    f (OpSecret id) _ = 1
+    f _ _ = error "[circDegree] unknown input"
 
+-- evaluate the circuit using an arbitrary integral type as input
 evalMod :: (Show a, Integral a) => Circuit -> [a] -> a -> [a]
 evalMod c inps q = foldCirc eval c
   where
     eval (OpAdd _ _) [x,y] = x + y % q
     eval (OpSub _ _) [x,y] = x - y % q
     eval (OpMul _ _) [x,y] = x * y % q
-    eval (OpInput i) []    = inps !! getId i
-    eval (OpConst i) []    = fromIntegral (getSecret c i)
-    eval op        args  = error ("[evalMod] weird input: " ++ show op ++ " " ++ show args)
+    eval (OpInput  i) [] = inps !! getId i
+    eval (OpSecret i) [] = fromIntegral (getSecret c i)
+    eval op args  = error ("[evalMod] weird input: " ++ show op ++ " " ++ show args)
 
 plainEval :: Circuit -> [Bool] -> [Bool]
 plainEval c inps = map (/= 0) (foldCirc eval c)
@@ -186,9 +190,9 @@ plainEval c inps = map (/= 0) (foldCirc eval c)
     eval (OpAdd _ _) [x,y] = x + y
     eval (OpSub _ _) [x,y] = x - y
     eval (OpMul _ _) [x,y] = x * y
-    eval (OpInput i) []    = b2i (inps !! getId i)
-    eval (OpConst i) []    = getSecret c i
-    eval op        args  = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
+    eval (OpInput  i) [] = b2i (inps !! getId i)
+    eval (OpSecret i) [] = getSecret c i
+    eval op args = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
 
 plainEvalIO :: Circuit -> [Bool] -> IO [Bool]
 plainEvalIO c xs = do
@@ -199,9 +203,9 @@ plainEvalIO c xs = do
     eval (OpAdd _ _) [x,y] = x + y
     eval (OpSub _ _) [x,y] = x - y
     eval (OpMul _ _) [x,y] = x * y
-    eval (OpInput i) []    = b2i (xs !! getId i)
-    eval (OpConst i) []    = getSecret c i
-    eval op        args  = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
+    eval (OpInput  i) [] = b2i (xs !! getId i)
+    eval (OpSecret i) [] = getSecret c i
+    eval op args = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
 
 ensure :: Bool -> Circuit -> [TestCase] -> IO Bool
 ensure verbose c ts = and <$> mapM ensure' (zip [(0::Int)..] ts)
@@ -301,31 +305,13 @@ topoLevels c = map S.toAscList lvls
 
     dependencies :: Ref -> [Ref]
     dependencies ref = case circ_refmap c ! ref of
-        OpInput _ -> []
-        OpConst _ -> []
-        op      -> opArgs op ++ concatMap dependencies (opArgs op)
-
-constNegation :: Circuit -> Bool
-constNegation c = not $ all refOk (M.keys (circ_refmap c))
-  where
-    refOk ref = case circ_refmap c ! ref of
-        OpAdd _ _ -> True
-        OpMul _ _ -> True
-        OpSub x y | x /= (-1) -> True
-                | otherwise -> notConst y
-        OpInput _ -> True
-        OpConst _ -> True
-
-    notConst ref = case circ_refmap c ! ref of
-        OpAdd x y -> notConst x || notConst y
-        OpSub x y -> notConst x || notConst y
-        OpMul x y -> notConst x || notConst y
-        OpInput _ -> True
-        OpConst _ -> False
+        OpInput  _ -> []
+        OpSecret _ -> []
+        op -> opArgs op ++ concatMap dependencies (opArgs op)
 
 intermediateGates :: Circuit -> [Ref]
 intermediateGates c = filter intermediate (topologicalOrder c)
   where
     intermediate ref = notElem ref (circ_inputs c) &&
-                       notElem ref (circ_consts c) &&
-                       notElem ref (circ_outputs c)
+                       notElem ref (circ_outputs c) &&
+                       M.notMember ref (circ_secret_refs c)

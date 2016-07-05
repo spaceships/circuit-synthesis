@@ -45,7 +45,7 @@ showCirc c = unlines (header ++ gateLines)
   where
     header = [printf ": nins %d" (ninputs c), printf ": depth %d" (depth c)]
     inputs = mapM (gateStr False) (circ_inputs c)
-    consts = mapM (gateStr False) (circ_consts c)
+    consts = mapM (gateStr False) (M.keys (circ_secret_refs c))
     igates = mapM (gateStr False) (intermediateGates c)
     output = mapM (gateStr True)  (circ_outputs c)
 
@@ -67,8 +67,8 @@ showCirc c = unlines (header ++ gateLines)
         ref' <- tr ref
         case M.lookup ref (circ_refmap c) of
             Nothing -> error (printf "[gateStr] unknown ref %s" (show ref))
-            Just (OpInput id) -> return $ printf "%d input x%d" ref' (getId id)
-            Just (OpConst id) -> do
+            Just (OpInput  id) -> return $ printf "%d input x%d" ref' (getId id)
+            Just (OpSecret id) -> do
                 let secret = case M.lookup id (circ_secrets c) of
                                 Nothing -> ""
                                 Just y  -> show y
@@ -143,8 +143,8 @@ parseY ref = do
     id <- Id <$> read <$> many1 digit
     spaces
     val <- read <$> many1 digit
-    insertConst ref id
-    insertSecret id val
+    insertSecret ref id
+    insertSecretVal id val
 
 parseGate :: ParseCirc ()
 parseGate = do

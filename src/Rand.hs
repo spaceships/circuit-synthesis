@@ -17,6 +17,8 @@ import Data.Bits ((.&.))
 import qualified Data.ByteString as BS
 import qualified GHC.Integer.GMP.Internals as GMP
 
+import Prelude hiding (truncate)
+
 type Rng  = CtrDRBG
 type Rand = State Rng
 
@@ -33,7 +35,7 @@ randInteger_ gen nbits = case genBytes nbytes gen of
     Right (t,g) -> let i = bs2i (truncate t) in (i,g)
   where
     overflow = nbits `mod` 8
-    nbytes   = ceiling (fromIntegral nbits / 8)
+    nbytes   = ceiling ((fromIntegral nbits / 8) :: Double)
 
     truncate :: BS.ByteString -> BS.ByteString
     truncate bs = BS.cons w'' (BS.tail bs)

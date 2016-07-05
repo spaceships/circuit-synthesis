@@ -6,7 +6,6 @@ import Data.Bits ((.&.))
 import System.IO
 import Control.DeepSeq (deepseq)
 import Control.Parallel.Strategies
-import GHC.Prim
 import GHC.Types
 import qualified GHC.Integer.GMP.Internals as GMP
 import qualified Data.Map as M

@@ -35,13 +35,13 @@ insertOp ref op = do
         then error ("redefinition of ref " ++ show ref)
         else modifyCirc (\c -> c { circ_refmap = M.insert ref op refs })
 
-insertConst :: Ref -> Id -> ParseCirc ()
-insertConst ref id = do
-    modifyCirc (\c -> c { circ_consts = circ_consts c ++ [ref] })
-    insertOp ref (OpConst id)
+insertSecret :: Ref -> Id -> ParseCirc ()
+insertSecret ref id = do
+    modifyCirc (\c -> c { circ_secret_refs = M.insert ref id (circ_secret_refs c) })
+    insertOp ref (OpSecret id)
 
-insertSecret :: Id -> Integer -> ParseCirc ()
-insertSecret id val = do
+insertSecretVal :: Id -> Integer -> ParseCirc ()
+insertSecretVal id val = do
     ys <- circ_secrets <$> getCirc
     let ys' = safeInsert ("reassignment of y" ++ show id) id val ys
     modifyCirc (\c -> c { circ_secrets = ys' })

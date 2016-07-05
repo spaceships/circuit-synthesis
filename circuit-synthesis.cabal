@@ -17,9 +17,11 @@ cabal-version:       >=1.10
 
 executable circuit-synthesis
   main-is:             Main.hs
+  GHC-options: -fwarn-incomplete-patterns
   -- other-modules:
   -- other-extensions:
   build-depends:       base
+                     , bimap
                      , options
                      , mtl
                      , parallel-io
