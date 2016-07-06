@@ -309,22 +309,19 @@ subByte = buildCircuit $ do
     ys <- subcircuit subByteFromRachael rs
     outputs ys
 
-buildAes :: IO Circuit
-buildAes = do
+buildAes :: Int -> IO Circuit
+buildAes n = do
     linearParts <- fst <$> Acirc.readAcirc "linearParts.acirc"
     return $ buildCircuit $ do
-        let n = 5
-        inp   <- inputs n
-        one   <- constant 1
-        key   <- secrets (replicate 128 0)
-        fixed <- secrets (replicate (128-n) 0)
-
+        inp  <- inputs n
+        one  <- constant 1
+        zero <- constant 0
+        key  <- secrets (replicate 128 0)
+        let fixed = replicate (128 - n) zero
         let state = chunksOf 8 (inp ++ fixed)
-
-        xs    <- concat <$> mapM (subcircuit subByte) state
-        xs'   <- subcircuit' linearParts xs [one]
-        xs''  <- zipWithM circXor xs' key -- addRoundKey
-
+        xs   <- concat <$> mapM (subcircuit subByte) state
+        xs'  <- subcircuit' linearParts xs [one]
+        xs'' <- zipWithM circXor xs' key -- addRoundKey
         output (head xs'')
 
 sbox0 :: Circuit
