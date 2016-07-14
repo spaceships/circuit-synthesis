@@ -3,6 +3,7 @@ module Main where
 import Circuit
 import Util
 import Rand
+import Circuit.Builder
 import Circuit.Parser (CircuitParser)
 import qualified Circuit.Format.Acirc   as Acirc
 import qualified Circuit.Format.Verilog as Verilog

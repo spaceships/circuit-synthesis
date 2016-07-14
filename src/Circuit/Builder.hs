@@ -6,6 +6,7 @@ import Circuit
 import Util
 
 import Control.Monad.State
+import Data.List.Split (chunksOf)
 import Text.Printf
 import qualified Data.Map as M
 import qualified Data.Bimap as B
@@ -91,6 +92,11 @@ markOutput ref = modifyCirc (\c -> c { circ_outputs = circ_outputs c ++ [ref] })
 markConst :: Ref -> Integer -> Builder ()
 markConst ref val = modifyCirc (\c -> c { circ_consts = B.insert val ref (circ_consts c) })
 
+foldTreeM :: Monad m => (a -> a -> m a) -> [a] -> m a
+foldTreeM f [ ] = error "[foldTreeM] empty list"
+foldTreeM f [x] = return x
+foldTreeM f xs  = foldTreeM f =<< mapM (\[x,y] -> f x y) (chunksOf 2 xs)
+
 --------------------------------------------------------------------------------
 -- smart constructors
 
@@ -140,13 +146,11 @@ circSub x y = newOp (OpSub x y)
 circMul :: Ref -> Ref -> Builder Ref
 circMul x y = newOp (OpMul x y)
 
-circSum :: [Ref] -> Builder Ref
-circSum (x:xs) = foldM circAdd x xs
-circSum [] = error "[circSum] empty list"
-
 circProd :: [Ref] -> Builder Ref
-circProd (x:xs) = foldM circMul x xs
-circProd [] = error "[circProd] empty list"
+circProd xs = foldTreeM circMul xs
+
+circSum :: [Ref] -> Builder Ref
+circSum xs = foldTreeM circAdd xs
 
 circXor :: Ref -> Ref -> Builder Ref
 circXor x y = do
@@ -154,6 +158,9 @@ circXor x y = do
     c  <- circMul x y
     c' <- circAdd c c
     circSub z c'
+
+circXors :: [Ref] -> Builder Ref
+circXors xs = foldTreeM circXor xs
 
 outputs :: [Ref] -> Builder ()
 outputs = mapM_ markOutput

@@ -334,7 +334,7 @@ sboxsum :: Circuit
 sboxsum = buildCircuit $ do
     xs <- inputs 8
     ys <- subcircuit subByte xs
-    z  <- foldM circXor (head ys) (tail ys)
+    z  <- circXors ys
     output z
 
 xor :: Circuit
