@@ -1,0 +1,32 @@
+import Cryptol::Extras
+
+owf : {d, n, m, l} (fin d, fin n, n == 2^^l) => [m][d][l] -> ([d] -> Bit) -> [n] -> [m]
+owf S P x = [ P (select s x) | s <- S ]
+  where
+    select : [d][l] -> [n] -> [d]
+    select s val = [ val@i | i <- s ]
+
+xor_maj : {d} (fin d) => [d] -> Bit
+xor_maj w = wl ^ wr
+  where
+    wl = foldr (^) zero (take w : [d/2])
+    wr = majority (drop w : [d/2])
+
+majority : {n} (fin n) => [n] -> Bit
+majority xs = num1s >= num0s
+  where
+    num1s = foldr f zero xs : [2^^n]
+    f b i = if b then i + 1 else i
+    num0s = foldr g zero xs : [2^^n]
+    g b i = if b then i else i + 1
+
+// d = log n
+// m = n / d log n
+F1 : {n, l, d, m} (fin d, fin l, n == 2^^l) => [n] -> [m*d*l] -> [m]
+F1 k x = owf (split (split x) : [m][d][l]) (xor_maj : [d] -> Bit) k
+
+// n = 128
+// d = 7
+// m = 3
+F1_128 : ([147], [128]) -> [3]
+F1_128 (x,k) = F1 k x
