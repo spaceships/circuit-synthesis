@@ -89,7 +89,10 @@ printTruthTable c = forM_ inputs $ \inp -> do
     inputs = sequence (replicate (ninputs c) [False, True])
 
 circEq :: Circuit -> Circuit -> IO Bool
-circEq c0 c1 = do
+circEq c0 c1
+  | ninputs  c0 /= ninputs  c1 = return False
+  | noutputs c0 /= noutputs c1 = return False
+  | otherwise = do
     let n = 10
     t0 <- replicateM n (genTest c0)
     t1 <- replicateM n (genTest c1)

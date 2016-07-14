@@ -95,7 +95,12 @@ markConst ref val = modifyCirc (\c -> c { circ_consts = B.insert val ref (circ_c
 foldTreeM :: Monad m => (a -> a -> m a) -> [a] -> m a
 foldTreeM f [ ] = error "[foldTreeM] empty list"
 foldTreeM f [x] = return x
-foldTreeM f xs  = foldTreeM f =<< mapM (\[x,y] -> f x y) (chunksOf 2 xs)
+foldTreeM f xs  = do
+    let g ys = if length ys == 1
+                  then return (head ys)
+                  else f (ys!!0) (ys!!1)
+    zs <- mapM g (chunksOf 2 xs)
+    foldTreeM f zs
 
 --------------------------------------------------------------------------------
 -- smart constructors

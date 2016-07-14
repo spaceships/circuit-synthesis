@@ -322,7 +322,8 @@ buildAes n = do
         xs   <- concat <$> mapM (subcircuit subByte) state
         xs'  <- subcircuit' linearParts xs [one]
         xs'' <- zipWithM circXor xs' key -- addRoundKey
-        output (head xs'')
+        {-output (head xs'')-}
+        outputs xs''
 
 sbox0 :: Circuit
 sbox0 = buildCircuit $ do
