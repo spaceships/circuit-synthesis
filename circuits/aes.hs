@@ -286,8 +286,8 @@ bitsSet one xs bs
     zs <- mapM (uncurry (bitSet one)) (zip xs bs)
     circProd zs
 
-toRachael :: Int -> Circuit
-toRachael n = buildCircuit $ do
+toRachel :: Int -> Circuit
+toRachel n = buildCircuit $ do
     xs  <- inputs n
     one <- constant 1
     let vals = sequence (replicate n [False, True])
@@ -305,7 +305,7 @@ subByteFromRachael = buildCircuit $ do
 subByte :: Circuit
 subByte = buildCircuit $ do
     xs <- inputs 8
-    rs <- subcircuit (toRachael 8) xs
+    rs <- subcircuit (toRachel 8) xs
     ys <- subcircuit subByteFromRachael rs
     outputs ys
 

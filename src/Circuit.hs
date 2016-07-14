@@ -65,8 +65,8 @@ genTest c = do
     inp <- num2Bits (ninputs c) <$> randIO (randInteger (ninputs c))
     return (inp, plainEval c inp)
 
-printCircuitInfo :: Circuit -> IO ()
-printCircuitInfo c = do
+printCircInfo :: Circuit -> IO ()
+printCircInfo c = do
     let ds = degs c
     printf "circuit info: depth=%d ninputs=%d noutputs=%d nconsts=%d%s ngates=%d\n"
             (depth c) (ninputs c) (noutputs c) (nconsts c)
@@ -74,8 +74,8 @@ printCircuitInfo c = do
             (ngates c)
     printf "degs=%s var-degree=%d circ-degree=%d\n" (show ds) (sum ds) (circDegree c)
 
-printCircuitInfoFreeNot :: Circuit -> IO ()
-printCircuitInfoFreeNot c = do
+printCircInfoFreeNot :: Circuit -> IO ()
+printCircInfoFreeNot c = do
     let ds = degs' True c
     printf "circuit info: depth=%d ninputs=%d noutputs=%d nconsts=%d[%d] ngates=%d\n"
             (depth c) (ninputs c) (noutputs c) (nconsts c) (nsecrets c) (ngates c)

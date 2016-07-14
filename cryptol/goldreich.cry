@@ -2,9 +2,9 @@ import Cryptol::Extras
 
 owf : {d, n, m, l} (fin d, fin n, n == 2^^l) => [m][d][l] -> ([d] -> Bit) -> [n] -> [m]
 owf S P x = [ P (select s x) | s <- S ]
-  where
-    select : [d][l] -> [n] -> [d]
-    select s val = [ val@i | i <- s ]
+
+select : {d,l,n} (fin d, fin n, n == 2^^l) => [d][l] -> [n] -> [d]
+select s val = [ val@i | i <- s ]
 
 xor_maj : {d} (fin d) => [d] -> Bit
 xor_maj w = wl ^ wr
@@ -30,3 +30,12 @@ F1 k x = owf (split (split x) : [m][d][l]) (xor_maj : [d] -> Bit) k
 // m = 3
 F1_128 : ([147], [128]) -> [3]
 F1_128 (x,k) = F1 k x
+
+maj_8 : ([8],[0]) -> Bit
+maj_8 (x,_) = majority x
+
+xor_maj_16 : ([16],[0]) -> Bit
+xor_maj_16 (x,_) = xor_maj x
+
+select_4 : ([12],[0]) -> [4]
+select_4 (x,_) = select (split (drop x) : [4][2]) (take x : [4])

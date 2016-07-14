@@ -83,3 +83,9 @@ safeInsert errorMsg x y m =
        then error errorMsg
        else M.insert x y m
 
+combinations :: Int -> [a] -> [[a]]
+combinations 0 _  = []
+combinations _ [] = []
+combinations 1 xs = map (:[]) xs
+combinations n (x:xs) = map (x:) (combinations (n-1) xs) ++ combinations n xs
+

@@ -152,10 +152,10 @@ circMul :: Ref -> Ref -> Builder Ref
 circMul x y = newOp (OpMul x y)
 
 circProd :: [Ref] -> Builder Ref
-circProd xs = foldTreeM circMul xs
+circProd = foldTreeM circMul
 
 circSum :: [Ref] -> Builder Ref
-circSum xs = foldTreeM circAdd xs
+circSum = foldTreeM circAdd
 
 circXor :: Ref -> Ref -> Builder Ref
 circXor x y = do
@@ -165,7 +165,16 @@ circXor x y = do
     circSub z c'
 
 circXors :: [Ref] -> Builder Ref
-circXors xs = foldTreeM circXor xs
+circXors = foldTreeM circXor
+
+circOr :: Ref -> Ref -> Builder Ref
+circOr x y = do
+    z <- circAdd x y
+    c <- circMul x y
+    circSub z c
+
+circOrs :: [Ref] -> Builder Ref
+circOrs = foldTreeM circOr
 
 outputs :: [Ref] -> Builder ()
 outputs = mapM_ markOutput
