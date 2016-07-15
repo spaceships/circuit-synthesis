@@ -29,6 +29,18 @@ instance MonadParallel Rand where
             (y,_) = x `par` runRand b r2
         f x y
 
+runRand :: Rand a -> Rng -> (a, Rng)
+runRand = runState
+
+evalRand :: Rand a -> Rng -> a
+evalRand = evalState
+
+randIO :: Rand a -> IO a
+randIO m = do
+    gen <- newGenIO
+    let (x,_) = runRand m gen
+    return x
+
 randInteger_ :: Rng -> Int -> (Integer, Rng)
 randInteger_ gen nbits = case genBytes nbytes gen of
     Left err    -> error ("[randInteger_] " ++ show err)
@@ -44,24 +56,15 @@ randInteger_ gen nbits = case genBytes nbytes gen of
             w'  = w .&. (2^(nbits `mod` 8) - 1)
             w'' = if overflow == 0 then w else w'
 
-runRand :: Rand a -> Rng -> (a, Rng)
-runRand = runState
-
-evalRand :: Rand a -> Rng -> a
-evalRand = evalState
-
-randIO :: Rand a -> IO a
-randIO m = do
-    gen <- newGenIO
-    let (x,_) = runRand m gen
-    return x
-
 randInteger :: Int -> Rand Integer
 randInteger nbits = do
     rng <- get
     let (x, rng') = randInteger_ rng nbits
     put rng'
     return x
+
+randBits :: Int -> Rand [Bool]
+randBits n = num2Bits n <$> randInteger n
 
 randIntegerMod :: Integer -> Rand Integer
 randIntegerMod q = do

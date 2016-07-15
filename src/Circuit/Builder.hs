@@ -4,6 +4,7 @@ module Circuit.Builder where
 
 import Circuit
 import Util
+import Rand
 
 import Control.Monad.State
 import Data.List.Split (chunksOf)
@@ -209,3 +210,9 @@ subcircuit c xs = do
         else do
             secret (circ_secrets c M.! sid)
     subcircuit' c xs ys
+
+--------------------------------------------------------------------------------
+--
+
+randKeyIO :: Int -> IO [Integer]
+randKeyIO n = map b2i <$> randIO (randBits n)

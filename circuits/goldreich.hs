@@ -1,7 +1,7 @@
 import Circuit
 import Circuit.Builder
 import qualified Circuit.Format.Acirc as Acirc
-import Util (combinations)
+import Util
 
 import Control.Monad
 import Data.List.Split
@@ -58,24 +58,24 @@ selects m l = buildCircuit $ do
         subcircuit (select l) (val ++ ix)
     outputs (concat zs)
 
-f1 :: Int -> Int -> Int -> Circuit
-f1 n d m = buildCircuit $ do
-    let l = ceiling (logBase 2 (fromIntegral n))
-    key <- secrets (replicate n 0)
-    zs  <- replicateM m $ do
-        xs <- inputs (d * l)
-        bs <- subcircuit (selects d l) (key ++ xs)
-        xorMaj bs
-    outputs zs
-
-f1_128 :: Circuit
-f1_128 = f1 128 7 3
-
---------------------------------------------------------------------------------
--- circuits
+f1 :: Int -> Int -> IO Circuit
+f1 n m = do
+    keyBits <- randKeyIO n
+    return $ buildCircuit $ do
+        let l = ceiling (logBase 2 (fromIntegral n))
+            d = l
+        key <- secrets keyBits
+        zs  <- replicateM m $ do
+            xs <- inputs (d * l)
+            bs <- subcircuit (selects d l) (key ++ xs)
+            xorMaj bs
+        outputs zs
 
 maj8 :: Circuit
 maj8 = buildCircuit (output =<< majority =<< inputs 8)
 
 xormaj16 :: Circuit
 xormaj16 = buildCircuit (output =<< xorMaj =<< inputs 16)
+
+f1_128 :: IO Circuit
+f1_128 = f1 128 1

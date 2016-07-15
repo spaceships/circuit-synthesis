@@ -50,7 +50,7 @@ main = runCommand $ \opts args -> do
     let inputFile = head args
         parser    = parserFor inputFile :: CircuitParser
     (c,ts) <- parser <$> readFile inputFile
-    when (opt_info opts) $ printCircuitInfo c
+    when (opt_info opts) $ printCircInfo c
     ts' <- case opt_gentests opts of
         Nothing -> return ts
         Just i  -> replicateM i (genTest c)
