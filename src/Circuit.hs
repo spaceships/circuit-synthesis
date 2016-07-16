@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE Strict #-}
 
 module Circuit where
 
@@ -68,18 +69,15 @@ genTest c = do
 printCircInfo :: Circuit -> IO ()
 printCircInfo c = do
     let ds = degs c
+        n = ninputs c
     printf "circuit info: depth=%d ninputs=%d noutputs=%d nconsts=%d%s ngates=%d\n"
-            (depth c) (ninputs c) (noutputs c) (nconsts c)
+            (depth c) n (noutputs c) (nconsts c)
             (show (M.elems (circ_secrets c)))
             (ngates c)
     printf "degs=%s var-degree=%d circ-degree=%d\n" (show ds) (sum ds) (circDegree c)
-
-printCircInfoFreeNot :: Circuit -> IO ()
-printCircInfoFreeNot c = do
-    let ds = degs' True c
-    printf "circuit info: depth=%d ninputs=%d noutputs=%d nconsts=%d[%d] ngates=%d\n"
-            (depth c) (ninputs c) (noutputs c) (nconsts c) (nsecrets c) (ngates c)
-    printf "degs=%s total degree=%d\n" (show ds) (sum ds)
+    printf "zimmerman-vbb-kappa=%d\n" (sum ds + 2*n + n*(2*n-1))
+    printf "zimmerman-io-kappa=%d\n" (sum ds + 2*n)
+    printf "lin16-kappa(c=n)=%d\n" (2 + n + sum ds + circDegree c)
 
 printTruthTable :: Circuit -> IO ()
 printTruthTable c = forM_ inputs $ \inp -> do
@@ -129,11 +127,7 @@ xdeg :: Circuit -> Int -> Int
 xdeg c i = degs c !! (i+1)
 
 degs :: Circuit -> [Int]
-degs = degs' False
-
--- with optional Free Not optimization
-degs' :: Bool -> Circuit -> [Int]
-degs' freeNot c = map (varDegree' freeNot c) ids
+degs c = map (varDegree c) ids
   where
     ids = OpSecret (Id (-1)) : map (OpInput . Id) [0 .. ninputs c-1]
 
@@ -145,16 +139,10 @@ depth c = maximum $ foldCirc f c
     f _            xs = maximum xs + 1
 
 varDegree :: Circuit -> Op -> Int
-varDegree = varDegree' False
-
--- with optional FreeNot optimization
-varDegree' :: Bool -> Circuit -> Op -> Int
-varDegree' freeNot c z = maximum $ foldCirc f c
+varDegree c z = maximum $ foldCirc f c
   where
     f (OpAdd _ _) [x,y] = max x y
-    f (OpSub z _) [x,y] = if freeNot && (circ_refmap c M.! z == OpSecret 0)
-                             then y
-                             else max x y
+    f (OpSub _ _) [x,y] = max x y
     f (OpMul _ _) [x,y] = x + y
 
     f x _ = if eq x z then 1 else 0
