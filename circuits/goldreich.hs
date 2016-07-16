@@ -1,3 +1,6 @@
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE Strict #-}
+
 import Circuit
 import Circuit.Builder
 import qualified Circuit.Format.Acirc as Acirc
@@ -11,17 +14,27 @@ import qualified Data.Vector as V
 --------------------------------------------------------------------------------
 -- builders
 
-majority :: [Ref] -> Builder Ref
-majority xs = do
+majorityNaive :: [Ref] -> Builder Ref
+majorityNaive xs = do
     let cs = combinations (length xs `div` 2) xs
     zs <- mapM circProd cs
     circOrs zs
 
--- TODO: turn this into a table and use toRachael?
+majority :: [Ref] -> Builder Ref
+majority xs = do
+    sel <- subcircuit (toRachel n) xs
+    let vars = snd <$> filter (\(i,_) -> tt V.! i) (zip [0..] sel)
+    circSum vars
+  where
+    n = length xs
+    tt = maj <$> sequence (replicate n [False, True])
+    maj xs = sum (map b2i xs) >= (n `div` 2)
+
 xorMaj :: [Ref] -> Builder Ref
 xorMaj xs = do
     let n = length xs `div` 2
     wl <- circXors (take n xs)
+    {-wr <- majorityNaive (drop n xs)-}
     wr <- majority (drop n xs)
     circXor wl wr
 
@@ -32,13 +45,14 @@ toRachel n = buildCircuit $ do
     let vals = sequence (replicate n [False, True])
     zs  <- mapM (bitsSet one xs) vals
     outputs zs
-  where
-    bitsSet one xs bs = do
-        when (length xs /= length bs) $ error "[bitsSet] unequal length inputs"
-        let set one (x, True)  = return x
-            set one (x, False) = circSub one x
-        zs <- mapM (set one) (zip xs bs)
-        circProd zs
+
+bitsSet :: Ref -> [Ref] -> [Bool] -> Builder Ref
+bitsSet one xs bs = do
+    when (length xs /= length bs) $ error "[bitsSet] unequal length inputs"
+    let set one (x, True)  = return x
+        set one (x, False) = circSub one x
+    zs <- mapM (set one) (zip xs bs)
+    circProd zs
 
 -- l is the size of the index, not the value
 select :: Int -> Circuit
@@ -70,6 +84,9 @@ f1 n m = do
             bs <- subcircuit (selects d l) (key ++ xs)
             xorMaj bs
         outputs zs
+
+maj8n :: Circuit
+maj8n = buildCircuit (output =<< majorityNaive =<< inputs 8)
 
 maj8 :: Circuit
 maj8 = buildCircuit (output =<< majority =<< inputs 8)
