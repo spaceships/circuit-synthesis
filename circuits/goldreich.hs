@@ -20,21 +20,34 @@ majorityNaive xs = do
     zs <- mapM circProd cs
     circOrs zs
 
-majority :: [Ref] -> Builder Ref
-majority xs = do
+lookupTable :: ([Bool] -> Bool) -> [Ref] -> Builder Ref
+lookupTable f xs = do
     sel <- subcircuit (toRachel n) xs
     let vars = snd <$> filter (\(i,_) -> tt V.! i) (zip [0..] sel)
     circSum vars
   where
+    n  = length xs
+    tt = f <$> sequence (replicate n [False, True])
+
+-- xorLookup xs = lookupTable xors xs
+--   where
+--     xors = foldl1 xor
+--     xor True True = False
+--     xor True False = True
+--     xor False True = True
+--     xor False False = False
+
+majority :: [Ref] -> Builder Ref
+majority xs = lookupTable maj xs
+  where
     n = length xs
-    tt = maj <$> sequence (replicate n [False, True])
     maj xs = sum (map b2i xs) >= (n `div` 2)
 
 xorMaj :: [Ref] -> Builder Ref
 xorMaj xs = do
     let n = length xs `div` 2
     wl <- circXors (take n xs)
-    {-wr <- majorityNaive (drop n xs)-}
+    -- wr <- majorityNaive (drop n xs)
     wr <- majority (drop n xs)
     circXor wl wr
 

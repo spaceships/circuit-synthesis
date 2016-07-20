@@ -17,7 +17,6 @@ data MainOptions = MainOptions { opt_info     :: Bool
                                , opt_verbose  :: Bool
                                , opt_test     :: Bool
                                , opt_gentests :: Maybe Int
-
                                }
 
 instance Options MainOptions where
