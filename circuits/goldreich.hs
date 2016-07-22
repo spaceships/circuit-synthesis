@@ -98,6 +98,19 @@ f1 n m = do
             xorMaj bs
         outputs zs
 
+f1_rachel :: Int -> Int -> IO Circuit
+f1_rachel n m = do
+    keyBits <- randKeyIO n
+    return $ buildCircuit $ do
+        let d = ceiling (logBase 2 (fromIntegral n))
+        key <- secrets keyBits
+        zs  <- replicateM m $ do
+            xs <- replicateM d (inputs n)
+            bs <- mapM (zipWithM circMul key) xs
+            zs <- mapM circSum bs
+            xorMaj zs
+        outputs zs
+
 maj8n :: Circuit
 maj8n = buildCircuit (output =<< majorityNaive =<< inputs 8)
 
