@@ -4,3 +4,4 @@ Setup.hs
 dist
 work
 *.acirc
+*.zim
