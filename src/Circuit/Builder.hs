@@ -12,6 +12,7 @@ import Text.Printf
 import qualified Data.Map as M
 import qualified Data.Bimap as B
 import qualified Data.Set as S
+import qualified Data.Vector as V
 import Debug.Trace
 
 type Builder = State BuildSt
@@ -212,7 +213,37 @@ subcircuit c xs = do
     subcircuit' c xs ys
 
 --------------------------------------------------------------------------------
---
+-- extras!
 
 randKeyIO :: Int -> IO [Integer]
 randKeyIO n = map b2i <$> randIO (randBits n)
+
+bitsSet :: [Ref] -> [Bool] -> Builder Ref
+bitsSet xs bs = do
+    one <- constant 1
+    when (length xs /= length bs) $ error "[bitsSet] unequal length inputs"
+    let set one (x, True)  = return x
+        set one (x, False) = circSub one x
+    zs <- mapM (set one) (zip xs bs)
+    circProd zs
+
+-- transforms an input x into a vector [ 0 .. 1 .. 0 ] with a 1 in the xth place
+selectionVector :: [Ref] -> Builder [Ref]
+selectionVector xs = mapM (bitsSet xs) (permutations (length xs) [False, True])
+
+lookupTable :: ([Bool] -> Bool) -> [Ref] -> Builder Ref
+lookupTable f xs = do
+    sel <- selectionVector xs
+    let tt   = f <$> booleanPermutations (length xs)
+        vars = snd <$> filter (\(i,_) -> tt !! i) (zip [0..] sel)
+    circSum vars
+
+lookupTableMultibit :: ([Bool] -> [Bool]) -> [Ref] -> Builder [Ref]
+lookupTableMultibit f xs =
+    mapM (flip lookupTable xs) [ (\x -> f x !! i) | i <- [0..length xs-1]]
+
+matrixTimesVect :: [[Ref]] -> [Ref] -> Builder [Ref]
+matrixTimesVect rows vect
+  | not $ all ((== length vect) . length) rows = error "[matrixMul] bad dimensions"
+  | otherwise = mapM (circXors <=< zipWithM circMul vect) rows
+

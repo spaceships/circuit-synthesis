@@ -9,10 +9,9 @@ import Util
 import Control.Monad
 import Data.List.Split
 import Debug.Trace
-import qualified Data.Vector as V
 
 --------------------------------------------------------------------------------
--- builders
+-- f1
 
 majorityNaive :: [Ref] -> Builder Ref
 majorityNaive xs = do
@@ -20,28 +19,10 @@ majorityNaive xs = do
     zs <- mapM circProd cs
     circOrs zs
 
-lookupTable :: ([Bool] -> Bool) -> [Ref] -> Builder Ref
-lookupTable f xs = do
-    sel <- subcircuit (toRachel n) xs
-    let vars = snd <$> filter (\(i,_) -> tt V.! i) (zip [0..] sel)
-    circSum vars
-  where
-    n  = length xs
-    tt = f <$> sequence (replicate n [False, True])
-
--- xorLookup xs = lookupTable xors xs
---   where
---     xors = foldl1 xor
---     xor True True = False
---     xor True False = True
---     xor False True = True
---     xor False False = False
-
 majority :: [Ref] -> Builder Ref
 majority xs = lookupTable maj xs
   where
-    n = length xs
-    maj xs = sum (map b2i xs) >= (n `div` 2)
+    maj xs = sum (map b2i xs) >= (length xs `div` 2)
 
 xorMaj :: [Ref] -> Builder Ref
 xorMaj xs = do
@@ -51,39 +32,15 @@ xorMaj xs = do
     wr <- majority (drop n xs)
     circXor wl wr
 
-toRachel :: Int -> Circuit
-toRachel n = buildCircuit $ do
-    xs  <- inputs n
-    one <- constant 1
-    let vals = sequence (replicate n [False, True])
-    zs  <- mapM (bitsSet one xs) vals
-    outputs zs
+-- select the ix'th bit from x
+select :: [Ref] -> [Ref] -> Builder Ref
+select xs ix = do
+    sel <- selectionVector ix
+    zs  <- zipWithM (circMul) sel xs
+    circSum zs
 
-bitsSet :: Ref -> [Ref] -> [Bool] -> Builder Ref
-bitsSet one xs bs = do
-    when (length xs /= length bs) $ error "[bitsSet] unequal length inputs"
-    let set one (x, True)  = return x
-        set one (x, False) = circSub one x
-    zs <- mapM (set one) (zip xs bs)
-    circProd zs
-
--- l is the size of the index, not the value
-select :: Int -> Circuit
-select l = buildCircuit $ do
-    val <- inputs (2^l)
-    ix  <- inputs l
-    sel <- subcircuit (toRachel l) ix
-    zs  <- zipWithM (circMul) sel val
-    z   <- circSum zs
-    output z
-
-selects :: Int -> Int -> Circuit
-selects m l = buildCircuit $ do
-    val <- inputs (2^l)
-    zs  <- replicateM m $ do
-        ix <- inputs l
-        subcircuit (select l) (val ++ ix)
-    outputs (concat zs)
+selects :: [Ref] -> [[Ref]] -> Builder [Ref]
+selects xs ixs = mapM (select xs) ixs
 
 f1 :: Int -> Int -> IO Circuit
 f1 n m = do
@@ -93,8 +50,8 @@ f1 n m = do
             d = l
         key <- secrets keyBits
         zs  <- replicateM m $ do
-            xs <- inputs (d * l)
-            bs <- subcircuit (selects d l) (key ++ xs)
+            xs <- replicateM d (inputs l)
+            bs <- selects key xs
             xorMaj bs
         outputs zs
 
@@ -122,3 +79,30 @@ xormaj16 = buildCircuit (output =<< xorMaj =<< inputs 16)
 
 f1_128 :: IO Circuit
 f1_128 = f1 128 1
+
+--------------------------------------------------------------------------------
+-- f2
+
+f2 :: Int -> Int -> IO Circuit
+f2 n m = do
+    keyBits <- randKeyIO (2*n)
+    return $ buildCircuit $ do
+        let l = ceiling (logBase 2 (fromIntegral n))
+            d = l
+        kf <- secrets (take n keyBits)
+        ke <- secrets (drop n keyBits)
+        zs <- replicateM m $ do
+            xs <- replicateM d (inputs l)
+            bs <- selects kf xs
+            xorMaj bs
+        outputs zs
+
+ext :: Int -> Int -> Circuit
+ext n m = buildCircuit $ do
+    let d = ceiling (logBase 2 (fromIntegral n))
+        nrows = m
+        ncols = n
+    a <- replicateM nrows (inputs ncols)
+    x <- inputs ncols
+    z <- matrixTimesVect a x
+    outputs z

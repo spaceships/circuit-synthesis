@@ -11,11 +11,6 @@ import Data.List.Split
 import Debug.Trace
 import qualified Data.Vector as V
 
-matrixMul :: [[Ref]] -> [Ref] -> Builder [Ref]
-matrixMul rows vect
-  | not $ all ((== length vect) . length) rows = error "[matrixMul] bad dimensions"
-  | otherwise = mapM (circXors <=< zipWithM circMul vect) rows
-
 tribes :: Int -> [Ref] -> Ref -> Builder Ref
 tribes k y z = circXor z =<< circOrs =<< mapM circProd (chunksOf k y)
 
@@ -25,7 +20,7 @@ fa n k = do
     return $ buildCircuit $ do
         a <- chunksOf (n+1) <$> secrets keyBits
         x <- inputs (n+1)
-        w <- matrixMul a x
+        w <- matrixTimesVect a x
         z <- tribes k (init w) (last w)
         output z
 

@@ -89,3 +89,9 @@ combinations _ [] = []
 combinations 1 xs = map (:[]) xs
 combinations n (x:xs) = map (x:) (combinations (n-1) xs) ++ combinations n xs
 
+permutations :: Int -> [a] -> [[a]]
+permutations n possibleValues = sequence (replicate n possibleValues)
+
+-- all possible n-tuples of True, False
+booleanPermutations :: Int -> [[Bool]]
+booleanPermutations n = permutations n [False, True]
