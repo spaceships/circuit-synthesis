@@ -5,6 +5,7 @@ import Circuit
 import Circuit.Builder
 import qualified Circuit.Format.Acirc as Acirc
 import Util
+import Rand
 
 import Control.Monad
 import Data.List.Split
@@ -123,3 +124,19 @@ ext n m = buildCircuit $ do
 --         xor False False = False
 --     z  <- lookupTable (foldl1 xor) xs
 --     output z
+
+--------------------------------------------------------------------------------
+-- prg
+
+selectsPt :: [Int] -> [Ref] -> Builder [Ref]
+selectsPt sels xs = return (map (xs!!) sels)
+
+prg :: Int -> Int -> IO Circuit
+prg n m = do
+    let l = ceiling (logBase 2 (fromIntegral n))
+        d = l
+    selections <- replicateM m $ replicateM d (randIO (randIntegerMod (fromIntegral n)))
+    return $ buildCircuit $ do
+        xs  <- inputs n
+        zs  <- forM selections $ \s -> xorMaj =<< selectsPt (map fromIntegral s) xs
+        outputs zs

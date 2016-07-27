@@ -215,9 +215,6 @@ subcircuit c xs = do
 --------------------------------------------------------------------------------
 -- extras!
 
-randKeyIO :: Int -> IO [Integer]
-randKeyIO n = map b2i <$> randIO (randBits n)
-
 bitsSet :: [Ref] -> [Bool] -> Builder Ref
 bitsSet xs bs = do
     one <- constant 1

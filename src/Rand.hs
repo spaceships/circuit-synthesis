@@ -66,6 +66,12 @@ randInteger nbits = do
 randBits :: Int -> Rand [Bool]
 randBits n = num2Bits n <$> randInteger n
 
+randBitsIO :: Int -> IO [Bool]
+randBitsIO n = randIO (randBits n)
+
+randKeyIO :: Int -> IO [Integer]
+randKeyIO n = map b2i <$> randBitsIO n
+
 randIntegerMod :: Integer -> Rand Integer
 randIntegerMod q = do
     let nbits = sizeBase2 q
