@@ -275,23 +275,12 @@ sbox =
     ]
 -- }}}
 
-bitSet :: Ref -> Ref -> Bool -> Builder Ref
-bitSet one x True  = return x
-bitSet one x False = circSub one x
-
-bitsSet :: Ref -> [Ref] -> [Bool] -> Builder Ref
-bitsSet one xs bs
-  | length xs /= length bs = error "[bitsSet] unequal length inputs"
-  | otherwise = do
-    zs <- mapM (uncurry (bitSet one)) (zip xs bs)
-    circProd zs
-
 toRachel :: Int -> Circuit
 toRachel n = buildCircuit $ do
     xs  <- inputs n
     one <- constant 1
     let vals = sequence (replicate n [False, True])
-    zs <- mapM (bitsSet one xs) vals
+    zs <- mapM (bitsSet xs) vals
     outputs zs
 
 subByteFromRachael :: Circuit
