@@ -105,4 +105,21 @@ ext n m = buildCircuit $ do
     a <- replicateM nrows (inputs ncols)
     x <- inputs ncols
     z <- matrixTimesVect a x
+    -- z <- matrixTimesVectLookup a x
     outputs z
+
+-- xors :: Int -> Circuit
+-- xors n = buildCircuit $ do
+--     xs <- inputs n
+--     z  <- circXors xs
+--     output z
+
+-- xors' :: Int -> Circuit
+-- xors' n = buildCircuit $ do
+--     xs <- inputs n
+--     let xor True True = False
+--         xor False True = True
+--         xor True False = True
+--         xor False False = False
+--     z  <- lookupTable (foldl1 xor) xs
+--     output z
