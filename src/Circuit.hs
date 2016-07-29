@@ -79,6 +79,11 @@ printCircInfo c = do
     printf "zimmerman-io-kappa=%d\n" (sum ds + 2*n)
     printf "lin16-kappa(c=n)=%d\n" (2 + n + sum ds + circDegree c)
 
+printSecrets :: Circuit -> IO ()
+printSecrets c = do
+    mapM (putStr . show) (M.elems (circ_secrets c))
+    putStrLn ""
+
 printTruthTable :: Circuit -> IO ()
 printTruthTable c = forM_ inputs $ \inp -> do
     let outp = plainEval c inp

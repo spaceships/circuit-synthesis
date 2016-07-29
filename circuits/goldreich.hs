@@ -133,10 +133,33 @@ selectsPt sels xs = return (map (xs!!) sels)
 
 prg :: Int -> Int -> IO Circuit
 prg n m = do
-    let l = ceiling (logBase 2 (fromIntegral n))
+    let l = numBits n
         d = l
     selections <- replicateM m $ replicateM d (randIO (randIntegerMod (fromIntegral n)))
     return $ buildCircuit $ do
         xs  <- inputs n
         zs  <- forM selections $ \s -> xorMaj =<< selectsPt (map fromIntegral s) xs
         outputs zs
+
+ggmStep :: Circuit -> [Ref] -> [Ref] -> Builder [Ref]
+ggmStep prg seed choice = do
+    let n = length seed
+    ws <- chunksOf n <$> subcircuit prg seed
+    choose choice ws
+
+-- choose the ith set from xs
+choose :: [Ref] -> [[Ref]] -> Builder [Ref]
+choose ix xs = do
+    s  <- selectionVector ix
+    ws <- zipWithM (\b x -> mapM (circMul b) x) s xs
+    mapM circSum (transpose ws)
+
+ggm :: Int -> Int -> IO Circuit
+ggm n d = do
+    g <- prg n (d*n)
+    keyBits <- randKeyIO n
+    return $ buildCircuit $ do
+        xs   <- inputs n
+        seed <- secrets keyBits
+        res  <- foldM (ggmStep g) seed (chunksOf (numBits d) xs)
+        outputs res

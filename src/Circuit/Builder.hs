@@ -178,6 +178,11 @@ circOr x y = do
 circOrs :: [Ref] -> Builder Ref
 circOrs = foldTreeM circOr
 
+circNot :: Ref -> Builder Ref
+circNot x = do
+    one <- constant 1
+    circSub one x
+
 outputs :: [Ref] -> Builder ()
 outputs = mapM_ markOutput
 
@@ -244,29 +249,3 @@ matrixTimesVect rows vect
   | not $ all ((== length vect) . length) rows = error "[matrixTimesVect] bad dimensions"
   | otherwise = mapM (circXors <=< zipWithM circMul vect) rows
 
--- THIS STUFF is worse than direct matrix multiplication
---
--- matrixTimesVectBool :: Int -> Int -> [Bool] -> [Bool]
--- matrixTimesVectBool nrows ncols elems =
---     if not $ all ((== ncols) . length) rows
---        then error "[matrixTimesVect] bad dimensions"
---        else map (foldl1 xor . zipWith (&&) vect) rows
---   where
---     n = length elems
---     rows = chunksOf ncols (take (n - ncols) elems)
---     vect = drop (n - ncols) elems
-
---     xor True True = False
---     xor False True = True
---     xor True False = True
---     xor False False = False
-
--- matrixTimesVectLookup :: [[Ref]] -> [Ref] -> Builder [Ref]
--- matrixTimesVectLookup rows vect =
---     if length vect /= ncols
---        then error "[matrixTimesVectLookup] bad dimensions"
---        else lookupTableMultibit nrows (matrixTimesVectBool nrows ncols) refs
---   where
---     nrows = length rows
---     ncols = length (head rows)
---     refs = concat rows ++ vect

@@ -95,3 +95,11 @@ permutations n possibleValues = sequence (replicate n possibleValues)
 -- all possible n-tuples of True, False
 booleanPermutations :: Int -> [[Bool]]
 booleanPermutations n = permutations n [False, True]
+
+transpose :: [[a]] -> [[a]]
+transpose xs | null (head xs) = []
+             | otherwise = map head xs : transpose (map tail xs)
+
+
+numBits :: Int -> Int
+numBits n = ceiling (logBase 2 (fromIntegral n))
