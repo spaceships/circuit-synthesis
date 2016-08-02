@@ -23,16 +23,16 @@ multi
 fraig
 rewrite -l
 balance -s -d -x
-write_verilog "${func}.v"
+write_verilog "${func}.in.v"
 EOM
 
 cat > yosys.ys <<- EOM
-read_verilog "${func}.v"
+read_verilog "${func}.in.v"
 synth -run fine
 techmap; opt -fast
 dfflibmap -liberty ${libertyfile}
 abc -liberty ${libertyfile}
-write_verilog ${func}.v
+write_verilog ${func}.out.v
 EOM
 
 #saw sawcmds.saw > /dev/null
