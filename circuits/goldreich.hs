@@ -87,27 +87,27 @@ f1_128 = f1 128 1
 f2 :: Int -> Int -> IO Circuit
 f2 n m = do
     keyBits <- randKeyIO (2*n)
+    let l = ceiling (logBase 2 (fromIntegral n))
+        d = l
+    ext <- genExt m m
     return $ buildCircuit $ do
-        let l = ceiling (logBase 2 (fromIntegral n))
-            d = l
         kf <- secrets (take n keyBits)
         ke <- secrets (drop n keyBits)
         zs <- replicateM m $ do
             xs <- replicateM d (inputs l)
             bs <- selects kf xs
             xorMaj bs
-        outputs zs
+        ws <- subcircuit ext zs
+        outputs ws
 
-ext :: Int -> Int -> Circuit
-ext n m = buildCircuit $ do
-    let d = ceiling (logBase 2 (fromIntegral n))
-        nrows = m
-        ncols = n
-    a <- replicateM nrows (inputs ncols)
-    x <- inputs ncols
-    z <- matrixTimesVect a x
-    -- z <- matrixTimesVectLookup a x
-    outputs z
+genExt :: Int -> Int -> IO Circuit
+genExt ninputs noutputs = do
+    a <- replicateM ninputs (randBitsIO noutputs)
+    return $ buildCircuit $ do
+        let d = ceiling (logBase 2 (fromIntegral noutputs))
+        x <- inputs ninputs
+        z <- matrixTimesVectPT a x
+        outputs z
 
 -- xors :: Int -> Circuit
 -- xors n = buildCircuit $ do
@@ -154,12 +154,12 @@ choose ix xs = do
     ws <- zipWithM (\b x -> mapM (circMul b) x) s xs
     mapM circSum (transpose ws)
 
-ggm :: Int -> Int -> IO Circuit
-ggm n d = do
-    g <- prg n (d*n)
-    keyBits <- randKeyIO n
+ggm :: Int -> Int -> Int -> IO Circuit
+ggm inputLength keyLength stretch = do
+    g <- prg keyLength (stretch * keyLength)
+    keyBits <- randKeyIO keyLength
     return $ buildCircuit $ do
-        xs   <- inputs n
+        xs   <- inputs inputLength
         seed <- secrets keyBits
-        res  <- foldM (ggmStep g) seed (chunksOf (numBits d) xs)
+        res  <- foldM (ggmStep g) seed (chunksOf (numBits stretch) xs)
         outputs res

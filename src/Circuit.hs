@@ -91,6 +91,13 @@ printTruthTable c = forM_ inputs $ \inp -> do
   where
     inputs = sequence (replicate (ninputs c) [False, True])
 
+printRandInputs :: Int -> Circuit -> IO ()
+printRandInputs n c = do
+    inputs <- replicateM n $ randBitsIO (ninputs c)
+    forM_ inputs $ \inp -> do
+        let outp = plainEval c inp
+        printf "%s -> %s\n" (showBits' inp) (showBits' outp)
+
 circEq :: Circuit -> Circuit -> IO Bool
 circEq c0 c1
   | ninputs  c0 /= ninputs  c1 = return False

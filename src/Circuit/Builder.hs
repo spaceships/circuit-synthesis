@@ -220,14 +220,16 @@ subcircuit c xs = do
 --------------------------------------------------------------------------------
 -- extras!
 
-bitsSet :: [Ref] -> [Bool] -> Builder Ref
-bitsSet xs bs = do
+selectPT :: [Ref] -> [Bool] -> Builder [Ref]
+selectPT xs bs = do
     one <- constant 1
-    when (length xs /= length bs) $ error "[bitsSet] unequal length inputs"
+    when (length xs /= length bs) $ error "[select] unequal length inputs"
     let set one (x, True)  = return x
         set one (x, False) = circSub one x
-    zs <- mapM (set one) (zip xs bs)
-    circProd zs
+    mapM (set one) (zip xs bs)
+
+bitsSet :: [Ref] -> [Bool] -> Builder Ref
+bitsSet xs bs = circProd =<< selectPT xs bs
 
 -- transforms an input x into a vector [ 0 .. 1 .. 0 ] with a 1 in the xth place
 selectionVector :: [Ref] -> Builder [Ref]
@@ -249,3 +251,7 @@ matrixTimesVect rows vect
   | not $ all ((== length vect) . length) rows = error "[matrixTimesVect] bad dimensions"
   | otherwise = mapM (circXors <=< zipWithM circMul vect) rows
 
+matrixTimesVectPT :: [[Bool]] -> [Ref] -> Builder [Ref]
+matrixTimesVectPT rows vect
+  | not $ all ((== length vect) . length) rows = error "[matrixTimesVectPT] bad dimensions"
+  | otherwise = mapM (circXors <=< selectPT vect) rows
