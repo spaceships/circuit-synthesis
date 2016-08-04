@@ -242,9 +242,11 @@ lookupTable f xs = do
         vars = snd <$> filter (\(i,_) -> tt !! i) (zip [0..] sel)
     circSum vars
 
-lookupTableMultibit :: Int -> ([Bool] -> [Bool]) -> [Ref] -> Builder [Ref]
-lookupTableMultibit noutputs f xs =
+lookupTableMultibit :: ([Bool] -> [Bool]) -> [Ref] -> Builder [Ref]
+lookupTableMultibit f xs =
     mapM (flip lookupTable xs) [ (\x -> f x !! i) | i <- [0..noutputs - 1] ]
+  where
+    noutputs = length (f (replicate (length xs) False))
 
 matrixTimesVect :: [[Ref]] -> [Ref] -> Builder [Ref]
 matrixTimesVect rows vect
@@ -255,3 +257,9 @@ matrixTimesVectPT :: [[Bool]] -> [Ref] -> Builder [Ref]
 matrixTimesVectPT rows vect
   | not $ all ((== length vect) . length) rows = error "[matrixTimesVectPT] bad dimensions"
   | otherwise = mapM (circXors <=< selectPT vect) rows
+
+xor :: Bool -> Bool -> Bool
+xor False False = False
+xor False True  = True
+xor True  False = True
+xor True  True  = True

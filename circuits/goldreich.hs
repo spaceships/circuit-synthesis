@@ -86,14 +86,13 @@ f1_128 = f1 128 1
 
 f2 :: Int -> Int -> IO Circuit
 f2 n m = do
-    keyBits <- randKeyIO (2*n)
+    keyBits <- randKeyIO n
     let l = ceiling (logBase 2 (fromIntegral n))
         d = l
-    ext <- genExt m m
+    ext <- genExt (2*m) m
     return $ buildCircuit $ do
-        kf <- secrets (take n keyBits)
-        ke <- secrets (drop n keyBits)
-        zs <- replicateM m $ do
+        kf <- secrets keyBits
+        zs <- replicateM (2*m) $ do
             xs <- replicateM d (inputs l)
             bs <- selects kf xs
             xorMaj bs
@@ -102,28 +101,45 @@ f2 n m = do
 
 genExt :: Int -> Int -> IO Circuit
 genExt ninputs noutputs = do
-    a <- replicateM ninputs (randBitsIO noutputs)
+    key <- randKeyIO (ninputs * noutputs)
     return $ buildCircuit $ do
-        let d = ceiling (logBase 2 (fromIntegral noutputs))
         x <- inputs ninputs
-        z <- matrixTimesVectPT a x
+        a <- chunksOf ninputs <$> secrets key
+        z <- matrixTimesVect a x
         outputs z
 
--- xors :: Int -> Circuit
--- xors n = buildCircuit $ do
---     xs <- inputs n
---     z  <- circXors xs
---     output z
+--------------------------------------------------------------------------------
+-- f3
 
--- xors' :: Int -> Circuit
--- xors' n = buildCircuit $ do
---     xs <- inputs n
---     let xor True True = False
---         xor False True = True
---         xor True False = True
---         xor False False = False
---     z  <- lookupTable (foldl1 xor) xs
---     output z
+f3 :: Int -> Int -> IO Circuit
+f3 n m = do
+    keyBits <- randKeyIO n
+    let l = ceiling (logBase 2 (fromIntegral n))
+        d = l
+    ext <- genExt (2*m) m
+    return $ buildCircuit $ do
+        kf <- secrets keyBits
+        zs <- replicateM (2*m) $ do
+            xs <- replicateM d (inputs l)
+            bs <- selects kf xs
+            xorMaj bs
+        ws <- subcircuit ext zs
+        outputs ws
+
+genMapper :: Int -> IO Circuit
+genMapper n = do
+    k1 <- randKeyIO n
+    k2 <- randKeyIO n
+    let f n bs = polyDiv (take n bs) (zipWith xor (drop n bs) (drop (2*n) bs))
+    return $ buildCircuit $ do
+        xs <- inputs n
+        k1 <- secrets k1
+        k2 <- secrets k2
+        zs <- lookupTableMultibit (f n) (k1 ++ k2 ++ xs)
+        outputs zs
+
+polyDiv :: [Bool] -> [Bool] -> [Bool]
+polyDiv x y = undefined
 
 --------------------------------------------------------------------------------
 -- prg
