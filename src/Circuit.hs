@@ -60,11 +60,21 @@ getSecret c id = case M.lookup id (circ_secrets c) of
     Just x  -> x
     Nothing -> error ("[getSecret] no secret known for y" ++ show id)
 
--- TODO: generate random keys somehow too
-genTest :: Circuit -> IO TestCase
-genTest c = do
-    inp <- num2Bits (ninputs c) <$> randIO (randInteger (ninputs c))
-    return (inp, plainEval c inp)
+-- symlen determines how large a rachel symbol is
+genTest :: Int -> Circuit -> IO TestCase
+genTest symlen c
+    | symlen == 1 = do
+        inp <- num2Bits (ninputs c) <$> randIO (randInteger (ninputs c))
+        return (inp, plainEval c inp)
+    | otherwise = do
+        when ((ninputs c `mod` symlen) /= 0) $
+            error "[genTest] inputs not evenly dividable"
+        let nsyms = ninputs c `div` symlen
+        inp <- fmap concat $ replicateM nsyms $ do
+            x <- fromIntegral <$> randIO (randInteger (numBits symlen))
+            return [ i == x | i <- [0..symlen-1] ]
+        return (inp, plainEval c inp)
+
 
 printCircInfo :: Circuit -> IO ()
 printCircInfo c = do
@@ -104,8 +114,8 @@ circEq c0 c1
   | noutputs c0 /= noutputs c1 = return False
   | otherwise = do
     let n = 10
-    t0 <- replicateM n (genTest c0)
-    t1 <- replicateM n (genTest c1)
+    t0 <- replicateM n (genTest 1 c0)
+    t1 <- replicateM n (genTest 1 c1)
     x  <- ensure False c1 t0
     y  <- ensure False c0 t1
     return (x && y)
@@ -151,7 +161,10 @@ depth c = maximum $ foldCirc f c
     f _            xs = maximum xs + 1
 
 varDegree :: Circuit -> Op -> Int
-varDegree c z = maximum $ foldCirc f c
+varDegree c z = maximum (varDegree' c z)
+
+varDegree' :: Circuit -> Op -> [Int]
+varDegree' c z = foldCirc f c
   where
     f (OpAdd _ _) [x,y] = max x y
     f (OpSub _ _) [x,y] = max x y

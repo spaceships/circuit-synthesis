@@ -52,7 +52,7 @@ main = runCommand $ \opts args -> do
     when (opt_info opts) $ printCircInfo c
     ts' <- case opt_gentests opts of
         Nothing -> return ts
-        Just i  -> replicateM i (genTest c)
+        Just i  -> replicateM i (genTest (ninputs c) c)
     when (opt_test opts) $ evalTests opts c ts'
     exitSuccess
 

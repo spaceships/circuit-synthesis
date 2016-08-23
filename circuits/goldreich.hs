@@ -157,11 +157,21 @@ prg n m = do
         zs  <- forM selections $ \s -> xorMaj =<< selectsPt (map fromIntegral s) xs
         outputs zs
 
-ggmStep :: Circuit -> [Ref] -> [Ref] -> Builder [Ref]
-ggmStep prg seed choice = do
-    let n = length seed
-    ws <- chunksOf n <$> subcircuit prg seed
-    choose choice ws
+prgKey :: Int -> Int -> IO Circuit
+prgKey n m = do
+    let l = numBits n
+        d = l
+    keyBits <- randKeyIO n
+    selections <- replicateM m $ replicateM d (randIO (randIntegerMod (fromIntegral n)))
+    return $ buildCircuit $ do
+        x   <- input
+        xs  <- secrets keyBits
+        zs  <- forM selections $ \s -> xorMaj =<< selectsPt (map fromIntegral s) xs
+        outputs zs
+
+
+--------------------------------------------------------------------------------
+-- ggm
 
 -- choose the ith set from xs
 choose :: [Ref] -> [[Ref]] -> Builder [Ref]
@@ -169,6 +179,12 @@ choose ix xs = do
     s  <- selectionVector ix
     ws <- zipWithM (\b x -> mapM (circMul b) x) s xs
     mapM circSum (transpose ws)
+
+ggmStep :: Circuit -> [Ref] -> [Ref] -> Builder [Ref]
+ggmStep prg seed choice = do
+    let n = length seed
+    ws <- chunksOf n <$> subcircuit prg seed
+    choose choice ws
 
 ggm :: Int -> Int -> Int -> IO Circuit
 ggm inputLength keyLength stretch = do
@@ -178,4 +194,26 @@ ggm inputLength keyLength stretch = do
         xs   <- inputs inputLength
         seed <- secrets keyBits
         res  <- foldM (ggmStep g) seed (chunksOf (numBits stretch) xs)
+        outputs res
+
+--------------------------------------------------------------------------------
+-- ggm rachel
+
+ggmStepR :: Circuit -> [Ref] -> [Ref] -> Builder [Ref]
+ggmStepR prg seed choice = do
+    let n = length seed
+    xs <- chunksOf n <$> subcircuit prg seed
+    when (length choice /= length xs) $ error "[ggmStepR] wrong input length"
+    ws <- zipWithM (\b x -> mapM (circMul b) x) choice xs
+    mapM circSum (transpose ws)
+
+ggmRachel :: Int -> Int -> Int -> IO Circuit
+ggmRachel inputLength keyLength stretch = do
+    g <- prg keyLength (stretch * keyLength)
+    keyBits <- randKeyIO keyLength
+    return $ buildCircuit $ do
+        xs   <- inputs inputLength
+        seed <- secrets keyBits
+        when ((length xs `mod` stretch) /= 0) $ error "[ggmRachel] wrong input length"
+        res  <- foldM (ggmStepR g) seed (chunksOf stretch xs)
         outputs res

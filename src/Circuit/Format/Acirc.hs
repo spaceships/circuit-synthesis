@@ -1,6 +1,7 @@
 module Circuit.Format.Acirc
   ( readAcirc
   , writeAcirc
+  , writeAcircR
   , parseCirc
   , showCirc
   , showTest
@@ -26,7 +27,7 @@ addTestsToFile :: FilePath -> IO ()
 addTestsToFile fp = do
     s <- readFile fp
     let (c,_) = parseCirc s
-    ts <- replicateM 10 (genTestStr c)
+    ts <- replicateM 10 (genTestStr 1 c)
     forceM ts
     writeFile fp (unlines ts ++ s)
 
@@ -35,15 +36,24 @@ writeAcirc fp c = do
     s <- showCircWithTests 10 c
     writeFile fp s
 
-showCircWithTests :: Int -> Circuit -> IO String
-showCircWithTests ntests c = do
-    ts <- replicateM ntests (genTestStr c)
-    return (unlines ts ++ showCirc c)
+writeAcircR :: FilePath -> Int -> Circuit -> IO ()
+writeAcircR fp symlen c = do
+    s <- showCircWithTestsR symlen 10 c
+    writeFile fp s
 
-showCirc :: Circuit -> String
-showCirc c = unlines (header ++ gateLines)
+showCircWithTests :: Int -> Circuit -> IO String
+showCircWithTests ntests c = showCircWithTestsR 1 ntests c
+
+showCircWithTestsR :: Int -> Int -> Circuit -> IO String
+showCircWithTestsR symlen ntests c = do
+    ts <- replicateM ntests (genTestStr symlen c)
+    return (unlines ts ++ showCirc symlen c)
+
+showCirc :: Int -> Circuit -> String
+showCirc symlen c = unlines (header ++ gateLines)
   where
-    header = [printf ": nins %d" (ninputs c), printf ": depth %d" (depth c)]
+    header = [printf ": nins %d" (ninputs c), printf ": depth %d" (depth c)] ++
+             if symlen /= 1 then [printf ": symlen %d" symlen] else []
     inputs = mapM (gateStr False) (circ_inputs c)
     consts = mapM (gateStr False) (M.keys (circ_secret_refs c))
     igates = mapM (gateStr False) (intermediateGates c)
@@ -86,8 +96,8 @@ showCirc c = unlines (header ++ gateLines)
 showTest :: TestCase -> String
 showTest (inp, out) = printf "# TEST %s %s" (showBits' (reverse inp)) (showBits' (reverse out))
 
-genTestStr :: Circuit -> IO String
-genTestStr = fmap showTest . genTest
+genTestStr :: Int -> Circuit -> IO String
+genTestStr symlen c = fmap showTest (genTest symlen c)
 
 --------------------------------------------------------------------------------
 -- parser
