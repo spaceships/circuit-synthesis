@@ -113,18 +113,31 @@ genExt ninputs noutputs = do
 
 f3 :: Int -> Int -> IO Circuit
 f3 n m = do
+    -- n is K_f size
     keyBits <- randKeyIO n
     let l = ceiling (logBase 2 (fromIntegral n))
-        d = l
-    ext <- genExt (2*m) m
+        ninputs = 2*m*(l^2)
+    ext <- genExt (2*m) m -- goes from m output bits to m/2 output bits
+    mapper <- loadMapper ninputs
     return $ buildCircuit $ do
         kf <- secrets keyBits
-        zs <- replicateM (2*m) $ do
-            xs <- replicateM d (inputs l)
-            bs <- selects kf xs
+        xs <- subcircuit mapper =<< inputs ninputs
+        zs <- forM (chunksOf (l^2) xs) $ \x -> do
+            bs <- selects kf (chunksOf l x)
             xorMaj bs
         ws <- subcircuit ext zs
         outputs ws
+
+loadMapper :: Int -> IO Circuit
+loadMapper n = do
+    (c,_) <- Acirc.readAcirc ("mapper_" ++ show n ++ ".acirc")
+    k1 <- randKeyIO n
+    k2 <- randKeyIO n
+    return $ buildCircuit $ do
+        xs <- inputs n
+        ks <- secrets (k1 ++ k2)
+        zs <- subcircuit' c xs ks
+        outputs zs
 
 genMapper :: Int -> IO Circuit
 genMapper n = do
