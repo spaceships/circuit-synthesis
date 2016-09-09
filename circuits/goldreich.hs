@@ -130,12 +130,12 @@ f3 n m = do
 
 loadMapper :: Int -> IO Circuit
 loadMapper n = do
-    (c,_) <- Acirc.readAcirc ("mapper_" ++ show n ++ ".acirc")
+    (c,_) <- Acirc.readAcirc ("mappers/mapper_" ++ show n ++ ".acirc")
     k1 <- randKeyIO n
     k2 <- randKeyIO n
     return $ buildCircuit $ do
         xs <- inputs n
-        ks <- secrets (k1 ++ k2)
+        ks <- secrets ([1] ++ k1 ++ k2)
         zs <- subcircuit' c xs ks
         outputs zs
 
