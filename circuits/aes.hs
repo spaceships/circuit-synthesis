@@ -4,6 +4,7 @@ import Circuit
 import Circuit.Builder
 import qualified Circuit.Format.Acirc as Acirc
 import Util
+import Rand
 
 import Control.Monad
 import Data.List.Split
@@ -320,12 +321,14 @@ sbox0 = buildCircuit $ do
     ys <- subcircuit subByte xs
     output (head ys)
 
-sboxsum :: Circuit
-sboxsum = buildCircuit $ do
-    xs <- inputs 8
-    ys <- subcircuit subByte xs
-    z  <- circXors ys
-    output z
+sboxsum :: IO Circuit
+sboxsum = do
+    ks <- randKeyIO 8
+    return $ buildCircuit $ do
+        xs <- inputs 8
+        ys <- subcircuit subByte xs
+        zs <- zipWithM circXor ys =<< secrets ks
+        output =<< circXors zs
 
 xor :: Circuit
 xor = buildCircuit $ do
