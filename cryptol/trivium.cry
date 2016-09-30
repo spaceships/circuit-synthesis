@@ -1,0 +1,86 @@
+module trivium where
+
+// Comments in /* */ are quotes from
+//     Trivium: Specifications
+//     Cannière and Preneel
+//     http://www.ecrypt.eu.org/stream/p3ciphers/trivium/trivium_p3.pdf
+// The top level function is E, which takes a key as its first argument and an
+// initialization vector as its second argument.
+
+/*
+The proposed design contains a 288-bit internal state denoted by
+(s_1, . . . , s_288).
+*/
+
+type StateSize = 288
+type state = [StateSize]
+
+/*
+The key stream generation consists of an iterative process which extracts the
+values of 15 specific state bits and uses them both to update 3 bits of the state
+and to compute 1 bit of key stream z_i. The state bits are then rotated and the
+process repeats itself until the requested N ≤ 2^64 bits of key stream have been
+generated.
+*/
+
+type stream = [2^^64]
+
+E : key -> iv -> stream
+E K IV = take [i.1 | i <- iterations] where
+    iterations = [step (init K IV)] # [step i.0 | i <- iterations]
+
+/*
+A complete description is given by the following simple pseudo-code:
+
+    for i = 1 to N do
+        t_1 ← s_66 + s_93
+        t_2 ← s_162 + s_177
+        t_3 ← s_243 + s_288
+        z i ← t_1 + t_2 + t_3
+        t_1 ← t_1 + s_91 · s_92 + s_171
+        t_2 ← t_2 + s_175 · s_176 + s_264
+        t_3 ← t_3 + s_286 · s_287 + s_69
+        (s_1 , s_2 , . . . , s_93) ← (t_3 , s_1 , . . . , s_92)
+        (s_94 , s_95 , . . . , s_177) ← (t_1 , s_94 , . . . , s_176)
+        (s_178 , s_279 , . . . , s_288) ← (t_2 , s_178 , . . . , s_287)
+    end for
+
+Note that here, and in the rest of this document, the ‘+’ and ‘·’ operations
+stand for addition and multiplication over GF(2) (i.e., XOR and AND),
+respectively.
+*/
+
+step : state -> (state, Bit)
+step s = (s', zi) where
+    t1 = s@ 65 ^ s@ 92
+    t2 = s@161 ^ s@176
+    t3 = s@242 ^ s@287
+    zi = t1 ^ t2 ^ t3
+    t1' = t1 ^ (s@ 90 && s@ 91) ^ s@170
+    t2' = t2 ^ (s@174 && s@175) ^ s@263
+    t3' = t3 ^ (s@285 && s@286) ^ s@ 68
+    s' = [t3'] # s@@[  0.. 91]
+       # [t1'] # s@@[ 93..175]
+       # [t2'] # s@@[177..286]
+
+/*
+The algorithm is initialized by loading an 80-bit key and an 80-bit IV into the
+288-bit initial state, and setting all remaining bits to 0, except for s_286,
+s_287, and s_288. Then, the state is rotated over 4 full cycles, in the same
+way as explained above, but without generating key stream bits. This is
+summarized in the pseudo-code below:
+
+    (s_1, s_2, . . . , s_93) ← (K_1, . . . , K_80, 0, . . . , 0)
+    (s_94, s_95, . . . , s_177) ← (IV_1, . . . , IV_80, 0, . . . , 0)
+    (s_178, s_279, . . . , s_288) ← (0, . . . , 0, 1, 1, 1)
+*/
+
+type key = [80]
+type iv = [80]
+
+init : key -> iv -> state
+init K IV = ss@(4*`(StateSize)) where
+    s = (K  # zero    : [ 93-  1+1])
+      # (IV # zero    : [177- 94+1])
+      # (zero # 0b111 : [288-178+1])
+    ss = [s] # [(step s').0 | s' <- ss]

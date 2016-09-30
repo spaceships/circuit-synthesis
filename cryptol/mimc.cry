@@ -1,0 +1,66 @@
+module mimc where
+
+// Comments in /* */ are quotes from
+//     MiMC: Efficient Encryption and Cryptographic Hashing with Minimal
+//     Multiplicative Complexity
+//     Albrecht, et al
+//     https://eprint.iacr.org/2016/492
+// The top-level encryption operation is named E, with first argument the key
+// and second argument the plaintext.
+
+/*
+Our block cipher is constructed by iterating a round function r times where
+each round consists of a key addition with the key k, the addition of a round
+constant c_i ∈ F_{2^n}, and the application of a non-linear function defined as
+F(x) := x^3 for x ∈ F_{2^n}.
+*/
+
+F : [n] -> [n]
+F x = x·x·x
+
+// There is a list of irreducible polynomials in F_{2^n}, for 2 <= n <= 10000,
+// available in this PDF:
+// http://www.hpl.hp.com/techreports/98/HPL-98-135.pdf?jumpid=reg_R1002_USEN
+// Some choice excerpts:
+// irreducible = <| x^^ 21 + x^^2 |>
+// irreducible = <| x^^ 41 + x^^3 |>
+// irreducible = <| x^^ 81 + x^^4 |>
+// irreducible = <| x^^129 + x^^5 |>
+irreducible : [n+1]
+irreducible = <| x^^41 + x^^3 |>
+
+(·) : [n] -> [n] -> [n]
+x · y = pmod (pmult x y) irreducible
+
+/*
+The ciphertext is finally produced by adding the key k again to the output of
+the last round. Hence, the round function is described as F_i(x) = F(x ⊕ k ⊕
+c_i) where c_0 = c_r = 0 and the encryption process is defined as
+
+E_k(x) = (F_{r−1} ◦ F_{r−2} ◦ . . . ◦ F_0)(x) ⊕ k.
+*/
+// Their text says to use c_r = 0, but E_k does not actually depend on c_r and
+// their block diagram agrees with E_k. So we include the c_0 = 0 bit but omit
+// c_r = 0 from our definition.
+E : [n] -> [n] -> [n]
+E k x = compositions!0 ^ k where
+    compositions = [ F(xi^k^ci)
+                   | xi <- [x] # compositions
+                   | ci <- [0] # c
+                   ]
+
+/*
+We choose n to be odd and the number of rounds as r = ⌈n / log_2 3⌉.
+*/
+type n = 41
+// 1/(log_2 3) ~= 0.63092975
+type r = n * 63092975 / 100000000 + 1
+
+/*
+The r - 1 round constants are chosen as random elements from F_{2_n}. Note that
+the random constants c_i do not need to be generated for every evaluation of
+MiMC. Instead the constants are fixed once and can be hard-coded into the
+implementation on either side.
+*/
+c : [r-1][n]
+c = random zero
