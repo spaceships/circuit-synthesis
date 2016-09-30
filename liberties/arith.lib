@@ -1,0 +1,30 @@
+library(gc) {
+    cell(NOT) {
+        area: 0;
+        pin(A) { direction: input; }
+        pin(Y) {
+            direction: output;
+            function: "A'"; 
+        }
+    }
+
+    cell(XOR) {
+        area: 0;
+        pin(A) { direction: input; }
+        pin(B) { direction: input; }
+        pin(Y) {
+            direction: output;
+            function: "A^B";
+        }
+    }
+
+    cell(AND) {
+        area: 10000;
+        pin(A) { direction: input; }
+        pin(B) { direction: input; }
+        pin(Y) {
+            direction: output;
+            function: "A*B";
+        }
+    }
+}
