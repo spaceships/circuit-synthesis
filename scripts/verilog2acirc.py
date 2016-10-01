@@ -71,12 +71,13 @@ refs = {} # verilog wires to refs
 for i in inputs:
     if i < input_len: 
         print("{} input x{}".format(next_ref, next_x))
+        next_x += 1
     else:
         # just make the key 0 for convenience: change it if you care
         print("{} input y{} 0".format(next_ref, next_y))
+        next_y += 1
     refs[inputs[i]] = next_ref
     next_ref += 1
-    next_x += 1
 
 def print_circ(wire):
     global next_ref
