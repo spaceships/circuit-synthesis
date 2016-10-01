@@ -4,9 +4,11 @@ set -e
 
 cryptolfile=$(realpath $1)
 func=$2
-libertyfile=$(realpath $3)
 
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# libertyfile=$(realpath $3)
+libertyfile=$scriptdir/../liberties/aig.lib
 
 mkdir -p work
 cd work

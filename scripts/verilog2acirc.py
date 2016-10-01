@@ -82,6 +82,7 @@ for i in inputs:
 def print_circ(wire):
     global next_ref
 
+    # nullary gate
     if gates[wire][0] == "NOT":
         if not gates[wire][1] in refs:
             print_circ(gates[wire][1])
@@ -93,20 +94,33 @@ def print_circ(wire):
             refs[gates[wire][1]]
         ))
 
-    else:
+    # binary gate
+    else: 
         if not gates[wire][1] in refs:
             print_circ(gates[wire][1])
 
         if not gates[wire][2] in refs:
             print_circ(gates[wire][2])
 
-        print("{} {} {} {} {}".format(
-            next_ref, 
-            "output" if wire in outputs else "gate", 
-            "MUL" if gates[wire][0] == "AND" else "ADD",
-            refs[gates[wire][1]],
-            refs[gates[wire][2]]
-        ))
+
+        if gates[wire][0] == "AND":
+            print("{} {} MUL {} {}".format(
+                next_ref, 
+                "output" if wire in outputs else "gate", 
+                refs[gates[wire][1]],
+                refs[gates[wire][2]]
+            ))
+
+        #  else if gates[wire][0] == "XOR":
+        #      print("{} {} AND {} {}".format(
+        #          next_ref, 
+        #          "output" if wire in outputs else "gate", 
+        #          refs[gates[wire][1]],
+        #          refs[gates[wire][2]]
+        #      ))
+
+        else:
+            sys.exit("unknown gate type: {}".format(gates[wire][0]))
 
     refs[wire] = next_ref
     next_ref += 1
