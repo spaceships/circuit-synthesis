@@ -8,17 +8,23 @@ import Control.Monad
 import Text.Parsec hiding (spaces, parseTest)
 import qualified Data.Map as M
 
+fromFile :: FilePath -> IO (Circuit, [TestCase])
+fromFile fp = parseCirc <$> readFile fp
+
 parseCirc :: String -> (Circuit, [TestCase])
-parseCirc s = case runParser (circParser >> getState) emptySt "" s of
+parseCirc s = case runParser (circParser >> eof >> getState) emptySt "" s of
     Left err -> error (show err)
     Right st -> (st_circ st, [])
   where
-    circParser = skipComment
-    {-start = many $ choice [parseParam, parseTest]-}
-    {-rest  = many $ choice [try parseGate, try parseInput]-}
+    circParser = many $ choice [ void newline
+                               , ignoreLine "(*"
+                               , ignoreLine "/*"
+                               , ignoreLine "module"
+                               , ignoreLine "wire"
+                               ]
 
 skipComment :: ParseCirc ()
-skipComment = void (type1 <|> type2)
+skipComment = void ((type1 <|> type2) >> newline)
   where
     type1 = do
         string "/*"
@@ -27,18 +33,11 @@ skipComment = void (type1 <|> type2)
         string "(*"
         manyTill anyChar (string "*)")
 
-parseModule :: ParseCirc ()
-parseModule = do
-    string "module"
+ignoreLine :: String -> ParseCirc ()
+ignoreLine str = try $ do
     spaces
-
-parseWire = undefined
-
-parseParam :: ParseCirc ()
-parseParam = do
-    char ':'
-    skipMany (oneOf " \t" <|> alphaNum)
-    endLine
+    string str
+    void $ manyTill anyChar newline
 
 parseInput :: ParseCirc ()
 parseInput = do
