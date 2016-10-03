@@ -4,7 +4,11 @@ set -e
 
 cryptolfile=$(realpath $1)
 func=$2
-libertyfile=$(realpath $3)
+
+scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# libertyfile=$(realpath $3)
+libertyfile=$scriptdir/../liberties/aig.lib
 
 mkdir -p work
 cd work
@@ -26,6 +30,11 @@ balance -s -d -x
 write_verilog "${func}.in.v"
 EOM
 
+# cat > yosys.ys <<- EOM
+# read_verilog "${func}.in.v"
+# write_verilog ${func}.out.v
+# EOM
+
 cat > yosys.ys <<- EOM
 read_verilog "${func}.in.v"
 synth -run fine
@@ -35,10 +44,16 @@ abc -liberty ${libertyfile}
 write_verilog ${func}.out.v
 EOM
 
-#saw sawcmds.saw > /dev/null
-#abc -f abccmds.abc > /dev/null
-#yosys yosys.ys > /dev/null
+# saw sawcmds.saw 
+# abc -f abccmds.abc
+# yosys yosys.ys
 
-saw sawcmds.saw
-abc -f abccmds.abc
-yosys yosys.ys
+sizes=($(egrep "$func\\s*:\\s*" $cryptolfile | perl -ne '/\(\[(\d+)],\s*\[(\d+)\]\)/; print "$1 $2";'))
+inputsize=${sizes[0]}
+keysize=${sizes[1]}
+
+saw sawcmds.saw > /dev/null
+abc -f abccmds.abc > /dev/null
+yosys yosys.ys > /dev/null
+
+python $scriptdir/verilog2acirc.py $func.out.v $keysize

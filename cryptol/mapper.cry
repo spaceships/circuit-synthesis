@@ -1,5 +1,5 @@
 
-// irreducible polynomials: i{n} where n is the degree/*{{{*/
+// irreducible polynomials: i{n} where n is the degree /*{{{*/
 i2   = <| x^^2 + x^^1 + 1 |>
 i3   = <| x^^3 + x^^1 + 1 |>
 i4   = <| x^^4 + x^^1 + 1 |>

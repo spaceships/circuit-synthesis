@@ -63,4 +63,4 @@ MiMC. Instead the constants are fixed once and can be hard-coded into the
 implementation on either side.
 */
 c : [r-1][n]
-c = zero
+c = random zero
