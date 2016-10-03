@@ -418,7 +418,7 @@ poly_inv : {n} (fin n, n >= 1, 16 >= width n) => [n+1] -> [n] -> [n]
 poly_inv irr x = poly_pow irr x (2^^`n - 2)
 
 mapper : {n} (fin n, n >= 1, 16 >= width n) => [n+1] -> ([n], [2*n]) -> [n]
-mapper irr (x, ks) = poly_mul irr (poly_inv irr (take ks)) (drop ks ^ x)
+mapper irr (x, ks) = poly_mul irr (poly_inv irr (drop ks ^ x)) (take ks)
 
 mapper_2 : ([2], [4]) -> [2]
 mapper_2 = mapper i2
