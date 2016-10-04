@@ -1,4 +1,5 @@
 import Cryptol::Extras
+include "mapper.cry"
 
 owf : {d, n, m, l} (fin d, fin n, n == 2^^l) => [m][d][l] -> ([d] -> Bit) -> [n] -> [m]
 owf S P x = [ P (select s x) | s <- S ]
@@ -47,31 +48,8 @@ select_4 (x,_) = select (split (drop x) : [4][2]) (take x : [4])
 ext_2 : [2] -> Bit
 ext_2 x = x@0
 
-poly_mul : {n} fin n => [n+1] -> [n] -> [n] -> [n]
-poly_mul irr x y = pmod (pmult x y) irr
-
-poly_pow : {n} (fin n, n >= 1) => [n+1] -> [n] -> [16] -> [n]
-poly_pow irr n k = pow k
-  where
-    sq x  = poly_mul irr x x
-    odd x = x ! 0
-    pow i = if i == 0 then 1
-            else if odd i
-                 then poly_mul irr n (sq (pow (i >> 1)))
-                 else sq (pow (i >> 1))
-
-poly_inv : {n} (fin n, n >= 1, 16 >= width n) => [n+1] -> [n] -> [n]
-poly_inv irr x = poly_pow irr x (2^^`n - 2)
-
-mapper : {n} (fin n, n >= 1, 16 >= width n) => [n+1] -> ([n], [2*n]) -> [n]
-mapper irr (x, ks) = poly_mul irr (poly_inv irr (drop ks ^ x)) (take ks)
-
 F3_4 : ([8], [20]) -> Bit
 F3_4 (x, k) = ext_2 (F1 (drop k : [4]) (mapper i8 (x, take k : [16])))
 
 F3_16 : ([32], [80]) -> Bit
 F3_16 (x, k) = ext_2 (F1 (drop k : [16]) (mapper i32 (x, take k : [64])))
-
-// irreducible polynomials: i{n} where n is the degree
-i8   = <| x^^8 + x^^4 + x^^3 + x^^1 + 1 |>
-i32  = <| x^^32 + x^^7 + x^^3 + x^^2 + 1 |>
