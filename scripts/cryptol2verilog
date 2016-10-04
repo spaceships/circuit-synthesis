@@ -56,4 +56,4 @@ saw sawcmds.saw > /dev/null
 abc -f abccmds.abc > /dev/null
 yosys yosys.ys > /dev/null
 
-python $scriptdir/verilog2acirc.py $func.out.v $keysize
+python $scriptdir/verilog2acirc.py $func.out.v $inputsize $keysize

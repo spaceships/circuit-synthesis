@@ -4,7 +4,8 @@ import sys
 import re
 
 fname = sys.argv[1]
-key_len = int(sys.argv[2])
+key_len = int(sys.argv[3])
+input_len = int(sys.argv[2])
 
 gates = {}
 inputs = {} # input number -> verilog wire number
@@ -55,8 +56,6 @@ for line in f_iter:
         continue
 f.close()
 
-input_len = len(inputs) - key_len 
-
 print(": nins {}".format(input_len))
 
 # assign const 1
@@ -68,7 +67,21 @@ next_ref = 1
 
 refs = {} # verilog wires to refs
 
-for i in inputs:
+#  for i in range(input_len):
+#      print("{} input x{}".format(next_ref, next_x))
+#      if i in inputs:
+#          refs[inputs[i]] = next_ref
+#      next_x += 1
+#      next_ref += 1
+
+#  for i in range(key_len):
+#      print("{} input y{} 0".format(next_ref, next_y))
+#      if input_len + i in inputs:
+#          refs[inputs[i]] = next_ref
+#      next_y += 1
+#      next_ref += 1
+
+for i in range(input_len + key_len):
     if i < input_len: 
         print("{} input x{}".format(next_ref, next_x))
         next_x += 1
@@ -76,7 +89,8 @@ for i in inputs:
         # just make the key 0 for convenience: change it if you care
         print("{} input y{} 0".format(next_ref, next_y))
         next_y += 1
-    refs[inputs[i]] = next_ref
+    if i in inputs:
+        refs[inputs[i]] = next_ref
     next_ref += 1
 
 def print_circ(wire):
@@ -110,14 +124,6 @@ def print_circ(wire):
                 refs[gates[wire][1]],
                 refs[gates[wire][2]]
             ))
-
-        #  else if gates[wire][0] == "XOR":
-        #      print("{} {} AND {} {}".format(
-        #          next_ref, 
-        #          "output" if wire in outputs else "gate", 
-        #          refs[gates[wire][1]],
-        #          refs[gates[wire][2]]
-        #      ))
 
         else:
             sys.exit("unknown gate type: {}".format(gates[wire][0]))
