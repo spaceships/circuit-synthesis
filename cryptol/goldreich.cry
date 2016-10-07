@@ -1,4 +1,5 @@
 import Cryptol::Extras
+include "mapper.cry"
 
 owf : {d, n, m, l} (fin d, fin n, n == 2^^l) => [m][d][l] -> ([d] -> Bit) -> [n] -> [m]
 owf S P x = [ P (select s x) | s <- S ]
@@ -39,3 +40,16 @@ xor_maj_16 (x,_) = xor_maj x
 
 select_4 : ([12],[0]) -> [4]
 select_4 (x,_) = select (split (drop x) : [4][2]) (take x : [4])
+
+
+// extractor is a random matrix times the output. Since Cryptol does not do
+// random gen, we fix the random matrix. in this case the random matrix is
+// [0,1].
+ext_2 : [2] -> Bit
+ext_2 x = x@0
+
+F3_4 : ([8], [20]) -> Bit
+F3_4 (x, k) = ext_2 (F1 (drop k : [4]) (mapper i8 (x, take k : [16])))
+
+F3_16 : ([32], [80]) -> Bit
+F3_16 (x, k) = ext_2 (F1 (drop k : [16]) (mapper i32 (x, take k : [64])))

@@ -1,3 +1,6 @@
+add_2 : [2] -> [2]
+add_2 x = (zero # (take x : [1])) + (zero # (drop x : [1]))
+
 cmul_16 : [15] -> [16]
 cmul_16 x = (zero # x) * 0x6FF4
 

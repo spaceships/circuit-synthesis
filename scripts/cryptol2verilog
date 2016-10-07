@@ -48,7 +48,9 @@ EOM
 # abc -f abccmds.abc
 # yosys yosys.ys
 
-sizes=($(egrep "$func\\s*:\\s*" $cryptolfile | perl -ne '/\(\[(\d+)],\s*\[(\d+)\]\)/; print "$1 $2";'))
+sizes=($(egrep "$func\\s*:\\s*" $cryptolfile | perl -ne \
+    'if (/: \(\[(\d+)],\s*\[(\d+)\]\) ->/) { print "$1 $2"; } elsif (/: \[(\d+)\] ->/) { print "$1 0"; }' \
+))
 inputsize=${sizes[0]}
 keysize=${sizes[1]}
 
@@ -56,4 +58,4 @@ saw sawcmds.saw > /dev/null
 abc -f abccmds.abc > /dev/null
 yosys yosys.ys > /dev/null
 
-python $scriptdir/verilog2acirc.py $func.out.v $keysize
+python $scriptdir/verilog2acirc.py $func.out.v $inputsize $keysize
