@@ -13,10 +13,11 @@ import Options
 import Text.Printf
 import System.Exit
 
-data MainOptions = MainOptions { opt_info     :: Bool
-                               , opt_verbose  :: Bool
-                               , opt_test     :: Bool
-                               , opt_gentests :: Maybe Int
+data MainOptions = MainOptions { opt_info       :: Bool
+                               , opt_latex_info :: Bool
+                               , opt_verbose    :: Bool
+                               , opt_test       :: Bool
+                               , opt_gentests   :: Maybe Int
                                }
 
 instance Options MainOptions where
@@ -25,6 +26,11 @@ instance Options MainOptions where
             (\o -> o { optionLongFlags   = ["info"]
                      , optionShortFlags  = "i"
                      , optionDescription = "Show circuit info."
+                     })
+        <*> defineOption optionType_bool
+            (\o -> o { optionLongFlags   = ["latex"]
+                     , optionShortFlags  = "l"
+                     , optionDescription = "Show circuit info as a latex table."
                      })
         <*> defineOption optionType_bool
             (\o -> o { optionShortFlags  = "v"
@@ -50,6 +56,7 @@ main = runCommand $ \opts args -> do
         parser    = parserFor inputFile :: CircuitParser
     (c,ts) <- parser <$> readFile inputFile
     when (opt_info opts) $ printCircInfo c
+    when (opt_latex_info opts) $ printCircInfoLatex (reverse (tail (dropWhile (/= '.') (reverse inputFile)))) c
     ts' <- case opt_gentests opts of
         Nothing -> return ts
         Just i  -> replicateM i (genTest (ninputs c) c)

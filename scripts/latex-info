@@ -1,0 +1,4 @@
+#!/bin/bash
+
+line=$(cabal run --verbose=0 -- -l $1)
+echo ${line/\#1/$(grep -c MUL $1)}

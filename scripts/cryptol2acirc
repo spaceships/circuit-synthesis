@@ -8,7 +8,7 @@ func=$2
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # libertyfile=$(realpath $3)
-libertyfile=$scriptdir/../liberties/gc_cells.lib
+libertyfile=$scriptdir/../liberties/aig.lib
 
 mkdir -p work
 cd work
@@ -48,7 +48,14 @@ EOM
 # abc -f abccmds.abc
 # yosys yosys.ys
 
+sizes=($(egrep "$func\\s*:\\s*" $cryptolfile | perl -ne \
+    'if (/: \(\[(\d+)],\s*\[(\d+)\]\) ->/) { print "$1 $2"; } elsif (/: \[(\d+)\] ->/) { print "$1 0"; }' \
+))
+inputsize=${sizes[0]}
+keysize=${sizes[1]}
+
 saw sawcmds.saw > /dev/null
 abc -f abccmds.abc > /dev/null
 yosys yosys.ys > /dev/null
-cat ${func}.out.v
+
+python $scriptdir/verilog2acirc.py $func.out.v $inputsize $keysize
