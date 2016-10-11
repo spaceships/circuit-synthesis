@@ -56,7 +56,7 @@ main = runCommand $ \opts args -> do
         parser    = parserFor inputFile :: CircuitParser
     (c,ts) <- parser <$> readFile inputFile
     when (opt_info opts) $ printCircInfo c
-    when (opt_latex_info opts) $ printCircInfoLatex (reverse (tail (dropWhile (/= '.') (reverse inputFile)))) c
+    when (opt_latex_info opts) $ printCircInfoLatex c
     ts' <- case opt_gentests opts of
         Nothing -> return ts
         Just i  -> replicateM i (genTest (ninputs c) c)

@@ -89,12 +89,12 @@ printCircInfo c = do
     printf "zimmerman-io-kappa=%d\n" (sum ds + 2*n)
     printf "lin16-kappa(c=n)=%d\n" (2 + n + sum ds + circDegree c)
 
-printCircInfoLatex :: String -> Circuit -> IO ()
-printCircInfoLatex name c = do
+printCircInfoLatex :: Circuit -> IO ()
+printCircInfoLatex c = do
     let ds = degs c
         n = ninputs c
-    printf "%s & ? & %d & %d & %d & %d & #1 & %d & %d & %d & ?\\\\ \\hline\n"
-            name n (nconsts c) (noutputs c) (ngates c) (depth c) (sum ds) (sum ds + 2*n)
+    printf "#1 & #2 & %d & %d & %d & %d & #3 & %d & %d & %d & ?\\\\ \\hline\n"
+            n (nconsts c) (noutputs c) (ngates c) (depth c) (sum ds) (sum ds + 2*n)
 
 printSecrets :: Circuit -> IO ()
 printSecrets c = do
