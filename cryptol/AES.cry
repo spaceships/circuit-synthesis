@@ -235,47 +235,50 @@ property AESCorrect msg key = aesDecrypt (aesEncrypt (msg, key), key) == msg
 
 // converter expects msg first, key second, and number of bits to be in the type (no type synonym)
 
-aes1Round : ([128], [128]) -> [128]
-aes1Round (pt, key) = stateToMsg (AESRound (msgToState key, msgToState pt))
+aes1r : ([128], [128]) -> [128]
+aes1r (pt, key) = stateToMsg (AESRound (msgToState key, msgToState pt))
 
 aes1LinearRound : ([128], [128]) -> [128]
 aes1LinearRound (pt, key) = stateToMsg (AESLinear (msgToState key, msgToState pt))
 
 b0 : ([128], [128]) -> Bit
-b0 (pt, key) = aes1Round (pt, key) @ 0
+b0 (pt, key) = aes1r (pt, key) @ 0
 
 b0_linear : ([128], [128]) -> Bit
 b0_linear (pt, key) = aes1LinearRound (pt, key) @ 0
 
 b0_2 : ([2], [128]) -> Bit
-b0_2 (pt, key) = aes1Round (pt # zero, key) @ 0
+b0_2 (pt, key) = aes1r (pt # zero, key) @ 0
 
 b0_3 : ([3], [128]) -> Bit
-b0_3 (pt, key) = aes1Round (pt # zero, key) @ 0
+b0_3 (pt, key) = aes1r (pt # zero, key) @ 0
 
 b0_4 : ([4], [128]) -> Bit
-b0_4 (pt, key) = aes1Round (pt # zero, key) @ 0
+b0_4 (pt, key) = aes1r (pt # zero, key) @ 0
 
 b0_5 : ([5], [128]) -> Bit
-b0_5 (pt, key) = aes1Round (pt # zero, key) @ 0
+b0_5 (pt, key) = aes1r (pt # zero, key) @ 0
 
 b0_6 : ([6], [128]) -> Bit
-b0_6 (pt, key) = aes1Round (pt # zero, key) @ 0
+b0_6 (pt, key) = aes1r (pt # zero, key) @ 0
 
 b0_7 : ([7], [128]) -> Bit
-b0_7 (pt, key) = aes1Round (pt # zero, key) @ 0
+b0_7 (pt, key) = aes1r (pt # zero, key) @ 0
 
 b0_8 : ([8], [128]) -> Bit
-b0_8 (pt, key) = aes1Round (pt # zero, key) @ 0
+b0_8 (pt, key) = aes1r (pt # zero, key) @ 0
 
 b0_16 : ([16], [128]) -> Bit
-b0_16 (pt, key) = aes1Round (pt # zero, key) @ 0
+b0_16 (pt, key) = aes1r (pt # zero, key) @ 0
 
 b0_32 : ([32], [128]) -> Bit
-b0_32 (pt, key) = aes1Round (pt # zero, key) @ 0
+b0_32 (pt, key) = aes1r (pt # zero, key) @ 0
 
 b0_64 : ([64], [128]) -> Bit
-b0_64 (pt, key) = aes1Round (pt # zero, key) @ 0
+b0_64 (pt, key) = aes1r (pt # zero, key) @ 0
+
+sbox_ : ([8], [0]) -> [8]
+sbox_ (inp, key) = sbox@inp
 
 sboxsum : ([8], [8]) -> Bit
 sboxsum (inp, key) = foldl (^) zero (key ^ (sbox @ inp))
