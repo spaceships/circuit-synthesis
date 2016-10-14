@@ -93,7 +93,7 @@ printCircInfoLatex :: Circuit -> IO ()
 printCircInfoLatex c = do
     let ds = degs c
         n = ninputs c
-    printf "#1 & #2 & %d & %d & %d & %d & #3 & %d & %d & %d & ?\\\\ \\hline\n"
+    printf "#1 & #2 & %d & %d & %d & %d & #3 & %d & %d & %d & #4\\\\ \\hline\n"
             n (nconsts c) (noutputs c) (ngates c) (depth c) (sum ds) (sum ds + 2*n)
 
 printSecrets :: Circuit -> IO ()

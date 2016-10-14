@@ -4,6 +4,8 @@ type_of_compilation=$1
 source_file=$2
 func_name=$3
 
+lin_exec="LD_LIBRARY_PATH=../lin16/build/lib ../lin16/main"
+
 case $type_of_compilation in
     C2A)
         result_file=$func_name.c2a.acirc
@@ -32,4 +34,5 @@ line=$(cabal run --verbose=0 -- -l $result_file)
 line=${line/\#1/${func_name/_/\\_}}
 line=${line/\#2/$type_of_compilation}
 line=${line/\#3/$(grep -c MUL $result_file)}
+line=${line/\#4/$(eval $lin_exec -fN $result_file | grep kappa | perl -nE '/(\d+)/; print $1')}
 echo $line "   % $source_file"
