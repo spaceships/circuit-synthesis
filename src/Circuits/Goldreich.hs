@@ -24,6 +24,24 @@ make = do
     Acirc.writeAcirc "prg_32_96.dsl.acirc" =<< prg 32 96
     Acirc.writeAcirc "prg_32_128.dsl.acirc" =<< prg 32 128
 
+    Acirc.writeAcirc "ggm_1_16.dsl.acirc" =<< ggm 4  16 16
+    Acirc.writeAcirc "ggm_2_16.dsl.acirc" =<< ggm 8  16 16
+    Acirc.writeAcirc "ggm_3_16.dsl.acirc" =<< ggm 12 16 16
+    Acirc.writeAcirc "ggm_4_16.dsl.acirc" =<< ggm 16 16 16
+    Acirc.writeAcirc "ggm_1_32.dsl.acirc" =<< ggm 4  32 16
+    Acirc.writeAcirc "ggm_2_32.dsl.acirc" =<< ggm 8  32 16
+    Acirc.writeAcirc "ggm_3_32.dsl.acirc" =<< ggm 12 32 16
+    Acirc.writeAcirc "ggm_4_32.dsl.acirc" =<< ggm 16 32 16
+
+    Acirc.writeAcirc "ggm_rachel_1_16.dsl.acirc" =<< ggmRachel 16 16 16
+    Acirc.writeAcirc "ggm_rachel_2_16.dsl.acirc" =<< ggmRachel 32 16 16
+    Acirc.writeAcirc "ggm_rachel_3_16.dsl.acirc" =<< ggmRachel 48 16 16
+    Acirc.writeAcirc "ggm_rachel_4_16.dsl.acirc" =<< ggmRachel 64 16 16
+    Acirc.writeAcirc "ggm_rachel_1_32.dsl.acirc" =<< ggmRachel 16 32 16
+    Acirc.writeAcirc "ggm_rachel_2_32.dsl.acirc" =<< ggmRachel 32 32 16
+    Acirc.writeAcirc "ggm_rachel_3_32.dsl.acirc" =<< ggmRachel 48 32 16
+    Acirc.writeAcirc "ggm_rachel_4_32.dsl.acirc" =<< ggmRachel 64 32 16
+
 --------------------------------------------------------------------------------
 -- f1
 
