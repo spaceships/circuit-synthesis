@@ -1,0 +1,12 @@
+#!/bin/bash
+
+for ty in C1A C2C; do 
+    for f in prg_16_16 prg_16_32 prg_16_48 prg_16_64 prg_32_32 prg_32_64 prg_32_96 prg_32_128; do
+        ./scripts/latex-info $ty cryptol/goldreich.cry $f; 
+    done
+done
+
+cabal run --verbose=0 -- -C goldreich
+for f in prg_16_16 prg_16_32 prg_16_48 prg_16_64 prg_32_32 prg_32_64 prg_32_96 prg_32_128; do
+    ./scripts/latex-info DSL src/Circuits/Goldreich.hs $f; 
+done

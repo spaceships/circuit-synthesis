@@ -9,6 +9,7 @@ import qualified Circuit.Format.Acirc   as Acirc
 import qualified Circuit.Format.Verilog as Verilog
 
 import Circuits.Aes as Aes
+import Circuits.Goldreich as Goldreich
 
 import Control.Monad
 import Options
@@ -59,6 +60,7 @@ main :: IO ()
 main = runCommand $ \opts args -> do
     case opt_gencirc opts of
         Just "aes" -> Aes.make
+        Just "goldreich" -> Goldreich.make
         Just _ -> do
             putStrLn "[error] known circuit generation modes: aes, goldreich"
             exitFailure

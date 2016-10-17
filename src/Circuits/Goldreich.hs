@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE Strict #-}
 
+module Circuits.Goldreich where
+
 import Circuit
 import Circuit.Builder
 import qualified Circuit.Format.Acirc as Acirc
@@ -10,6 +12,17 @@ import Rand
 import Control.Monad
 import Data.List.Split
 import Debug.Trace
+
+make :: IO ()
+make = do
+    Acirc.writeAcirc "prg_16_16.dsl.acirc" =<< prg 16 16
+    Acirc.writeAcirc "prg_16_32.dsl.acirc" =<< prg 16 32
+    Acirc.writeAcirc "prg_16_48.dsl.acirc" =<< prg 16 48
+    Acirc.writeAcirc "prg_16_64.dsl.acirc" =<< prg 16 64
+    Acirc.writeAcirc "prg_32_32.dsl.acirc" =<< prg 32 32
+    Acirc.writeAcirc "prg_32_64.dsl.acirc" =<< prg 32 64
+    Acirc.writeAcirc "prg_32_96.dsl.acirc" =<< prg 32 96
+    Acirc.writeAcirc "prg_32_128.dsl.acirc" =<< prg 32 128
 
 --------------------------------------------------------------------------------
 -- f1

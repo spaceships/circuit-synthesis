@@ -1,8 +1,44 @@
 import Cryptol::Extras
-include "mapper.cry"
 
-owf : {d, n, m, l} (fin d, fin n, n == 2^^l) => [m][d][l] -> ([d] -> Bit) -> [n] -> [m]
-owf S P x = [ P (select s x) | s <- S ]
+prg_16_16 : ([16], [0]) -> [16]
+prg_16_16 (x, _) = [ xor_maj (select s x : [4]) | s <- split (split k) ]
+  where
+    k = 0xf157f85ec2bab5b85e363b9d507fdd3d73fa2514bb9071d2bd3d155804a11606
+
+prg_16_32 : ([16], [0]) -> [32]
+prg_16_32 (x, _) = [ xor_maj (select s x : [4]) | s <- split (split k) ]
+  where
+    k = 0x2f7e8097ba89fc368a6d3792d67cd6046de950fb4db194eee5d9400b8832aac46d4833f4872df7ac9d8b1aa4ebe04174e57e9465845ff27a9e7e30754bd2aa35
+
+prg_16_48 : ([16], [0]) -> [48]
+prg_16_48 (x, _) = [ xor_maj (select s x : [4]) | s <- split (split k) ]
+  where
+    k = 0x2a1a557cc5e2ea9ee90bbe568523e3e9fa7742f21d5840588b005679d422a4492331bb395e90755b70c4bbdd0b27b4e1e47fcb32d0680ec4de043911e34752a9bcf916e8ec24dc67ef245a800387f56b39ffdbca9e1e89c336efdd42586d38ef
+
+prg_16_64 : ([16], [0]) -> [64]
+prg_16_64 (x, _) = [ xor_maj (select s x : [4]) | s <- split (split k) ]
+  where
+    k = 0x3b81f572a694fe3ebbbcd8fcbe16a9631cc9d3709c884ed1ecd6b92dd3f98403576452878c7f2c0e2b5e18d9d489d7af5283305e7c507d812aac356488fd35d547f6a0a8da8de01360c6141a8ed72458600a9344a69a8350dd16efaa63b0a32d85f6de8df32d1c8810f615fea212c85b4cea5a60d15aa3fdb1c227aaf9def657
+
+prg_32_32 : ([32], [0]) -> [32]
+prg_32_32 (x, _) = [ xor_maj (select s x : [5]) | s <- split (split k) ]
+  where
+    k = 0xda6fed3d683312e1c02df867e1abbf3ac850f4c8e512e5c88732cdd6c2f49bb122185153ffc510a1526b669214417a0c3e10d69889c58f833c75352b3a3cb66467ce1918b75dd2dd8f54febd9ab1ee3470db714b0d1b4a9b1b5430cfee92257073f4dd33
+
+prg_32_64 : ([32], [0]) -> [64]
+prg_32_64 (x, _) = [ xor_maj (select s x : [5]) | s <- split (split k) ]
+  where
+    k = 0xc52502556d01e8141744a816abba8116d7ca59371107055595c6fad11e6a9052b0282d4be0f6626e98aeee84df2c99f6eef4f1a1589e07954d8e08d07f5225649594c21ff5388a35d5799c43e05c47a4f710a1c635fd3396317d52066077a1ba80bcbdec90e9b567beeb692ad4ffd25f2c36b423b59d8373bc0c7e71fc5227fd9e97360d82675bb61df78ea78a48fd922ec87fb1e1b224451458f678bce68b93ff5658e684c5c64444d6a0a7e1e744a97b7ff186e8b7a97dda16e7fac9383af35eb6e558807d10ae
+
+prg_32_96 : ([32], [0]) -> [96]
+prg_32_96 (x, _) = [ xor_maj (select s x : [5]) | s <- split (split k) ]
+  where
+    k = 0x2396ba9f24579b34fe8638aa40ae97d6d040b2ccaf98cd81d0a33cb822c6d8f3cea4a7e898bf16d0b30632372c25f77ec0f25fb5c158e00265f2294b3413f8cd4977e8bb5c2db8a64530f4ccff68e931aa8fc8b445078e21ed5994478d635cf922041ba3203e0b9dc01ff6a79932ec90b7b5802f6ac75aceeb63f0206f90e82b1f6661065a52a10382212194d5c4e7d774b07ace9b5a1ac2bb61fcd478b2e9d4eedcc35a79913fc6533019bd1ec78fde6f0a4e032a7c7bd3e83801b3b7b7690d9206fbfd4968ef4d5c7816ff0ec35ce011d2a90590353bdd0c20670356f38e2523f52d38f767fe5ceec01f6ed0f372d377ce579625a308fb469fc075f965e6566f1117a0deb2c439d0d8296adfa7bb5bfcea3af520d7d0b3d207cdab048278213d14ca623a872e95efb3c183
+
+prg_32_128 : ([32], [0]) -> [128]
+prg_32_128 (x, _) = [ xor_maj (select s x : [5]) | s <- split (split k) ]
+  where
+    k = 0x7b389b54312cd757f44c07298b09b045427e6c67d06dfa0c2ec51383b0fdde949e0483c39d39e935a91332c9c2cb35e096049870703e810a7711d120a7c803e29e0324c04675f9f0d7047247e541d286784b2f6af7c4203be77392a38368d6fdfc8a2388b39afbd6801b3a65389b7e3929a6621630af61687c71a5f4993fc3538387229a43599b96f05f2e6dbbaf7ba00877e115b1339106d9db750adad45afb2e62ad31152495b52ae082a29d3d7da97351c5085988625f8d3dd6d4a53459ce3300f1feb828c2bf69f46742ec47a64c83f9eb95905af4d610c232711eb0a3535308b1e08ba6690dfc54e58aa9b932e4e677e4e1163eacb9a1724879a3b1313458e8eb95b6815a9f2c075ed3c201c04b00d66182edf04d4f14f636d94b4dcaa07f4b609835ffec8410d539bc8407c1b94798398cc55375592f1792df8459e789bb65c4f5c1bca38b15710972a4e9355414a5abaeede47809a5f7ae323adb97bbe66d984b6e2be70ca93d82dc39fb1d9f67cd1f6d8d09c4505de0835ee774831173fa6181c64583f0b9b614d02cf9e340
 
 select : {d,l,n} (fin d, fin n, n == 2^^l) => [d][l] -> [n] -> [d]
 select s val = [ val@i | i <- s ]
@@ -20,36 +56,3 @@ majority xs = num1s >= num0s
     f b i = if b then i + 1 else i
     num0s = foldr g zero xs : [2^^n]
     g b i = if b then i else i + 1
-
-// d = log n
-// m = n / d log n
-F1 : {n, l, d, m} (fin d, fin l, n == 2^^l) => [n] -> [m*d*l] -> [m]
-F1 k x = owf (split (split x) : [m][d][l]) (xor_maj : [d] -> Bit) k
-
-// n = 128
-// d = 7
-// m = 3
-F1_128 : ([147], [128]) -> [3]
-F1_128 (x,k) = F1 k x
-
-maj_8 : ([8],[0]) -> Bit
-maj_8 (x,_) = majority x
-
-xor_maj_16 : ([16],[0]) -> Bit
-xor_maj_16 (x,_) = xor_maj x
-
-select_4 : ([12],[0]) -> [4]
-select_4 (x,_) = select (split (drop x) : [4][2]) (take x : [4])
-
-
-// extractor is a random matrix times the output. Since Cryptol does not do
-// random gen, we fix the random matrix. in this case the random matrix is
-// [0,1].
-ext_2 : [2] -> Bit
-ext_2 x = x@0
-
-F3_4 : ([8], [20]) -> Bit
-F3_4 (x, k) = ext_2 (F1 (drop k : [4]) (mapper i8 (x, take k : [16])))
-
-F3_16 : ([32], [80]) -> Bit
-F3_16 (x, k) = ext_2 (F1 (drop k : [16]) (mapper i32 (x, take k : [64])))

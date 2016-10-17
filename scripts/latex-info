@@ -31,7 +31,7 @@ case $type_of_compilation in
 esac
 
 line=$(cabal run --verbose=0 -- -l $result_file)
-line=${line/\#1/${func_name/_/\\_}}
+line=${line/\#1/${func_name//_/\\_}}
 line=${line/\#2/$type_of_compilation}
 line=${line/\#3/$(grep -c MUL $result_file)}
 line=${line/\#4/$(eval $lin_exec -fN $result_file | grep kappa | perl -nE '/(\d+)/; print $1')}
