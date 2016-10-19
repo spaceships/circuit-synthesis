@@ -13,8 +13,8 @@ import Control.Monad
 import Data.List.Split
 import Debug.Trace
 
-make :: IO ()
-make = do
+makePRG :: IO ()
+makePRG = do
     Acirc.writeAcirc "prg_16_16.dsl.acirc" =<< prg 16 16
     Acirc.writeAcirc "prg_16_32.dsl.acirc" =<< prg 16 32
     Acirc.writeAcirc "prg_16_48.dsl.acirc" =<< prg 16 48
@@ -24,6 +24,9 @@ make = do
     Acirc.writeAcirc "prg_32_96.dsl.acirc" =<< prg 32 96
     Acirc.writeAcirc "prg_32_128.dsl.acirc" =<< prg 32 128
 
+
+makeGGM :: IO ()
+makeGGM = do
     Acirc.writeAcirc "ggm_1_16.dsl.acirc" =<< ggm 4  16 16
     Acirc.writeAcirc "ggm_2_16.dsl.acirc" =<< ggm 8  16 16
     Acirc.writeAcirc "ggm_3_16.dsl.acirc" =<< ggm 12 16 16
@@ -41,6 +44,15 @@ make = do
     Acirc.writeAcirc "ggm_rachel_2_32.dsl.acirc" =<< ggmRachel 32 32 16
     Acirc.writeAcirc "ggm_rachel_3_32.dsl.acirc" =<< ggmRachel 48 32 16
     Acirc.writeAcirc "ggm_rachel_4_32.dsl.acirc" =<< ggmRachel 64 32 16
+
+
+makeApplebaum :: IO ()
+makeApplebaum = do
+    Acirc.writeAcirc "f1_16.dsl.acirc" =<< f1 16 1
+    Acirc.writeAcirc "f1_32.dsl.acirc" =<< f1 32 1
+    Acirc.writeAcirc "f1_64.dsl.acirc" =<< f1 64 1
+    Acirc.writeAcirc "f1_128.dsl.acirc" =<< f1 128 1
+    Acirc.writeAcirc "f1_128_2.dsl.acirc" =<< f1 128 2
 
 --------------------------------------------------------------------------------
 -- f1

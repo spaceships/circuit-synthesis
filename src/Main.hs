@@ -59,8 +59,10 @@ instance Options MainOptions where
 main :: IO ()
 main = runCommand $ \opts args -> do
     case opt_gencirc opts of
-        Just "aes" -> Aes.make
-        Just "goldreich" -> Goldreich.make
+        Just "aes"       -> Aes.make
+        Just "goldreich" -> Goldreich.makePRG
+        Just "ggm"       -> Goldreich.makeGGM
+        Just "applebaum" -> Goldreich.makeApplebaum
         Just _ -> do
             putStrLn "[error] known circuit generation modes: aes, goldreich"
             exitFailure
