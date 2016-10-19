@@ -19,14 +19,19 @@ f <- cryptol_extract m "$func";
 write_aig "${func}.aig" f;
 EOM
 
+# cat > abccmds.abc <<- EOM
+# read "${func}.aig"
+# dsd
+# strash
+# multi
+# fraig
+# rewrite -l
+# balance -s -d -x
+# write_verilog "${func}.in.v"
+# EOM
+
 cat > abccmds.abc <<- EOM
 read "${func}.aig"
-dsd
-strash
-multi
-fraig
-rewrite -l
-balance -s -d -x
 write_verilog "${func}.in.v"
 EOM
 
@@ -44,15 +49,15 @@ abc -liberty ${libertyfile}
 write_verilog ${func}.out.v
 EOM
 
-# saw sawcmds.saw 
-# abc -f abccmds.abc
-# yosys yosys.ys
-
 sizes=($(egrep "$func\\s*:\\s*" $cryptolfile | perl -ne \
     'if (/: \(\[(\d+)],\s*\[(\d+)\]\) ->/) { print "$1 $2"; } elsif (/: \[(\d+)\] ->/) { print "$1 0"; }' \
 ))
 inputsize=${sizes[0]}
 keysize=${sizes[1]}
+
+# saw sawcmds.saw 
+# abc -f abccmds.abc
+# yosys yosys.ys
 
 saw sawcmds.saw > /dev/null
 abc -f abccmds.abc > /dev/null
