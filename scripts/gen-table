@@ -64,15 +64,21 @@ end_table
 
 for ty in C2A C2C; do
     begin_table
-    for f in f1_16 f1_32 f1_64 f1_128; do
+    for f in f1_16 f1_32 f1_64 f1_128 f3_4; do
         ./scripts/latex-info $ty cryptol/applebaum.cry $f;
     done
     end_table
 done
 
+# ensure the mapper exists for f3_4
+if [ ! -e mappers/mapper_8 ]; then
+    mkdir -p mappers
+    ./scripts/cryptol2circ cryptol/mappers.cry mapper_8 > mapper_8.c2c.acirc
+fi
+
 cabal run --verbose=0 -- -C applebaum
 begin_table
-for f in f1_16 f1_32 f1_64 f1_128; do
+for f in f1_16 f1_32 f1_64 f1_128 f3_4; do
     ./scripts/latex-info DSL src/Circuits/Goldreich.hs $f;
 done
 end_table

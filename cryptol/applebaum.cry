@@ -60,8 +60,8 @@ select_4 (x,_) = select (split (drop x) : [4][2]) (take x : [4])
 ext_2 : [2] -> Bit
 ext_2 x = x@0
 
-F3_4 : ([8], [20]) -> Bit
-F3_4 (x, k) = ext_2 (F1 (drop k : [4]) (mapper i8 (x, take k : [16])))
+f3_4 : ([8], [20]) -> Bit
+f3_4 (x, k) = ext_2 (F1 (drop k : [4]) (mapper i8 (x, take k : [16])))
 
-F3_16 : ([32], [80]) -> Bit
-F3_16 (x, k) = ext_2 (F1 (drop k : [16]) (mapper i32 (x, take k : [64])))
+f3_16 : ([32], [80]) -> Bit
+f3_16 (x, k) = ext_2 (F1 (drop k : [16]) (mapper i32 (x, take k : [64])))

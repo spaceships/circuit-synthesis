@@ -48,11 +48,12 @@ makeGGM = do
 
 makeApplebaum :: IO ()
 makeApplebaum = do
-    Acirc.writeAcirc "f1_16.dsl.acirc" =<< f1 16 1
-    Acirc.writeAcirc "f1_32.dsl.acirc" =<< f1 32 1
-    Acirc.writeAcirc "f1_64.dsl.acirc" =<< f1 64 1
-    Acirc.writeAcirc "f1_128.dsl.acirc" =<< f1 128 1
+    Acirc.writeAcirc "f1_16.dsl.acirc"    =<< f1 16 1
+    Acirc.writeAcirc "f1_32.dsl.acirc"    =<< f1 32 1
+    Acirc.writeAcirc "f1_64.dsl.acirc"    =<< f1 64 1
+    Acirc.writeAcirc "f1_128.dsl.acirc"   =<< f1 128 1
     Acirc.writeAcirc "f1_128_2.dsl.acirc" =<< f1 128 2
+    Acirc.writeAcirc "f3_4.dsl.acirc"     =<< f3 4 1
 
 --------------------------------------------------------------------------------
 -- f1
@@ -173,7 +174,7 @@ f3 n m = do
 
 loadMapper :: Int -> IO Circuit
 loadMapper n = do
-    (c,_) <- Acirc.readAcirc ("mappers/mapper_" ++ show n ++ ".acirc")
+    (c,_) <- Acirc.readAcirc ("mappers/mapper_" ++ show n ++ ".c2c.acirc")
     k1 <- randKeyIO n
     k2 <- randKeyIO n
     return $ buildCircuit $ do
