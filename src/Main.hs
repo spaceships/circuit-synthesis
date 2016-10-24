@@ -90,10 +90,10 @@ evalTests opts c ts = do
 dirName :: FilePath -> Int -> FilePath
 dirName fp λ = fp ++ "." ++ show λ
 
-getKappa :: Circuit -> Int
+getKappa :: Circuit -> Integer
 getKappa c = δ + 2*n + n*(2*n-1)
   where
-    n = ninputs c
+    n = fromIntegral $ ninputs c
     δ = sum (degs c)
 
 parserFor :: String -> CircuitParser
