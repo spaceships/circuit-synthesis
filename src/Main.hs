@@ -10,6 +10,7 @@ import qualified Circuit.Format.Verilog as Verilog
 
 import Circuits.Aes as Aes
 import Circuits.Goldreich as Goldreich
+import Circuits.Tribes as Tribes
 
 import Control.Monad
 import Options
@@ -63,6 +64,7 @@ main = runCommand $ \opts args -> do
         Just "goldreich" -> Goldreich.makePRG
         Just "ggm"       -> Goldreich.makeGGM
         Just "applebaum" -> Goldreich.makeApplebaum
+        Just "tribes"    -> Tribes.make
         Just _ -> do
             putStrLn "[error] known circuit generation modes: aes, goldreich"
             exitFailure
