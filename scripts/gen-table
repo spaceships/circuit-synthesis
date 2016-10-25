@@ -97,3 +97,12 @@ for f in fa_8 fa_16 fa_32 fa_64 fa_128; do
     ./scripts/latex-info DSL src/Circuits/Goldreich.hs $f
 done
 end_table
+
+
+begin_table
+for ty in C2A C2C; do
+    for f in mimc_16_10r mimc_16_5r mimc_16_1r mimc_8_5r mimc_8_1r; do
+        ./scripts/latex-info $ty cryptol/mimc.cry $f
+    done
+done
+end_table
