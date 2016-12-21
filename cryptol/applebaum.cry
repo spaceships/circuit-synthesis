@@ -1,0 +1,67 @@
+import Cryptol::Extras
+include "mapper.cry"
+
+owf : {d, n, m, l} (fin d, fin n, n == 2^^l) => [m][d][l] -> ([d] -> Bit) -> [n] -> [m]
+owf S P x = [ P (select s x) | s <- S ]
+
+select : {d,l,n} (fin d, fin n, n == 2^^l) => [d][l] -> [n] -> [d]
+select s val = [ val@i | i <- s ]
+
+xor_maj : {d} (fin d) => [d] -> Bit
+xor_maj w = wl ^ wr
+  where
+    wl = foldr (^) zero (take w : [d/2])
+    wr = majority (drop w : [d/2])
+
+majority : {n} (fin n) => [n] -> Bit
+majority xs = num1s >= num0s
+  where
+    num1s = foldr f zero xs : [2^^n]
+    f b i = if b then i + 1 else i
+    num0s = foldr g zero xs : [2^^n]
+    g b i = if b then i else i + 1
+
+// d = log n
+// m = n / d log n
+F1 : {n, l, d, m} (fin d, fin l, n == 2^^l) => [n] -> [m*d*l] -> [m]
+F1 k x = owf (split (split x) : [m][d][l]) (xor_maj : [d] -> Bit) k
+
+f1_16 : ([16], [16]) -> [1]
+f1_16 (x,k) = F1 k x
+
+f1_32 : ([25], [32]) -> [1]
+f1_32 (x,k) = F1 k x
+
+f1_64 : ([36], [64]) -> [1]
+f1_64 (x,k) = F1 k x
+
+f1_128 : ([49], [128]) -> [1]
+f1_128 (x,k) = F1 k x
+
+// n = 128
+// d = 7
+// m = 3
+/* f1_128_2 : ([147], [128]) -> [2] */
+/* f1_128_2 (x,k) = F1 k x */
+
+maj_8 : ([8],[0]) -> Bit
+maj_8 (x,_) = majority x
+
+xor_maj_16 : ([16],[0]) -> Bit
+xor_maj_16 (x,_) = xor_maj x
+
+select_4 : ([12],[0]) -> [4]
+select_4 (x,_) = select (split (drop x) : [4][2]) (take x : [4])
+
+
+// extractor is a random matrix times the output. Since Cryptol does not do
+// random gen, we fix the random matrix. in this case the random matrix is
+// [0,1].
+ext_2 : [2] -> Bit
+ext_2 x = x@0
+
+f3_4 : ([8], [20]) -> Bit
+f3_4 (x, k) = ext_2 (F1 (drop k : [4]) (mapper i8 (x, take k : [16])))
+
+f3_16 : ([32], [80]) -> Bit
+f3_16 (x, k) = ext_2 (F1 (drop k : [16]) (mapper i32 (x, take k : [64])))

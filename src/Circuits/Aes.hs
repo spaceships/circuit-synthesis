@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedLists #-}
 
+module Circuits.Aes where
+
 import Circuit
 import Circuit.Builder
 import qualified Circuit.Format.Acirc as Acirc
@@ -12,8 +14,21 @@ import qualified Data.Vector as V
 
 import Debug.Trace
 
-
--- note: msb
+make :: IO ()
+make = do
+    Acirc.writeAcirc "aes1r.dsl.acirc" =<< buildAes 128
+    Acirc.writeAcirc "b0.dsl.acirc" =<< aes1Bit 128
+    Acirc.writeAcirc "b0_64.dsl.acirc" =<< aes1Bit 64
+    Acirc.writeAcirc "b0_32.dsl.acirc" =<< aes1Bit 32
+    Acirc.writeAcirc "b0_16.dsl.acirc" =<< aes1Bit 16
+    Acirc.writeAcirc "b0_8.dsl.acirc" =<< aes1Bit 8
+    Acirc.writeAcirc "b0_7.dsl.acirc" =<< aes1Bit 7
+    Acirc.writeAcirc "b0_6.dsl.acirc" =<< aes1Bit 6
+    Acirc.writeAcirc "b0_5.dsl.acirc" =<< aes1Bit 5
+    Acirc.writeAcirc "b0_4.dsl.acirc" =<< aes1Bit 4
+    Acirc.writeAcirc "b0_3.dsl.acirc" =<< aes1Bit 3
+    Acirc.writeAcirc "b0_2.dsl.acirc" =<< aes1Bit 2
+    Acirc.writeAcirc "sbox.dsl.acirc"  subByte
 
 sbox :: V.Vector (V.Vector Bool)-- {{{
 sbox =
@@ -301,7 +316,7 @@ subByte = buildCircuit $ do
 
 buildAes :: Int -> IO Circuit
 buildAes n = do
-    linearParts <- fst <$> Acirc.readAcirc "linearParts.acirc"
+    linearParts <- fst <$> Acirc.readAcirc "linearParts.c2a.acirc"
     return $ buildCircuit $ do
         inp  <- inputs n
         one  <- constant 1
@@ -312,8 +327,15 @@ buildAes n = do
         xs   <- concat <$> mapM (subcircuit subByte) state
         xs'  <- subcircuit' linearParts xs [one]
         xs'' <- zipWithM circXor xs' key -- addRoundKey
-        {-output (head xs'')-}
         outputs xs''
+
+aes1Bit :: Int -> IO Circuit
+aes1Bit n = do
+    aes <- buildAes n
+    return $ buildCircuit $ do
+        inp <- inputs n
+        zs <- subcircuit aes inp
+        output (head zs)
 
 sbox0 :: Circuit
 sbox0 = buildCircuit $ do

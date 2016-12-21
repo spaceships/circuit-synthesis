@@ -1,5 +1,7 @@
 module mimc where
 
+include "mapper.cry"
+
 // Comments in /* */ are quotes from
 //     MiMC: Efficient Encryption and Cryptographic Hashing with Minimal
 //     Multiplicative Complexity
@@ -15,8 +17,10 @@ constant c_i ∈ F_{2^n}, and the application of a non-linear function defined a
 F(x) := x^3 for x ∈ F_{2^n}.
 */
 
-F : [n] -> [n]
-F x = x·x·x
+/* F : [n] -> [n] */
+/* F x = x·x·x */
+F : {n} (fin n) => [n+1] -> [n] -> [n]
+F irr x = mult irr x (mult irr x x)
 
 // There is a list of irreducible polynomials in F_{2^n}, for 2 <= n <= 10000,
 // available in this PDF:
@@ -26,11 +30,14 @@ F x = x·x·x
 // irreducible = <| x^^ 41 + x^^3 |>
 // irreducible = <| x^^ 81 + x^^4 |>
 // irreducible = <| x^^129 + x^^5 |>
-irreducible : [n+1]
-irreducible = <| x^^41 + x^^3 |>
+/* irreducible : [n+1] */
+/* irreducible = <| x^^41 + x^^3 |> */
 
-(·) : [n] -> [n] -> [n]
-x · y = pmod (pmult x y) irreducible
+/* (·) : [n] -> [n] -> [n] */
+/* x · y = pmod (pmult x y) irreducible */
+
+mult : {n} (fin n) => [n+1] -> [n] -> [n] -> [n]
+mult irr x y = pmod (pmult x y) irr
 
 /*
 The ciphertext is finally produced by adding the key k again to the output of
@@ -42,9 +49,9 @@ E_k(x) = (F_{r−1} ◦ F_{r−2} ◦ . . . ◦ F_0)(x) ⊕ k.
 // Their text says to use c_r = 0, but E_k does not actually depend on c_r and
 // their block diagram agrees with E_k. So we include the c_0 = 0 bit but omit
 // c_r = 0 from our definition.
-E : [n] -> [n] -> [n]
-E k x = compositions!0 ^ k where
-    compositions = [ F(xi^k^ci)
+E : {n, r} (fin n, fin r) => [n+1] -> [r][n] -> [n] -> [n] -> [n]
+E irr c k x = compositions!0 ^ k where
+    compositions = [ F irr (xi^k^ci)
                    | xi <- [x] # compositions
                    | ci <- [0] # c
                    ]
@@ -52,9 +59,9 @@ E k x = compositions!0 ^ k where
 /*
 We choose n to be odd and the number of rounds as r = ⌈n / log_2 3⌉.
 */
-type n = 41
-// 1/(log_2 3) ~= 0.63092975
-type r = n * 63092975 / 100000000 + 1
+/* type n = 41 */
+/* // 1/(log_2 3) ~= 0.63092975 */
+/* type r = n * 63092975 / 100000000 + 1 */
 
 /*
 The r - 1 round constants are chosen as random elements from F_{2_n}. Note that
@@ -62,5 +69,31 @@ the random constants c_i do not need to be generated for every evaluation of
 MiMC. Instead the constants are fixed once and can be hard-coded into the
 implementation on either side.
 */
-c : [r-1][n]
-c = random zero
+/* c : [r-1][n] */
+/* c = random zero */
+
+mimc_16_10r : ([16], [16]) -> [16]
+mimc_16_10r (x,k) = E i16 c k x
+  where
+    c = [0xea8b, 0xda84, 0x0331, 0x6670, 0x19a1, 0x6d53, 0x13e6, 0x6b11, 0xd8de,
+         0xac5b] : [10][16]
+
+mimc_16_5r : ([16], [16]) -> [16]
+mimc_16_5r (x,k) = E i16 c k x
+  where
+    c = [0xea8b, 0xda84, 0x0331, 0x6670, 0x19a1] : [5][16]
+
+mimc_16_1r : ([16], [16]) -> [16]
+mimc_16_1r (x,k) = E i16 c k x
+  where
+    c = [0xea8b] : [1][16]
+
+mimc_8_5r : ([8], [8]) -> [8]
+mimc_8_5r (x,k) = E i8 c k x
+  where
+    c = [0x8b, 0x84, 0x31, 0x70, 0xa1] : [5][8]
+
+mimc_8_1r : ([8], [8]) -> [8]
+mimc_8_1r (x,k) = E i8 c k x
+  where
+    c = [0x8b] : [1][8]

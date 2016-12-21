@@ -1,0 +1,38 @@
+#!/bin/bash
+
+type_of_compilation=$1
+source_file=$2
+func_name=$3
+
+lin_exec="LD_LIBRARY_PATH=../lin16/build/lib ../lin16/main -s ${4:-1}"
+
+case $type_of_compilation in
+    C2A)
+        result_file=$func_name.c2a.acirc
+        ./scripts/cryptol2acirc $source_file $func_name > $result_file
+        ;;
+
+    C2C)
+        result_file=$3.c2c.acirc
+        ./scripts/cryptol2circ $source_file $func_name > $result_file
+        ;;
+
+    DSL)
+        result_file=$3.dsl.acirc
+        if [ ! -f $result_file ]; then
+            echo "[error] need to generate DSL circuits first! (cabal run -- -C ...)"
+        fi
+        ;;
+
+    *)
+        echo "[error] unrecognized compilation mode:" $type_of_compilation
+        exit
+        ;;
+esac
+
+line=$(cabal run --verbose=0 -- -l $result_file)
+line=${line/\#1/${func_name//_/\\_}}
+line=${line/\#2/$type_of_compilation}
+line=${line/\#3/$(grep -c MUL $result_file)}
+line=${line/\#4/$(eval $lin_exec -fN $result_file | grep kappa | perl -nE '/(\d+)/; print $1')}
+echo $line "   % $source_file"

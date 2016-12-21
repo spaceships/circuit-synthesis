@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE Strict #-}
 
+module Circuits.Goldreich where
+
 import Circuit
 import Circuit.Builder
 import qualified Circuit.Format.Acirc as Acirc
@@ -10,6 +12,48 @@ import Rand
 import Control.Monad
 import Data.List.Split
 import Debug.Trace
+
+makePRG :: IO ()
+makePRG = do
+    Acirc.writeAcirc "prg_16_16.dsl.acirc" =<< prg 16 16
+    Acirc.writeAcirc "prg_16_32.dsl.acirc" =<< prg 16 32
+    Acirc.writeAcirc "prg_16_48.dsl.acirc" =<< prg 16 48
+    Acirc.writeAcirc "prg_16_64.dsl.acirc" =<< prg 16 64
+    Acirc.writeAcirc "prg_32_32.dsl.acirc" =<< prg 32 32
+    Acirc.writeAcirc "prg_32_64.dsl.acirc" =<< prg 32 64
+    Acirc.writeAcirc "prg_32_96.dsl.acirc" =<< prg 32 96
+    Acirc.writeAcirc "prg_32_128.dsl.acirc" =<< prg 32 128
+
+
+makeGGM :: IO ()
+makeGGM = do
+    Acirc.writeAcirc "ggm_1_16.dsl.acirc" =<< ggm 4  16 16
+    Acirc.writeAcirc "ggm_2_16.dsl.acirc" =<< ggm 8  16 16
+    Acirc.writeAcirc "ggm_3_16.dsl.acirc" =<< ggm 12 16 16
+    Acirc.writeAcirc "ggm_4_16.dsl.acirc" =<< ggm 16 16 16
+    Acirc.writeAcirc "ggm_1_32.dsl.acirc" =<< ggm 4  32 16
+    Acirc.writeAcirc "ggm_2_32.dsl.acirc" =<< ggm 8  32 16
+    Acirc.writeAcirc "ggm_3_32.dsl.acirc" =<< ggm 12 32 16
+    Acirc.writeAcirc "ggm_4_32.dsl.acirc" =<< ggm 16 32 16
+
+    Acirc.writeAcirc "ggm_rachel_1_16.dsl.acirc" =<< ggmRachel 16 16 16
+    Acirc.writeAcirc "ggm_rachel_2_16.dsl.acirc" =<< ggmRachel 32 16 16
+    Acirc.writeAcirc "ggm_rachel_3_16.dsl.acirc" =<< ggmRachel 48 16 16
+    Acirc.writeAcirc "ggm_rachel_4_16.dsl.acirc" =<< ggmRachel 64 16 16
+    Acirc.writeAcirc "ggm_rachel_1_32.dsl.acirc" =<< ggmRachel 16 32 16
+    Acirc.writeAcirc "ggm_rachel_2_32.dsl.acirc" =<< ggmRachel 32 32 16
+    Acirc.writeAcirc "ggm_rachel_3_32.dsl.acirc" =<< ggmRachel 48 32 16
+    Acirc.writeAcirc "ggm_rachel_4_32.dsl.acirc" =<< ggmRachel 64 32 16
+
+
+makeApplebaum :: IO ()
+makeApplebaum = do
+    Acirc.writeAcirc "f1_16.dsl.acirc"    =<< f1 16 1
+    Acirc.writeAcirc "f1_32.dsl.acirc"    =<< f1 32 1
+    Acirc.writeAcirc "f1_64.dsl.acirc"    =<< f1 64 1
+    Acirc.writeAcirc "f1_128.dsl.acirc"   =<< f1 128 1
+    Acirc.writeAcirc "f1_128_2.dsl.acirc" =<< f1 128 2
+    Acirc.writeAcirc "f3_4.dsl.acirc"     =<< f3 4 1
 
 --------------------------------------------------------------------------------
 -- f1
@@ -130,7 +174,7 @@ f3 n m = do
 
 loadMapper :: Int -> IO Circuit
 loadMapper n = do
-    (c,_) <- Acirc.readAcirc ("mappers/mapper_" ++ show n ++ ".acirc")
+    (c,_) <- Acirc.readAcirc ("mappers/mapper_" ++ show n ++ ".c2c.acirc")
     k1 <- randKeyIO n
     k2 <- randKeyIO n
     return $ buildCircuit $ do

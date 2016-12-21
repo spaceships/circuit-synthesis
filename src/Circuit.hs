@@ -79,7 +79,7 @@ genTest symlen c
 printCircInfo :: Circuit -> IO ()
 printCircInfo c = do
     let ds = degs c
-        n = ninputs c
+        n = fromIntegral $ ninputs c
     printf "circuit info: depth=%d ninputs=%d noutputs=%d nconsts=%d%s ngates=%d\n"
             (depth c) n (noutputs c) (nconsts c)
             (show (M.elems (circ_secrets c)))
@@ -87,7 +87,14 @@ printCircInfo c = do
     printf "degs=%s var-degree=%d circ-degree=%d\n" (show ds) (sum ds) (circDegree c)
     printf "zimmerman-vbb-kappa=%d\n" (sum ds + 2*n + n*(2*n-1))
     printf "zimmerman-io-kappa=%d\n" (sum ds + 2*n)
-    printf "lin16-kappa(c=n)=%d\n" (2 + n + sum ds + circDegree c)
+    printf "lin16-kappa(c=n)=%d\n" (2 + fromIntegral n + sum ds + circDegree c)
+
+printCircInfoLatex :: Circuit -> IO ()
+printCircInfoLatex c = do
+    let ds = degs c
+        n = fromIntegral $ ninputs c
+    printf "#1 & #2 & %d & %d & %d & %d & #3 & %d & %d & %d & #4\\\\ \\hline\n"
+            n (nconsts c) (noutputs c) (ngates c) (depth c) (sum ds) (sum ds + 2*n)
 
 printSecrets :: Circuit -> IO ()
 printSecrets c = do
@@ -142,28 +149,28 @@ nsecrets = M.size . circ_secrets
 noutputs :: Circuit -> Int
 noutputs = length . circ_outputs
 
-ydeg :: Circuit -> Int
+ydeg :: Circuit -> Integer
 ydeg c = head (degs c)
 
-xdeg :: Circuit -> Int -> Int
+xdeg :: Circuit -> Int -> Integer
 xdeg c i = degs c !! (i+1)
 
-degs :: Circuit -> [Int]
+degs :: Circuit -> [Integer]
 degs c = map (varDegree c) ids
   where
     ids = OpSecret (Id (-1)) : map (OpInput . Id) [0 .. ninputs c-1]
 
-depth :: Circuit -> Int
+depth :: Circuit -> Integer
 depth c = maximum $ foldCirc f c
   where
     f (OpInput  _) [] = 0
     f (OpSecret _) [] = 0
     f _            xs = maximum xs + 1
 
-varDegree :: Circuit -> Op -> Int
+varDegree :: Circuit -> Op -> Integer
 varDegree c z = maximum (varDegree' c z)
 
-varDegree' :: Circuit -> Op -> [Int]
+varDegree' :: Circuit -> Op -> [Integer]
 varDegree' c z = foldCirc f c
   where
     f (OpAdd _ _) [x,y] = max x y
@@ -178,7 +185,7 @@ varDegree' c z = foldCirc f c
 
 -- TODO make me better! does this really reflect the degree of the multivariate
 -- polynomial corresponding to C?
-circDegree :: Circuit -> Int
+circDegree :: Circuit -> Integer
 circDegree c = maximum $ foldCirc f c
   where
     f (OpAdd _ _) [x,y] = max x y
