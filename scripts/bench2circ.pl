@@ -66,40 +66,43 @@ my @outgaterefs = map { $mapping{$_} } @outgates;
 
 sub print_arith {
   # first input is const 1
-  say ": nins $nxs";
-  say "0 input y0 1";
+  say ":nins $nxs";
+  say "0 const 1";
   my $xctr = 0;
   my $yctr = 1;
   for my $var (@inputorder) {
-    print "${\( $var+1 )} input ";
+    print "${\( $var+1 )} ";
     if ($var >= $xstart and $var <= $xend) {
-      say "x", $xctr++;
+      say "input ", $xctr++;
     } elsif ($var >= $ystart and $var <= $yend) {
-      say "y", $yctr++, " 0";
+      say "const 0";
     }
   }
+  my @outs;
   for my $var (@gateorder) {
     my $type = $gates{$var}->[0];
     my @args = map {$_+1} @{$gates{$var}->[1]};
     my $str = $var+1;
-    if (elem($var, \@outgaterefs)) {
-      $str .= " output ";
-    } else {
-      $str .= " gate ";
-    }
+    # if (elem($var, \@outgaterefs)) {
+    #   push @outs, $var;
+    #   $str .= " output ";
+    # } else {
+    #   $str .= " gate ";
+    # }
     if ($type eq "NOT") {
-      $str .= "SUB 0 @args";
+      $str .= " SUB 0 @args";
     } elsif ($type eq "AND") {
-      $str .= "MUL @args";
+      $str .= " MUL @args";
     } else {
       die "Unknown gate type: $type";
     }
     say $str;
   }
+  say ":outputs ", join(" ", map {$_ + 1} @outgaterefs);
 }
 
 sub print_bool {
-  say ": nins $nxs";
+  say ":nins $nxs";
   push @inputorder, @gateorder;
   for my $var (@inputorder) {
     my $type = $gates{$var}->[0];

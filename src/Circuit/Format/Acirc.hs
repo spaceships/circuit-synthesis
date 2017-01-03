@@ -50,14 +50,17 @@ showCircWithTestsR symlen ntests c = do
     return (unlines ts ++ showCirc symlen c)
 
 showCirc :: Int -> Circuit -> String
-showCirc symlen c = unlines (header ++ gateLines)
+showCirc symlen c = unlines (header ++ gateLines ++ footer)
   where
-    header = [printf ": nins %d" (ninputs c), printf ": depth %d" (depth c)] ++
-             if symlen /= 1 then [printf ": symlen %d" symlen] else []
-    inputs = mapM (gateStr False) (circ_inputs c)
-    consts = mapM (gateStr False) (M.keys (circ_secret_refs c))
-    igates = mapM (gateStr False) (intermediateGates c)
-    output = mapM (gateStr True)  (circ_outputs c)
+    header = [printf ":nins %d" (ninputs c), printf ":depth %d" (depth c)] ++
+             if symlen /= 1 then [printf ":symlen %d" symlen] else []
+
+    footer = [printf ":outputs %s" (unwords (map show (circ_outputs c)))]
+
+    inputs = mapM gateStr (circ_inputs c)
+    consts = mapM gateStr (M.keys (circ_secret_refs c))
+    igates = mapM gateStr (intermediateGates c)
+    output = mapM gateStr (circ_outputs c)
 
     gateLines = concat $ S.evalState (sequence [inputs, consts, igates, output]) (M.empty, 0)
 
@@ -72,29 +75,29 @@ showCirc symlen c = unlines (header ++ gateLines)
                 S.put (M.insert ref i m, i+1)
                 return i
 
-    gateStr :: Bool -> Ref -> S.State (M.Map Ref Int, Int) String
-    gateStr isOutput ref = do
+    gateStr :: Ref -> S.State (M.Map Ref Int, Int) String
+    gateStr ref = do
         ref' <- tr ref
         case M.lookup ref (circ_refmap c) of
             Nothing -> error (printf "[gateStr] unknown ref %s" (show ref))
-            Just (OpInput  id) -> return $ printf "%d input x%d" ref' (getId id)
+            Just (OpInput  id) -> return $ printf "%d input %d" ref' (getId id)
             Just (OpSecret id) -> do
                 let secret = case M.lookup id (circ_secrets c) of
                                 Nothing -> ""
                                 Just y  -> show y
-                return $ printf "%d input y%d %s" ref' (getId id) secret
-            Just (OpAdd x y) -> pr ref' "ADD" x y isOutput
-            Just (OpSub x y) -> pr ref' "SUB" x y isOutput
-            Just (OpMul x y) -> pr ref' "MUL" x y isOutput
+                return $ printf "%d const %s" ref' secret
+            Just (OpAdd x y) -> pr ref' "ADD" x y
+            Just (OpSub x y) -> pr ref' "SUB" x y
+            Just (OpMul x y) -> pr ref' "MUL" x y
 
-    pr :: Int -> String -> Ref -> Ref -> Bool -> S.State (M.Map Ref Int, Int) String
-    pr ref' gateTy x y isOutput = do
+    pr :: Int -> String -> Ref -> Ref -> S.State (M.Map Ref Int, Int) String
+    pr ref' gateTy x y = do
         x' <- tr x
         y' <- tr y
-        return $ printf "%d %s %s %d %d" ref' (if isOutput then "output" else "gate") gateTy x' y'
+        return $ printf "%d %s %d %d" ref' gateTy x' y'
 
 showTest :: TestCase -> String
-showTest (inp, out) = printf "# TEST %s %s" (showBits' (reverse inp)) (showBits' (reverse out))
+showTest (inp, out) = printf ":test %s %s" (showBits' (reverse inp)) (showBits' (reverse out))
 
 genTestStr :: Int -> Circuit -> IO String
 genTestStr symlen c = fmap showTest (genTest symlen c)
@@ -112,7 +115,7 @@ parseCirc s = case runParser (circParser >> getState) emptySt "" s of
   where
     circParser = start >> rest >> eof
     start = many $ choice [parseParam, parseTest]
-    rest  = many $ choice [try parseGate, try parseInput]
+    rest  = many $ choice [try parseGate, try parseInput, try parseConst, try parseOutputs]
 
 parseParam :: ParseCirc ()
 parseParam = do
@@ -120,9 +123,20 @@ parseParam = do
     skipMany (oneOf " \t" <|> alphaNum)
     endLine
 
+parseRef :: ParseCirc Ref
+parseRef = Ref <$> read <$> many1 digit
+
+parseOutputs :: ParseCirc ()
+parseOutputs = do
+    string ":outputs"
+    spaces
+    refs <- many (do ref <- parseRef; spaces; return ref)
+    mapM_ markOutput refs
+    endLine
+
 parseTest :: ParseCirc ()
 parseTest = do
-    string "# TEST"
+    string ":test"
     spaces
     inps <- many (oneOf "01")
     spaces
@@ -134,35 +148,32 @@ parseTest = do
 
 parseInput :: ParseCirc ()
 parseInput = do
-    gateRef <- Ref <$> read <$> many1 digit
+    ref <- parseRef
     spaces
     string "input"
     spaces
-    parseX gateRef <|> parseY gateRef
-    endLine
-
-parseX :: Ref -> ParseCirc ()
-parseX ref = do
-    char 'x'
     id <- Id <$> read <$> many1 digit
     insertInput ref id
+    endLine
 
-parseY :: Ref -> ParseCirc ()
-parseY ref = do
-    char 'y'
-    id <- Id <$> read <$> many1 digit
+parseConst :: ParseCirc ()
+parseConst = do
+    ref <- parseRef
+    spaces
+    string "const"
     spaces
     val <- read <$> many1 digit
+    id  <- nextConstId
     insertSecret ref id
     insertSecretVal id val
+    endLine
 
 parseGate :: ParseCirc ()
 parseGate = do
-    ref <- Ref <$> read <$> many1 digit
+    ref <- parseRef
     spaces
-    gateType <- oneOfStr ["gate", "output"]
-    when (gateType == "output") $ markOutput ref
-    spaces
+    -- gateType <- oneOfStr ["gate", "output"]
+    -- when (gateType == "output") $ markOutput ref
     opType <- oneOfStr ["ADD", "SUB", "MUL"]
     spaces
     xref <- Ref <$> read <$> ((:) <$> option ' ' (char '-') <*> many1 digit)

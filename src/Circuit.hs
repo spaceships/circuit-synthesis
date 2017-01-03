@@ -50,10 +50,10 @@ type TestCase = ([Bool], [Bool])
 emptyCirc = Circuit [] [] M.empty M.empty M.empty B.empty
 
 instance Show Ref where
-    show ref = "r" ++ show (getRef ref)
+    show ref = show (getRef ref)
 
 instance Show Id where
-    show id = "i" ++ show (getId id)
+    show id = show (getId id)
 
 getSecret :: Circuit -> Id -> Integer
 getSecret c id = case M.lookup id (circ_secrets c) of

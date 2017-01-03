@@ -66,7 +66,7 @@ main = runCommand $ \opts args -> do
         Just "applebaum" -> Goldreich.makeApplebaum
         Just "tribes"    -> Tribes.make
         Just _ -> do
-            putStrLn "[error] known circuit generation modes: aes, goldreich"
+            putStrLn "[error] known circuit generation modes: aes, goldreich, ggm, applebaum, tribes"
             exitFailure
         Nothing -> do
             when (null args) $ do

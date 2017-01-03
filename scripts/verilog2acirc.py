@@ -56,10 +56,10 @@ for line in f_iter:
         continue
 f.close()
 
-print(": nins {}".format(input_len))
+print(":nins {}".format(input_len))
 
 # assign const 1
-print("0 input y0 1")
+print("0 const 1")
 
 next_x = 0
 next_y = 1
@@ -83,11 +83,11 @@ refs = {} # verilog wires to refs
 
 for i in range(input_len + key_len):
     if i < input_len: 
-        print("{} input x{}".format(next_ref, next_x))
+        print("{} input {}".format(next_ref, next_x))
         next_x += 1
     else:
         # just make the key 0 for convenience: change it if you care
-        print("{} input y{} 0".format(next_ref, next_y))
+        print("{} const {} 0".format(next_ref, next_y))
         next_y += 1
     if i in inputs:
         refs[inputs[i]] = next_ref
@@ -101,9 +101,8 @@ def print_circ(wire):
         if not gates[wire][1] in refs:
             print_circ(gates[wire][1])
 
-        print("{} {} SUB {} {}".format(
+        print("{} SUB {} {}".format(
             next_ref, 
-            "output" if wire in outputs else "gate", 
             0,
             refs[gates[wire][1]]
         ))
@@ -118,9 +117,8 @@ def print_circ(wire):
 
 
         if gates[wire][0] == "AND":
-            print("{} {} MUL {} {}".format(
+            print("{} MUL {} {}".format(
                 next_ref, 
-                "output" if wire in outputs else "gate", 
                 refs[gates[wire][1]],
                 refs[gates[wire][2]]
             ))
@@ -133,3 +131,5 @@ def print_circ(wire):
 
 for w in outputs:
     print_circ(w)
+
+print(":outputs {}".format(" ".join(map(lambda w: str(refs[w]), outputs))))
