@@ -81,6 +81,7 @@ InvSubByte b = gf28Inverse (xformByte b)
 InvSubBytes : State -> State
 InvSubBytes state =[ [ InvSubByte b | b <- row ] | row <- state ]
 
+/* type State = [4][4][8] */
 // The ShiftRows transform and its inverse
 ShiftRows : State -> State
 ShiftRows state = [ row <<< shiftAmount | row <- state
@@ -333,3 +334,6 @@ toRachael2 (x,_) = [ x == i | i <- [0..3] ]
 
 linearParts : ([128], [0]) -> [128]
 linearParts (x, _) = stateToMsg (MixColumns (ShiftRows (msgToState x)))
+
+mixColumns : ([128], [0]) -> [128]
+mixColumns (x, _) = stateToMsg (MixColumns (msgToState x))
