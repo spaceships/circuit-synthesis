@@ -332,16 +332,15 @@ buildAes n = do
 
 buildAes' :: Int -> IO Circuit
 buildAes' n = do
-    linearParts <- fst <$> Acirc.readAcirc "linearParts.c2a.acirc"
+    mixCols <- fst <$> Acirc.readAcirc "mixColumns.c2a.acirc"
     return $ buildCircuit $ do
         inp  <- inputs n
         one  <- constant 1
         zero <- constant 0
         key  <- secrets (replicate 128 0)
         let fixed = replicate (128 - n) zero
-        let state = chunksOf 8 (inp ++ fixed)
-        xs   <- concat <$> mapM (subcircuit subByte) state
-        xs'  <- subcircuit' linearParts xs [one]
+        xs   <- concat <$> mapM (subcircuit subByte) (chunksOf 8 (inp ++ fixed))
+        xs'  <- subcircuit' mixCols (shiftRows xs) [one]
         xs'' <- zipWithM circXor xs' key -- addRoundKey
         outputs xs''
 
@@ -376,8 +375,15 @@ xor = buildCircuit $ do
     output z
 
 shiftRows :: [Ref] -> [Ref]
-shiftRows xs = concat [ rotate n row | row <- chunksOf 4 xs
-                                     | n   <- [0..3] ]
+shiftRows xs = fromState [ rotate n row | row <- toState xs | n <- [0..3] ]
+  where
+    toState   = transpose . chunksOf 4 . chunksOf 8
+    fromState = concat . concat . transpose
+
+shiftRowsCirc :: Circuit
+shiftRowsCirc = buildCircuit $ do
+    inp <- inputs 128
+    outputs (shiftRows inp)
 
 rotate :: Int -> [a] -> [a]
 rotate n xs = drop n xs ++ take n xs

@@ -337,3 +337,6 @@ linearParts (x, _) = stateToMsg (MixColumns (ShiftRows (msgToState x)))
 
 mixColumns : ([128], [0]) -> [128]
 mixColumns (x, _) = stateToMsg (MixColumns (msgToState x))
+
+shiftRows : ([128], [0]) -> [128]
+shiftRows (x, _) = stateToMsg (ShiftRows (msgToState x))
