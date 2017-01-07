@@ -380,10 +380,14 @@ shiftRows xs = fromState [ rotate n row | row <- toState xs | n <- [0..3] ]
     toState   = transpose . chunksOf 4 . chunksOf 8
     fromState = concat . concat . transpose
 
-shiftRowsCirc :: Circuit
-shiftRowsCirc = buildCircuit $ do
-    inp <- inputs 128
-    outputs (shiftRows inp)
-
 rotate :: Int -> [a] -> [a]
 rotate n xs = drop n xs ++ take n xs
+
+-- watch out: takes hours to compile
+gf2Mult :: IO Circuit
+gf2Mult = do
+    gf <- fst <$> Acirc.readAcirc "gf.c2a.acirc"
+    return $ buildCircuit $ do
+        xs <- inputs 16
+        ys <- lookupTableMultibit (plainEval gf) xs
+        outputs ys
