@@ -65,6 +65,7 @@ main = runCommand $ \opts args -> do
         Just "ggm"       -> Goldreich.makeGGM
         Just "applebaum" -> Goldreich.makeApplebaum
         Just "tribes"    -> Tribes.make
+        Just "gf28Mult"  -> Aes.makeGF28Mult
         Just _ -> do
             putStrLn "[error] known circuit generation modes: aes, goldreich, ggm, applebaum, tribes"
             exitFailure

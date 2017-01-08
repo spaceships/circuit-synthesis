@@ -392,6 +392,11 @@ compileGF28Mult = do
         ys <- lookupTableMultibit (plainEval gf) xs
         outputs ys
 
+makeGF28Mult :: IO ()
+makeGF28Mult = do
+    c <- compileGF28Mult
+    Acirc.writeAcirc "gf28-mult-lookup.dsl.acirc" c
+
 -- grab compiled version of the circuit
 gf28Mult :: IO Circuit
 gf28Mult = fst <$> Acirc.readAcirc "gf28-mult-lookup.dsl.acirc"
