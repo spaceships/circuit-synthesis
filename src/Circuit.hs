@@ -274,6 +274,8 @@ foldCircM f c = evalStateT (mapM eval (circ_outputs c)) M.empty
     eval ref = gets (M.lookup ref) >>= \case
         Just val -> return val
         Nothing  -> do
+            when (M.notMember ref (circ_refmap c))
+                (traceM (printf "unknown ref \"%s\"" (show ref)))
             let op = circ_refmap c ! ref
             argVals <- mapM eval (opArgs op)
             val     <- lift (f op ref argVals)

@@ -384,10 +384,29 @@ rotate :: Int -> [a] -> [a]
 rotate n xs = drop n xs ++ take n xs
 
 -- watch out: takes hours to compile
-gf2Mult :: IO Circuit
-gf2Mult = do
+compileGF28Mult :: IO Circuit
+compileGF28Mult = do
     gf <- fst <$> Acirc.readAcirc "gf.c2a.acirc"
     return $ buildCircuit $ do
         xs <- inputs 16
         ys <- lookupTableMultibit (plainEval gf) xs
         outputs ys
+
+-- grab compiled version of the circuit
+gf28Mult :: IO Circuit
+gf28Mult = fst <$> Acirc.readAcirc "gf28-mult-lookup.dsl.acirc"
+
+gf28DotProduct :: Circuit -> [[Ref]] -> [[Ref]] -> Builder [Ref]
+gf28DotProduct multCirc xs ys = do
+    let mult (x,y) = subcircuit multCirc (x ++ y)
+    ws <- mapM mult (zip xs ys)
+    mapM circXors ws
+
+gf28DotProductCirc :: IO Circuit
+gf28DotProductCirc = do
+    mult <- gf28Mult
+    return $ buildCircuit $ do
+        xs <- replicateM 4 (inputs 8)
+        ys <- replicateM 4 (inputs 8)
+        zs <- gf28DotProduct mult xs ys
+        outputs zs
