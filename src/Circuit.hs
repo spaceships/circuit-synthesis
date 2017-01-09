@@ -334,6 +334,12 @@ topoLevels c = map S.toAscList lvls
         OpSecret _ -> []
         op -> opArgs op ++ concatMap dependencies (opArgs op)
 
+nonInputGates :: Circuit -> [Ref]
+nonInputGates c = filter notInput (topologicalOrder c)
+  where
+    notInput ref = notElem ref (circ_inputs c) &&
+                   M.notMember ref (circ_secret_refs c)
+
 intermediateGates :: Circuit -> [Ref]
 intermediateGates c = filter intermediate (topologicalOrder c)
   where

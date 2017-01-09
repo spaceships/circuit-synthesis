@@ -50,22 +50,22 @@ showCircWithTestsR symlen ntests c = do
     return (unlines ts ++ showCirc symlen c)
 
 showCirc :: Int -> Circuit -> String
-showCirc symlen c = unlines (header ++ gateLines ++ footer)
+showCirc symlen c = unlines (header ++ gateLines)
   where
     header = [printf ":nins %d" (ninputs c), printf ":depth %d" (depth c)] ++
              if symlen /= 1 then [printf ":symlen %d" symlen] else []
 
-    footer = [printf ":outputs %s" (unwords (map show (circ_outputs c)))]
-
     inputs = mapM gateStr (circ_inputs c)
     consts = mapM gateStr (M.keys (circ_secret_refs c))
-    igates = mapM gateStr (intermediateGates c)
-    output = mapM gateStr (circ_outputs c)
+    gates  = mapM gateStr (nonInputGates c)
 
-    gateLines = concat $ S.evalState (sequence [inputs, consts, igates, output]) (M.empty, 0)
+    output = do
+        outs <- map show <$> mapM tr (circ_outputs c)
+        return [printf ":outputs %s" (unwords outs)]
 
-    -- we need to minimize the number of refs we use since we may not output
-    -- them all
+    gateLines = concat $ S.evalState (sequence [inputs, consts, gates, output]) (M.empty, 0)
+
+    -- we need to minimize the number of refs we use since we may not output them all
     tr :: Ref -> S.State (M.Map Ref Int, Int) Int
     tr ref = do
         (m,i) <- S.get
@@ -176,7 +176,8 @@ parseGate = do
     -- when (gateType == "output") $ markOutput ref
     opType <- oneOfStr ["ADD", "SUB", "MUL"]
     spaces
-    xref <- Ref <$> read <$> ((:) <$> option ' ' (char '-') <*> many1 digit)
+    -- xref <- Ref <$> read <$> ((:) <$> option ' ' (char '-') <*> many1 digit)
+    xref <- Ref <$> read <$> many1 digit
     spaces
     yref <- Ref <$> read <$> many1 digit
     let op = case opType of
