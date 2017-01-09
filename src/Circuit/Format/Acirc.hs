@@ -1,5 +1,7 @@
 module Circuit.Format.Acirc
-  ( readAcirc
+  ( Circuit.Format.Acirc.read
+  , Circuit.Format.Acirc.write
+  , readAcirc
   , writeAcirc
   , writeAcircR
   , parseCirc
@@ -7,6 +9,7 @@ module Circuit.Format.Acirc
   , showTest
   , genTestStr
   , addTestsToFile
+  , showCircWithTests
   ) where
 
 import Circuit
@@ -22,6 +25,12 @@ import qualified Data.Map as M
 
 --------------------------------------------------------------------------------
 -- printer
+
+read :: FilePath -> IO Circuit
+read = fmap fst . readAcirc
+
+write :: FilePath -> Circuit -> IO ()
+write = writeAcirc
 
 addTestsToFile :: FilePath -> IO ()
 addTestsToFile fp = do
@@ -124,7 +133,7 @@ parseParam = do
     endLine
 
 parseRef :: ParseCirc Ref
-parseRef = Ref <$> read <$> many1 digit
+parseRef = Ref <$> Prelude.read <$> many1 digit
 
 parseOutputs :: ParseCirc ()
 parseOutputs = do
@@ -152,7 +161,7 @@ parseInput = do
     spaces
     string "input"
     spaces
-    id <- Id <$> read <$> many1 digit
+    id <- Id <$> Prelude.read <$> many1 digit
     insertInput ref id
     endLine
 
@@ -162,7 +171,7 @@ parseConst = do
     spaces
     string "const"
     spaces
-    val <- read <$> many1 digit
+    val <- Prelude.read <$> many1 digit
     id  <- nextConstId
     insertSecret ref id
     insertSecretVal id val
@@ -177,9 +186,9 @@ parseGate = do
     opType <- oneOfStr ["ADD", "SUB", "MUL"]
     spaces
     -- xref <- Ref <$> read <$> ((:) <$> option ' ' (char '-') <*> many1 digit)
-    xref <- Ref <$> read <$> many1 digit
+    xref <- Ref <$> Prelude.read <$> many1 digit
     spaces
-    yref <- Ref <$> read <$> many1 digit
+    yref <- Ref <$> Prelude.read <$> many1 digit
     let op = case opType of
             "ADD" -> OpAdd xref yref
             "MUL" -> OpMul xref yref
