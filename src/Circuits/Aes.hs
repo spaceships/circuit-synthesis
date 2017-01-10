@@ -383,35 +383,45 @@ shiftRows xs = fromState [ rotate n row | row <- toState xs | n <- [0..3] ]
 rotate :: Int -> [a] -> [a]
 rotate n xs = drop n xs ++ take n xs
 
--- watch out: takes hours to compile
-compileGF28Mult :: IO Circuit
-compileGF28Mult = do
-    gf <- fst <$> Acirc.readAcirc "gf.c2a.acirc"
+compileGF28Triple :: IO Circuit
+compileGF28Triple = do
+    triple <- Acirc.read "gf28Triple.c2a.acirc"
     return $ buildCircuit $ do
-        xs <- inputs 16
-        ys <- lookupTableMultibit (plainEval gf) xs
+        xs <- inputs 8
+        ys <- lookupTableMultibit (plainEval triple) xs
         outputs ys
 
 makeGF28Mult :: IO ()
 makeGF28Mult = do
-    c <- compileGF28Mult
-    Acirc.writeAcirc "gf28-mult-lookup.dsl.acirc" c
+    Acirc.write "gf28Triple.dsl.acirc" =<< compileGF28Triple
 
--- grab compiled version of the circuit
-gf28Mult :: IO Circuit
-gf28Mult = fst <$> Acirc.readAcirc "gf28-mult-lookup.dsl.acirc"
-
-gf28DotProduct :: Circuit -> [[Ref]] -> [[Ref]] -> Builder [Ref]
-gf28DotProduct multCirc xs ys = do
-    let mult (x,y) = subcircuit multCirc (x ++ y)
+-- assume inputs come in chunks of 8
+gf28DotProduct :: Circuit -> Circuit -> [Int] -> [[Ref]] -> Builder [Ref]
+gf28DotProduct double triple xs ys = do
+    let mult (1,x) = return x
+        mult (2,x) = subcircuit double x
+        mult (3,x) = subcircuit triple x
+        mult (_,_) = error "whoops"
     ws <- mapM mult (zip xs ys)
     mapM circXors ws
 
-gf28DotProductCirc :: IO Circuit
-gf28DotProductCirc = do
-    mult <- gf28Mult
+gf28VectorMult :: Circuit -> Circuit -> [Int] -> [[[Ref]]] -> Builder [[Ref]]
+gf28VectorMult double triple v ms = mapM (gf28DotProduct double triple v) ms
+
+gf28MatrixMult :: Circuit -> Circuit -> [[Int]] -> [[[Ref]]] -> Builder [[[Ref]]]
+gf28MatrixMult double triple xs ys = mapM (\x -> gf28VectorMult double triple x ys) xs
+
+mixColumns :: IO Circuit
+mixColumns = do
+    double <- Acirc.read "gf28Double.c2a.acirc"
+    triple <- Acirc.read "gf28Triple.dsl.acirc"
     return $ buildCircuit $ do
-        xs <- replicateM 4 (inputs 8)
-        ys <- replicateM 4 (inputs 8)
-        zs <- gf28DotProduct mult xs ys
-        outputs zs
+        xs <- replicateM 4 $ replicateM 4 (inputs 8)
+        zs <- gf28MatrixMult double triple m xs
+        outputs $ (concat . concat) zs
+  where
+    m = [[2, 3, 1, 1],
+         [1, 2, 3, 1],
+         [1, 1, 2, 3],
+         [3, 1, 1, 2]]
+
