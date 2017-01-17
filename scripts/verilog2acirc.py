@@ -62,7 +62,6 @@ print(":nins {}".format(input_len))
 print("0 const 1")
 
 next_x = 0
-next_y = 1
 next_ref = 1
 
 refs = {} # verilog wires to refs
@@ -87,8 +86,7 @@ for i in range(input_len + key_len):
         next_x += 1
     else:
         # just make the key 0 for convenience: change it if you care
-        print("{} const {} 0".format(next_ref, next_y))
-        next_y += 1
+        print("{} const 0".format(next_ref))
     if i in inputs:
         refs[inputs[i]] = next_ref
     next_ref += 1
