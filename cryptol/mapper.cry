@@ -401,7 +401,7 @@ i399 = <| x^^399 + x^^9 + x^^6 + x^^4 + x^^2 + x^^1 + 1 |>
 i400 = <| x^^400 + x^^5 + x^^3 + x^^2 + 1 |>
 /*}}}*/
 
-poly_mul : {n} fin n => [n+1] -> [n] -> [n] -> [n]
+poly_mul : {n} (fin n, n >= 1) => [n+1] -> [n] -> [n] -> [n]
 poly_mul irr x y = pmod (pmult x y) irr
 
 poly_pow : {n} (fin n, n >= 1) => [n+1] -> [n] -> [16] -> [n]

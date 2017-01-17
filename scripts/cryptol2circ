@@ -34,4 +34,5 @@ ysize=${sizes[1]}
 
 saw sawcmds.saw > /dev/null
 abc -f abccmds.abc > /dev/null
+# echo perl $scriptdir/bench2circ.pl $func.bench ${3:-arithmetic-circuit} $xsize $ysize
 perl $scriptdir/bench2circ.pl $func.bench ${3:-arithmetic-circuit} $xsize $ysize
