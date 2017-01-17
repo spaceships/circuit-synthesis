@@ -27,7 +27,7 @@ function make_test_cases {
         j=$(($j + 1));
     done
     for i in $(seq 0 $(($num_test_cases-1))); do
-        echo -n "# TEST ${tests[$i]} ";
+        echo -n ":test ${tests[$i]} ";
         if [ ${results[$i]} = "True" ]; then
             echo 1;
         else

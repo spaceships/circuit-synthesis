@@ -13,9 +13,10 @@ data ParseSt = ParseSt {
       st_circ   :: Circuit
     , st_tests  :: [TestCase]
     , st_refmap :: M.Map String Ref
+    , st_next_const_id :: Int
     }
 
-emptySt = ParseSt emptyCirc [] M.empty
+emptySt = ParseSt emptyCirc [] M.empty 0
 
 type ParseCirc = Parsec String ParseSt
 
@@ -53,6 +54,12 @@ insertInput ref id = do
 
 markOutput :: Ref -> ParseCirc ()
 markOutput ref = modifyCirc (\c -> c { circ_outputs = circ_outputs c ++ [ref] })
+
+nextConstId :: ParseCirc Id
+nextConstId = do
+    id <- st_next_const_id <$> getState
+    modifyState (\st -> st { st_next_const_id = id + 1 })
+    return (Id id)
 
 --------------------------------------------------------------------------------
 -- custom parsers

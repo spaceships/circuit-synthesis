@@ -50,10 +50,10 @@ type TestCase = ([Bool], [Bool])
 emptyCirc = Circuit [] [] M.empty M.empty M.empty B.empty
 
 instance Show Ref where
-    show ref = "r" ++ show (getRef ref)
+    show ref = show (getRef ref)
 
 instance Show Id where
-    show id = "i" ++ show (getId id)
+    show id = show (getId id)
 
 getSecret :: Circuit -> Id -> Integer
 getSecret c id = case M.lookup id (circ_secrets c) of
@@ -274,6 +274,8 @@ foldCircM f c = evalStateT (mapM eval (circ_outputs c)) M.empty
     eval ref = gets (M.lookup ref) >>= \case
         Just val -> return val
         Nothing  -> do
+            when (M.notMember ref (circ_refmap c))
+                (traceM (printf "unknown ref \"%s\"" (show ref)))
             let op = circ_refmap c ! ref
             argVals <- mapM eval (opArgs op)
             val     <- lift (f op ref argVals)
@@ -331,6 +333,12 @@ topoLevels c = map S.toAscList lvls
         OpInput  _ -> []
         OpSecret _ -> []
         op -> opArgs op ++ concatMap dependencies (opArgs op)
+
+nonInputGates :: Circuit -> [Ref]
+nonInputGates c = filter notInput (topologicalOrder c)
+  where
+    notInput ref = notElem ref (circ_inputs c) &&
+                   M.notMember ref (circ_secret_refs c)
 
 intermediateGates :: Circuit -> [Ref]
 intermediateGates c = filter intermediate (topologicalOrder c)
