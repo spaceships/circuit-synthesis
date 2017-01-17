@@ -29,34 +29,41 @@ my $ystart = $xend;
 my $yend   = $xend + $nys; # account for const 1
 
 while (<$fh>) {
-  my $var;
-  my $x;
-  my $y;
+    my $var;
+    my $x;
+    my $y;
 
-  if (/INPUT\((.*)\)/) {
-    $gates{$nextref} = [ "input", [] ];
-    push @inputorder, $nextref;
-    $mapping{$1} = $nextref++;
-  }
+    if (/INPUT\((.*)\)/) {
+        $gates{$nextref} = [ "input", [] ];
+        push @inputorder, $nextref;
+        $mapping{$1} = $nextref++;
+    }
 
-  elsif (/OUTPUT\((.*)\)/) {
-    push @outgates, $1;
-  }
+    elsif (/OUTPUT\((.*)\)/) {
+        push @outgates, $1;
+    }
 
-  elsif (/([\w\d]+)\s+=\s+(\w+)\(([\w\d]+)\)/) {
-    $x = $mapping{$3};
-    $gates{$nextref} = [ $2, [$x] ];
-    push @gateorder, $nextref;
-    $mapping{$1} = $nextref++;
-  }
+    elsif (/([\w\d]+)\s+=\s+(\w+)\(([\w\d]+)\)/) {
+        my $type = $2;
+        $x = $mapping{$3};
+        if ($type eq "BUFF") {
+            $mapping{$1} = $x;
+        } else {
+            $gates{$nextref} = [ $type, [$x] ];
+            push @gateorder, $nextref;
+            $mapping{$1} = $nextref++;
+        }
+    }
 
-  elsif (/([\w\d]+)\s+=\s+(\w+)\(([\w\d]+), ([\w\d]+)\)/) {
-    $x = $mapping{$3};
-    $y = $mapping{$4};
-    $gates{$nextref} = [ $2, [$x, $y] ];
-    push @gateorder, $nextref;
-    $mapping{$1} = $nextref++;
-  }
+    elsif (/([\w\d]+)\s+=\s+(\w+)\(([\w\d]+), ([\w\d]+)\)/) {
+        my $type = $2;
+        $x = $mapping{$3};
+        $y = $mapping{$4};
+        $gates{$nextref} = [ $type, [$x, $y] ];
+        push @gateorder, $nextref;
+        $mapping{$1} = $nextref;
+        $nextref++;
+    }
 }
 
 close $fh;
@@ -65,40 +72,40 @@ my @outgaterefs = map { $mapping{$_} } @outgates;
 #my $outgateref = $mapping{$outgate};
 
 sub print_arith {
-  # first input is const 1
-  say ":nins $nxs";
-  say "0 const 1";
-  my $xctr = 0;
-  my $yctr = 1;
-  for my $var (@inputorder) {
-    print "${\( $var+1 )} ";
-    if ($var >= $xstart and $var <= $xend) {
-      say "input ", $xctr++;
-    } elsif ($var >= $ystart and $var <= $yend) {
-      say "const 0";
+    # first input is const 1
+    say ":nins $nxs";
+    say "0 const 1";
+    my $xctr = 0;
+    my $yctr = 1;
+    for my $var (@inputorder) {
+        print "${\( $var+1 )} ";
+        if ($var >= $xstart and $var <= $xend) {
+            say "input ", $xctr++;
+        } elsif ($var >= $ystart and $var <= $yend) {
+            say "const 0";
+        }
     }
-  }
-  my @outs;
-  for my $var (@gateorder) {
-    my $type = $gates{$var}->[0];
-    my @args = map {$_+1} @{$gates{$var}->[1]};
-    my $str = $var+1;
-    # if (elem($var, \@outgaterefs)) {
-    #   push @outs, $var;
-    #   $str .= " output ";
-    # } else {
-    #   $str .= " gate ";
-    # }
-    if ($type eq "NOT") {
-      $str .= " SUB 0 @args";
-    } elsif ($type eq "AND") {
-      $str .= " MUL @args";
-    } else {
-      die "Unknown gate type: $type";
+    my @outs;
+    for my $var (@gateorder) {
+        my $type = $gates{$var}->[0];
+        my @args = map {$_+1} @{$gates{$var}->[1]};
+        my $str = $var+1;
+        # if (elem($var, \@outgaterefs)) {
+        #   push @outs, $var;
+        #   $str .= " output ";
+        # } else {
+        #   $str .= " gate ";
+        # }
+        if ($type eq "NOT") {
+            $str .= " SUB 0 @args";
+        } elsif ($type eq "AND") {
+            $str .= " MUL @args";
+        } else {
+            die "Unknown gate type: $type";
+        }
+        say $str;
     }
-    say $str;
-  }
-  say ":outputs ", join(" ", map {$_ + 1} @outgaterefs);
+    say ":outputs ", join(" ", map {$_ + 1} @outgaterefs);
 }
 
 sub print_bool {

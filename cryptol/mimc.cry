@@ -19,7 +19,7 @@ F(x) := x^3 for x ∈ F_{2^n}.
 
 /* F : [n] -> [n] */
 /* F x = x·x·x */
-F : {n} (fin n) => [n+1] -> [n] -> [n]
+F : {n} (fin n, n >= 1) => [n+1] -> [n] -> [n]
 F irr x = mult irr x (mult irr x x)
 
 // There is a list of irreducible polynomials in F_{2^n}, for 2 <= n <= 10000,
@@ -36,7 +36,7 @@ F irr x = mult irr x (mult irr x x)
 /* (·) : [n] -> [n] -> [n] */
 /* x · y = pmod (pmult x y) irreducible */
 
-mult : {n} (fin n) => [n+1] -> [n] -> [n] -> [n]
+mult : {n} (fin n, n >= 1) => [n+1] -> [n] -> [n] -> [n]
 mult irr x y = pmod (pmult x y) irr
 
 /*
@@ -49,7 +49,7 @@ E_k(x) = (F_{r−1} ◦ F_{r−2} ◦ . . . ◦ F_0)(x) ⊕ k.
 // Their text says to use c_r = 0, but E_k does not actually depend on c_r and
 // their block diagram agrees with E_k. So we include the c_0 = 0 bit but omit
 // c_r = 0 from our definition.
-E : {n, r} (fin n, fin r) => [n+1] -> [r][n] -> [n] -> [n] -> [n]
+E : {n, r} (fin n, fin r, n >= 1) => [n+1] -> [r][n] -> [n] -> [n] -> [n]
 E irr c k x = compositions!0 ^ k where
     compositions = [ F irr (xi^k^ci)
                    | xi <- [x] # compositions
