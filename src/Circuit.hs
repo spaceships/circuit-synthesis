@@ -85,8 +85,7 @@ printCircInfo c = do
             (show (M.elems (circ_secrets c)))
             (ngates c)
     printf "degs=%s var-degree=%d circ-degree=%d\n" (show ds) (sum ds) (circDegree c)
-    printf "zimmerman-vbb-kappa=%d\n" (sum ds + 2*n + n*(2*n-1))
-    printf "zimmerman-io-kappa=%d\n" (sum ds + 2*n)
+    printf "zimmerman-io-kappa=%d\n" (circDegree c + 2*n)
     printf "lin16-kappa(c=n)=%d\n" (2 + fromIntegral n + sum ds + circDegree c)
 
 printCircInfoLatex :: Circuit -> IO ()
