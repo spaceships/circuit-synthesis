@@ -2,6 +2,11 @@
 
 set -e
 
+function add_tests() {
+    echo cabal run --verbose=0 -- -A $1
+    cabal run --verbose=0 -- -A $1
+}
+
 function generate_circuit() {
     type_of_compilation=$1
     source_file=$2
@@ -25,6 +30,7 @@ function generate_circuit() {
             exit
             ;;
     esac
+    add_tests $result_file
 }
 
 # generate AES circuits

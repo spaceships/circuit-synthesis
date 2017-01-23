@@ -23,6 +23,7 @@ data MainOptions = MainOptions { opt_info       :: Bool
                                , opt_test       :: Bool
                                , opt_gentests   :: Maybe Int
                                , opt_gencirc    :: Maybe String
+                               , opt_add_acirc_tests :: Bool
                                }
 
 instance Options MainOptions where
@@ -56,6 +57,12 @@ instance Options MainOptions where
                      , optionShortFlags  = "C"
                      , optionDescription = "Generate a circuit"
                      })
+        <*> defineOption optionType_bool
+            (\o -> o { optionShortFlags  = "A"
+                     , optionLongFlags   = ["add-tests"]
+                     , optionDescription = "Add tests to the acirc file"
+                     })
+
 
 main :: IO ()
 main = runCommand $ \opts args -> do
@@ -75,6 +82,7 @@ main = runCommand $ \opts args -> do
                 exitFailure
             let inputFile = head args
                 parser    = parserFor inputFile :: CircuitParser
+            when (opt_add_acirc_tests opts) $ Acirc.addTestsToFile inputFile
             (c,ts) <- parser <$> readFile inputFile
             when (opt_info opts) $ printCircInfo c
             when (opt_latex_info opts) $ printCircInfoLatex c

@@ -122,30 +122,19 @@ parseCirc s = case runParser (circParser >> getState) emptySt "" s of
     Left err -> error (show err)
     Right st -> (st_circ st, reverse (st_tests st))
   where
-    circParser = start >> rest >> eof
-    start = many $ choice [parseParam, parseTest]
-    rest  = many $ choice [try parseGate, try parseInput, try parseConst, try parseOutputs]
+    circParser = preamble >> lines >> end >> eof
+    preamble = many $ (char ':' >> (parseTest <|> parseParam))
+    lines    = many parseRefLine
+    end      = parseOutputs
 
 parseParam :: ParseCirc ()
 parseParam = do
-    char ':'
     skipMany (oneOf " \t" <|> alphaNum)
-    endLine
-
-parseRef :: ParseCirc Ref
-parseRef = Ref <$> Prelude.read <$> many1 digit
-
-parseOutputs :: ParseCirc ()
-parseOutputs = do
-    string ":outputs"
-    spaces
-    refs <- many (do ref <- parseRef; spaces; return ref)
-    mapM_ markOutput refs
     endLine
 
 parseTest :: ParseCirc ()
 parseTest = do
-    string ":test"
+    string "test"
     spaces
     inps <- many (oneOf "01")
     spaces
@@ -155,32 +144,42 @@ parseTest = do
     addTest (reverse inp, reverse res)
     endLine
 
-parseInput :: ParseCirc ()
-parseInput = do
+parseOutputs :: ParseCirc ()
+parseOutputs = do
+    string ":outputs"
+    spaces
+    refs <- many (do ref <- parseRef; spaces; return ref)
+    mapM_ markOutput refs
+    endLine
+
+parseRef :: ParseCirc Ref
+parseRef = Ref <$> Prelude.read <$> many1 digit
+
+parseRefLine :: ParseCirc ()
+parseRefLine = do
     ref <- parseRef
     spaces
+    choice [parseConst ref, parseInput ref, parseGate ref]
+    endLine
+
+parseInput :: Ref -> ParseCirc ()
+parseInput ref = do
     string "input"
     spaces
     id <- Id <$> Prelude.read <$> many1 digit
     insertInput ref id
-    endLine
 
-parseConst :: ParseCirc ()
-parseConst = do
-    ref <- parseRef
-    spaces
+parseConst :: Ref -> ParseCirc ()
+parseConst ref = do
     string "const"
     spaces
     val <- Prelude.read <$> many1 digit
     id  <- nextConstId
     insertSecret ref id
     insertSecretVal id val
-    endLine
 
-parseGate :: ParseCirc ()
-parseGate = do
-    ref <- parseRef
-    spaces
+parseGate :: Ref -> ParseCirc ()
+parseGate ref = do
     -- gateType <- oneOfStr ["gate", "output"]
     -- when (gateType == "output") $ markOutput ref
     opType <- oneOfStr ["ADD", "SUB", "MUL"]
@@ -195,4 +194,3 @@ parseGate = do
             "SUB" -> OpSub xref yref
             g     -> error ("[parser] unkonwn gate type " ++ g)
     insertOp ref op
-    endLine
