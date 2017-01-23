@@ -20,8 +20,8 @@ prg_16_64 (x, _) = [ xor_maj (select s x : [4]) | s <- split (split k) ]
   where
     k = 0x3b81f572a694fe3ebbbcd8fcbe16a9631cc9d3709c884ed1ecd6b92dd3f98403576452878c7f2c0e2b5e18d9d489d7af5283305e7c507d812aac356488fd35d547f6a0a8da8de01360c6141a8ed72458600a9344a69a8350dd16efaa63b0a32d85f6de8df32d1c8810f615fea212c85b4cea5a60d15aa3fdb1c227aaf9def657
 
-prg_32_32 : ([32], [0]) -> [32]
-prg_32_32 (x, _) = [ xor_maj (select s x : [5]) | s <- split (split k) ]
+prg_32_32 : [32] -> [32]
+prg_32_32 x = [ xor_maj (select s x : [5]) | s <- split (split k) ]
   where
     k = 0xda6fed3d683312e1c02df867e1abbf3ac850f4c8e512e5c88732cdd6c2f49bb122185153ffc510a1526b669214417a0c3e10d69889c58f833c75352b3a3cb66467ce1918b75dd2dd8f54febd9ab1ee3470db714b0d1b4a9b1b5430cfee92257073f4dd33
 
