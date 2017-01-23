@@ -49,7 +49,7 @@ abc -liberty ${libertyfile}
 write_verilog ${func}.out.v
 EOM
 
-sizes=($(egrep "$func\\s*:\\s*" $cryptolfile | perl -ne \
+sizes=($(egrep "^$func\\s*:\\s*" $cryptolfile | perl -ne \
     'if (/: \(\[(\d+)],\s*\[(\d+)\]\) ->/) { print "$1 $2"; } elsif (/: \[(\d+)\] ->/) { print "$1 0"; }' \
 ))
 inputsize=${sizes[0]}
