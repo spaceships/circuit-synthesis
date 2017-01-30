@@ -60,6 +60,13 @@ getSecret c id = case M.lookup id (circ_secrets c) of
     Just x  -> x
     Nothing -> error ("[getSecret] no secret known for y" ++ show id)
 
+randomizeSecrets :: Circuit -> IO Circuit
+randomizeSecrets c = do
+    key <- map b2i <$> num2Bits (nsecrets c) <$> randIO (randInteger (nsecrets c))
+    return $ flip execState c $ do
+        forM [0..nsecrets c-1] $ \i -> do
+            modify $ \c -> c { circ_secrets = M.insert (Id i) (key !! i) (circ_secrets c) }
+
 -- symlen determines how large a rachel symbol is
 genTest :: Int -> Circuit -> IO TestCase
 genTest symlen c
