@@ -9,6 +9,7 @@ import Util
 import Rand
 
 import Control.Monad.Identity
+import Control.Monad.Par (IVar, Par, fork, runPar)
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Concurrent.ParallelIO
@@ -17,6 +18,7 @@ import Control.Monad.IfElse (whenM)
 import Control.Monad.State.Strict
 import Data.Map.Strict ((!))
 import Text.Printf
+import qualified Control.Monad.Par as IVar
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Bimap as B
@@ -222,6 +224,22 @@ plainEval c inps = map (/= 0) (foldCirc eval c)
     eval (OpInput  i) [] = b2i (inps !! getId i)
     eval (OpSecret i) [] = getSecret c i
     eval op args = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
+
+parEval :: Circuit -> [Bool] -> [Bool]
+parEval c inps = map (0/=) . runPar $ mapM IVar.get =<< foldCircM eval c
+  where
+    eval :: Op -> Ref -> [IVar Integer] -> Par (IVar Integer)
+    eval (OpAdd _ _) _ [x,y] = liftBin (+) x y
+    eval (OpSub _ _) _ [x,y] = liftBin (-) x y
+    eval (OpMul _ _) _ [x,y] = liftBin (*) x y
+    eval (OpInput  i) _ [] = IVar.newFull (b2i (inps !! getId i))
+    eval (OpSecret i) _ [] = IVar.newFull (getSecret c i)
+    eval op _ args = error ("[parEval] weird input: " ++ show op ++ " with " ++ show (length args) ++ " arguments")
+
+    liftBin f x y = do
+        result <- IVar.new
+        fork (liftM2 f (IVar.get x) (IVar.get y) >>= IVar.put result)
+        return result
 
 plainEvalIO :: Circuit -> [Bool] -> IO [Bool]
 plainEvalIO c xs = do
