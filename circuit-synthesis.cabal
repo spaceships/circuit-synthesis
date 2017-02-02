@@ -40,6 +40,48 @@ executable circuit-synthesis
                      , vector
                      , split
                      , monad-par
+                     , circuit-synthesis
 
   hs-source-dirs:      src
   default-language:    Haskell2010
+
+library
+  -- exposed-modules:     
+  -- other-modules:       
+  -- other-extensions:    
+  build-depends:       base
+                     , bimap
+                     , options
+                     , mtl
+                     , parallel-io
+                     , stm
+                     , containers
+                     , deepseq
+                     , IfElse
+                     , monad-parallel
+                     , ghc-prim
+                     , integer-gmp
+                     , parallel
+                     , parsec
+                     , crypto-api
+                     , DRBG
+                     , bytestring
+                     , vector
+                     , split
+                     , monad-par
+
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+
+  exposed-modules:
+    Circuit
+    Circuit.Builder
+    Circuit.Format.Acirc
+    Circuit.Format.Verilog
+    Circuit.Parser
+  other-modules:
+    Rand
+    Util
+
+  ghc-options: -Wall
+  ghc-prof-options: -O2 -fprof-auto-top

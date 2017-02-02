@@ -1,5 +1,8 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedLists #-}
+#if __GLASGOW_HASKELL__ >= 800
 {-# LANGUAGE Strict #-}
+#endif
 
 module Circuits.Goldreich where
 
