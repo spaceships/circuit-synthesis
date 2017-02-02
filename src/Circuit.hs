@@ -1,7 +1,10 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+#if __GLASGOW_HASKELL__ >= 800
 {-# LANGUAGE Strict #-}
+#endif
 
 module Circuit where
 
@@ -9,6 +12,7 @@ import Util
 import Rand
 
 import Control.Monad.Identity
+import Control.Monad.Par (IVar, Par, fork, runPar)
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Concurrent.ParallelIO
@@ -17,6 +21,7 @@ import Control.Monad.IfElse (whenM)
 import Control.Monad.State.Strict
 import Data.Map.Strict ((!))
 import Text.Printf
+import qualified Control.Monad.Par as IVar
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Bimap as B
@@ -60,6 +65,13 @@ getSecret c id = case M.lookup id (circ_secrets c) of
     Just x  -> x
     Nothing -> error ("[getSecret] no secret known for y" ++ show id)
 
+randomizeSecrets :: Circuit -> IO Circuit
+randomizeSecrets c = do
+    key <- map b2i <$> num2Bits (nsecrets c) <$> randIO (randInteger (nsecrets c))
+    return $ flip execState c $ do
+        forM [0..nsecrets c-1] $ \i -> do
+            modify $ \c -> c { circ_secrets = M.insert (Id i) (key !! i) (circ_secrets c) }
+
 -- symlen determines how large a rachel symbol is
 genTest :: Int -> Circuit -> IO TestCase
 genTest symlen c
@@ -85,8 +97,7 @@ printCircInfo c = do
             (show (M.elems (circ_secrets c)))
             (ngates c)
     printf "degs=%s var-degree=%d circ-degree=%d\n" (show ds) (sum ds) (circDegree c)
-    printf "zimmerman-vbb-kappa=%d\n" (sum ds + 2*n + n*(2*n-1))
-    printf "zimmerman-io-kappa=%d\n" (sum ds + 2*n)
+    printf "zimmerman-io-kappa=%d\n" (circDegree c + 2*n)
     printf "lin16-kappa(c=n)=%d\n" (2 + fromIntegral n + sum ds + circDegree c)
 
 printCircInfoLatex :: Circuit -> IO ()
@@ -216,6 +227,22 @@ plainEval c inps = map (/= 0) (foldCirc eval c)
     eval (OpInput  i) [] = b2i (inps !! getId i)
     eval (OpSecret i) [] = getSecret c i
     eval op args = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
+
+parEval :: Circuit -> [Bool] -> [Bool]
+parEval c inps = map (0/=) . runPar $ mapM IVar.get =<< foldCircM eval c
+  where
+    eval :: Op -> Ref -> [IVar Integer] -> Par (IVar Integer)
+    eval (OpAdd _ _) _ [x,y] = liftBin (+) x y
+    eval (OpSub _ _) _ [x,y] = liftBin (-) x y
+    eval (OpMul _ _) _ [x,y] = liftBin (*) x y
+    eval (OpInput  i) _ [] = IVar.newFull (b2i (inps !! getId i))
+    eval (OpSecret i) _ [] = IVar.newFull (getSecret c i)
+    eval op _ args = error ("[parEval] weird input: " ++ show op ++ " with " ++ show (length args) ++ " arguments")
+
+    liftBin f x y = do
+        result <- IVar.new
+        fork (liftM2 f (IVar.get x) (IVar.get y) >>= IVar.put result)
+        return result
 
 plainEvalIO :: Circuit -> [Bool] -> IO [Bool]
 plainEvalIO c xs = do
