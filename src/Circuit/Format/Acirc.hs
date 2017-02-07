@@ -14,7 +14,7 @@ module Circuit.Format.Acirc
 
 import Circuit
 import Circuit.Parser
-import Util (forceM, readBits', showBits', safeInsert)
+import Util (addSpaces, forceM, readBits', showBits', safeInsert)
 
 import Control.Monad
 import qualified Control.Monad.State as S
@@ -95,9 +95,9 @@ showCirc symlen c = unlines (header ++ gateLines)
                                 Nothing -> ""
                                 Just y  -> show y
                 return $ printf "%d const %s" ref' secret
-            Just (OpAdd x y) -> pr ref' "ADD" x y
-            Just (OpSub x y) -> pr ref' "SUB" x y
-            Just (OpMul x y) -> pr ref' "MUL" x y
+            Just (OpAdd x y) -> pr ref' "+" x y
+            Just (OpSub x y) -> pr ref' "-" x y
+            Just (OpMul x y) -> pr ref' "*" x y
 
     pr :: Int -> String -> Ref -> Ref -> S.State (M.Map Ref Int, Int) String
     pr ref' gateTy x y = do
@@ -106,7 +106,7 @@ showCirc symlen c = unlines (header ++ gateLines)
         return $ printf "%d %s %d %d" ref' gateTy x' y'
 
 showTest :: TestCase -> String
-showTest (inp, out) = printf ":test %s %s" (showBits' (reverse inp)) (showBits' (reverse out))
+showTest (inp, out) = printf ":test %s = %s" (addSpaces $ showBits' $ reverse inp) (addSpaces $ showBits' $ reverse out)
 
 genTestStr :: Int -> Circuit -> IO String
 genTestStr symlen c = fmap showTest (genTest symlen c)
@@ -182,15 +182,15 @@ parseGate :: Ref -> ParseCirc ()
 parseGate ref = do
     -- gateType <- oneOfStr ["gate", "output"]
     -- when (gateType == "output") $ markOutput ref
-    opType <- oneOfStr ["ADD", "SUB", "MUL"]
+    opType <- oneOfStr ["+", "-", "*"]
     spaces
     -- xref <- Ref <$> read <$> ((:) <$> option ' ' (char '-') <*> many1 digit)
     xref <- Ref <$> Prelude.read <$> many1 digit
     spaces
     yref <- Ref <$> Prelude.read <$> many1 digit
     let op = case opType of
-            "ADD" -> OpAdd xref yref
-            "MUL" -> OpMul xref yref
-            "SUB" -> OpSub xref yref
+            "+" -> OpAdd xref yref
+            "*" -> OpMul xref yref
+            "-" -> OpSub xref yref
             g     -> error ("[parser] unkonwn gate type " ++ g)
     insertOp ref op

@@ -3,6 +3,7 @@
 module Util where
 
 import Data.Bits ((.&.))
+import Data.List (intercalate)
 import System.IO
 import Control.DeepSeq (deepseq)
 import Control.Parallel.Strategies
@@ -69,6 +70,9 @@ showBits bs = "0b" ++ showBits' bs
 
 showBits' :: [Bool] -> String
 showBits' = map (\b -> if b then '1' else '0')
+
+addSpaces :: String -> String
+addSpaces s = intercalate " " (map (\c -> [c]) s)
 
 red :: String -> String
 red s = "\x1b[1;41m" ++ s ++ "\x1b[0m"
