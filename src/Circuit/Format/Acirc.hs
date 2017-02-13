@@ -61,7 +61,7 @@ showCircWithTestsR symlen ntests c = do
 showCirc :: Int -> Circuit -> String
 showCirc symlen c = unlines (header ++ gateLines)
   where
-    header = [printf ":nins %d" (ninputs c), printf ":depth %d" (depth c)] ++
+    header = -- [printf ":nins %d" (ninputs c), printf ":depth %d" (depth c)] ++
              if symlen /= 1 then [printf ":symlen %d" symlen] else []
 
     inputs = mapM gateStr (circ_inputs c)
