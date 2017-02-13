@@ -20,6 +20,7 @@ import Control.DeepSeq (NFData)
 import Control.Monad.IfElse (whenM)
 import Control.Monad.State.Strict
 import Data.Map.Strict ((!))
+import Data.List (foldl1')
 import Text.Printf
 import qualified Control.Monad.Par as IVar
 import qualified Data.Map.Strict as M
@@ -32,6 +33,7 @@ newtype Ref = Ref { getRef :: Int } deriving (Eq, Ord, NFData, Num)
 newtype Id  = Id  { getId  :: Int } deriving (Eq, Ord, NFData, Num)
 
 data Op = OpAdd Ref Ref
+        | OpNAdd [Ref]
         | OpSub Ref Ref
         | OpMul Ref Ref
         | OpInput Id
@@ -140,6 +142,7 @@ circEq c0 c1
 
 opArgs :: Op -> [Ref]
 opArgs (OpAdd x y)  = [x,y]
+opArgs (OpNAdd rs)  = rs
 opArgs (OpSub x y)  = [x,y]
 opArgs (OpMul x y)  = [x,y]
 opArgs (OpSecret _) = []
@@ -185,6 +188,7 @@ varDegree' :: Circuit -> Op -> [Integer]
 varDegree' c z = foldCirc f c
   where
     f (OpAdd _ _) [x,y] = max x y
+    f (OpNAdd _)  rs    = maximum rs
     f (OpSub _ _) [x,y] = max x y
     f (OpMul _ _) [x,y] = x + y
 
@@ -200,6 +204,7 @@ circDegree :: Circuit -> Integer
 circDegree c = maximum $ foldCirc f c
   where
     f (OpAdd _ _) [x,y] = max x y
+    f (OpNAdd _)  rs    = maximum rs
     f (OpSub _ _) [x,y] = max x y
     f (OpMul _ _) [x,y] = x + y
     f (OpInput  id) _ = 1
@@ -211,6 +216,7 @@ evalMod :: (Show a, Integral a) => Circuit -> [a] -> a -> [a]
 evalMod c inps q = foldCirc eval c
   where
     eval (OpAdd _ _) [x,y] = x + y % q
+    eval (OpNAdd _)  rs    = foldl1' (+) rs % q
     eval (OpSub _ _) [x,y] = x - y % q
     eval (OpMul _ _) [x,y] = x * y % q
     eval (OpInput  i) [] = inps !! getId i
@@ -222,6 +228,7 @@ plainEval c inps = map (/= 0) (foldCirc eval c)
   where
     eval :: Op -> [Integer] -> Integer
     eval (OpAdd _ _) [x,y] = x + y
+    eval (OpNAdd _)  rs    = foldl1' (+) rs
     eval (OpSub _ _) [x,y] = x - y
     eval (OpMul _ _) [x,y] = x * y
     eval (OpInput  i) [] = b2i (inps !! getId i)
@@ -233,6 +240,7 @@ parEval c inps = map (0/=) . runPar $ mapM IVar.get =<< foldCircM eval c
   where
     eval :: Op -> Ref -> [IVar Integer] -> Par (IVar Integer)
     eval (OpAdd _ _) _ [x,y] = liftBin (+) x y
+    eval (OpNAdd _)  _ rs    = liftNary (+) rs
     eval (OpSub _ _) _ [x,y] = liftBin (-) x y
     eval (OpMul _ _) _ [x,y] = liftBin (*) x y
     eval (OpInput  i) _ [] = IVar.newFull (b2i (inps !! getId i))
@@ -244,6 +252,11 @@ parEval c inps = map (0/=) . runPar $ mapM IVar.get =<< foldCircM eval c
         fork (liftM2 f (IVar.get x) (IVar.get y) >>= IVar.put result)
         return result
 
+    liftNary f xs = do
+        result <- IVar.new
+        fork (mapM IVar.get xs >>= IVar.put result . foldl1' f)
+        return result
+
 plainEvalIO :: Circuit -> [Bool] -> IO [Bool]
 plainEvalIO c xs = do
     zs <- foldCircIO eval c
@@ -251,6 +264,7 @@ plainEvalIO c xs = do
   where
     eval :: Op -> [Integer] -> Integer
     eval (OpAdd _ _) [x,y] = x + y
+    eval (OpNAdd _)  rs    = foldl1' (+) rs
     eval (OpSub _ _) [x,y] = x - y
     eval (OpMul _ _) [x,y] = x * y
     eval (OpInput  i) [] = b2i (xs !! getId i)

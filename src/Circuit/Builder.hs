@@ -156,8 +156,14 @@ circMul x y = newOp (OpMul x y)
 circProd :: [Ref] -> Builder Ref
 circProd = foldTreeM circMul
 
+-- This creates a balanced tree of binary additions
+-- Do not change this API as users of this module for oblivious computation
+-- require only binary operators
 circSum :: [Ref] -> Builder Ref
 circSum = foldTreeM circAdd
+
+circSumN :: [Ref] -> Builder Ref
+circSumN = newOp . OpNAdd
 
 circXor :: Ref -> Ref -> Builder Ref
 circXor x y = do
