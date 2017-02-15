@@ -177,23 +177,6 @@ circSum = foldTreeM circAdd
 circSumN :: [Ref] -> Builder Ref
 circSumN = newOp . OpNAdd
 
-gatherSums :: Ref -> Builder Ref
-gatherSums ref = do
-    c <- getCirc
-    circSumN $ g c ref
-  where
-    g c r =
-      let op = circ_refmap c M.! r
-      in case f c op of
-            Just rs -> rs
-            Nothing -> [r]
-
-    f c (OpNAdd [x,y]) = Just $ g c x ++ g c y
-    f _ (OpNAdd rs)    = Just rs
-    f _ _              = Nothing
-
-
-
 circXor :: Ref -> Ref -> Builder Ref
 circXor x y = do
     z  <- circAdd x y
