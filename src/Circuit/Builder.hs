@@ -148,13 +148,22 @@ constants :: [Integer] -> Builder [Ref]
 constants = mapM constant
 
 circAdd :: Ref -> Ref -> Builder Ref
-circAdd x y = newOp (OpAdd x y)
+circAdd x y = newOp (OpNAdd [x,y])
 
 circSub :: Ref -> Ref -> Builder Ref
-circSub x y = newOp (OpSub x y)
+circSub x y = newOp (OpSub [x,y])
+
+circSubN :: [Ref] -> Builder Ref
+circSubN xs = newOp (OpSub xs)
+
+circNeg :: Ref -> Builder Ref
+circNeg x = newOp (OpSub [x])
 
 circMul :: Ref -> Ref -> Builder Ref
-circMul x y = newOp (OpMul x y)
+circMul x y = newOp (OpMul [x,y])
+
+circMulN :: [Ref] -> Builder Ref
+circMulN xs = newOp (OpMul xs)
 
 circProd :: [Ref] -> Builder Ref
 circProd = foldTreeM circMul
@@ -179,9 +188,9 @@ gatherSums ref = do
             Just rs -> rs
             Nothing -> [r]
 
-    f c (OpAdd x y)  = Just $ g c x ++ g c y
-    f _ (OpNAdd rs)  = Just rs
-    f _ _            = Nothing
+    f c (OpNAdd [x,y]) = Just $ g c x ++ g c y
+    f _ (OpNAdd rs)    = Just rs
+    f _ _              = Nothing
 
 
 
@@ -225,9 +234,12 @@ subcircuit' c xs ys
                                             (length ys) (nconsts c))
     | otherwise = foldCircM translate c
   where
-    translate (OpAdd _ _) _ [x,y] = circAdd x y
-    translate (OpSub _ _) _ [x,y] = circSub x y
-    translate (OpMul _ _) _ [x,y] = circMul x y
+    translate (OpNAdd {}) _ [x,y] = circAdd x y
+    translate (OpNAdd {}) _ xs    = circSumN xs
+    translate (OpSub {})  _ [x,y] = circSub x y
+    translate (OpSub {})  _ xs    = circSubN xs
+    translate (OpMul {})  _ [x,y] = circMul x y
+    translate (OpMul {})  _ xs    = circMulN xs
     translate (OpInput  id) _ _ = return (xs !! getId id)
     translate (OpSecret id) _ _ = return (ys !! getId id)
     translate op ref args =

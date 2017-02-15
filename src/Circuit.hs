@@ -32,10 +32,9 @@ import Debug.Trace
 newtype Ref = Ref { getRef :: Int } deriving (Eq, Ord, NFData, Num)
 newtype Id  = Id  { getId  :: Int } deriving (Eq, Ord, NFData, Num)
 
-data Op = OpAdd Ref Ref
-        | OpNAdd [Ref]
-        | OpSub Ref Ref
-        | OpMul Ref Ref
+data Op = OpNAdd [Ref]
+        | OpSub [Ref]
+        | OpMul [Ref]
         | OpInput Id
         | OpSecret Id
         deriving (Eq, Ord, Show)
@@ -141,10 +140,9 @@ circEq c0 c1
     return (x && y)
 
 opArgs :: Op -> [Ref]
-opArgs (OpAdd x y)  = [x,y]
 opArgs (OpNAdd rs)  = rs
-opArgs (OpSub x y)  = [x,y]
-opArgs (OpMul x y)  = [x,y]
+opArgs (OpSub rs)   = rs
+opArgs (OpMul rs)   = rs
 opArgs (OpSecret _) = []
 opArgs (OpInput  _) = []
 
@@ -187,10 +185,9 @@ varDegree c z = maximum (varDegree' c z)
 varDegree' :: Circuit -> Op -> [Integer]
 varDegree' c z = foldCirc f c
   where
-    f (OpAdd _ _) [x,y] = max x y
-    f (OpNAdd _)  rs    = maximum rs
-    f (OpSub _ _) [x,y] = max x y
-    f (OpMul _ _) [x,y] = x + y
+    f (OpNAdd _) rs = maximum rs
+    f (OpSub _)  rs = maximum rs
+    f (OpMul _)  rs = sum rs
 
     f x _ = if eq x z then 1 else 0
 
@@ -203,10 +200,9 @@ varDegree' c z = foldCirc f c
 circDegree :: Circuit -> Integer
 circDegree c = maximum $ foldCirc f c
   where
-    f (OpAdd _ _) [x,y] = max x y
-    f (OpNAdd _)  rs    = maximum rs
-    f (OpSub _ _) [x,y] = max x y
-    f (OpMul _ _) [x,y] = x + y
+    f (OpNAdd _)  rs = maximum rs
+    f (OpSub _)   rs = maximum rs
+    f (OpMul _)   rs = sum rs
     f (OpInput  id) _ = 1
     f (OpSecret id) _ = 1
     f _ _ = error "[circDegree] unknown input"
@@ -215,10 +211,9 @@ circDegree c = maximum $ foldCirc f c
 evalMod :: (Show a, Integral a) => Circuit -> [a] -> a -> [a]
 evalMod c inps q = foldCirc eval c
   where
-    eval (OpAdd _ _) [x,y] = x + y % q
-    eval (OpNAdd _)  rs    = foldl1' (+) rs % q
-    eval (OpSub _ _) [x,y] = x - y % q
-    eval (OpMul _ _) [x,y] = x * y % q
+    eval (OpNAdd _)   rs = sum rs % q
+    eval (OpSub _)    rs = foldl1' (-) rs % q
+    eval (OpMul _)    rs = product rs % q
     eval (OpInput  i) [] = inps !! getId i
     eval (OpSecret i) [] = fromIntegral (getSecret c i)
     eval op args  = error ("[evalMod] weird input: " ++ show op ++ " " ++ show args)
@@ -227,10 +222,9 @@ plainEval :: Circuit -> [Bool] -> [Bool]
 plainEval c inps = map (/= 0) (foldCirc eval c)
   where
     eval :: Op -> [Integer] -> Integer
-    eval (OpAdd _ _) [x,y] = x + y
-    eval (OpNAdd _)  rs    = foldl1' (+) rs
-    eval (OpSub _ _) [x,y] = x - y
-    eval (OpMul _ _) [x,y] = x * y
+    eval (OpNAdd _)   rs = sum rs
+    eval (OpSub _)    rs = foldl1' (-) rs
+    eval (OpMul _)    rs = product rs
     eval (OpInput  i) [] = b2i (inps !! getId i)
     eval (OpSecret i) [] = getSecret c i
     eval op args = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
@@ -239,14 +233,14 @@ parEval :: Circuit -> [Bool] -> [Bool]
 parEval c inps = map (0/=) . runPar $ mapM IVar.get =<< foldCircM eval c
   where
     eval :: Op -> Ref -> [IVar Integer] -> Par (IVar Integer)
-    eval (OpAdd _ _) _ [x,y] = liftBin (+) x y
-    eval (OpNAdd _)  _ rs    = liftNary (+) rs
-    eval (OpSub _ _) _ [x,y] = liftBin (-) x y
-    eval (OpMul _ _) _ [x,y] = liftBin (*) x y
+    eval (OpNAdd _)  _ rs = liftNary (+) rs
+    eval (OpSub _)   _ rs = liftNary (-) rs
+    eval (OpMul _)   _ rs = liftNary (*) rs
     eval (OpInput  i) _ [] = IVar.newFull (b2i (inps !! getId i))
     eval (OpSecret i) _ [] = IVar.newFull (getSecret c i)
     eval op _ args = error ("[parEval] weird input: " ++ show op ++ " with " ++ show (length args) ++ " arguments")
 
+    -- TODO: this may be redundant now
     liftBin f x y = do
         result <- IVar.new
         fork (liftM2 f (IVar.get x) (IVar.get y) >>= IVar.put result)
@@ -263,10 +257,9 @@ plainEvalIO c xs = do
     return $ map (/= 0) zs
   where
     eval :: Op -> [Integer] -> Integer
-    eval (OpAdd _ _) [x,y] = x + y
-    eval (OpNAdd _)  rs    = foldl1' (+) rs
-    eval (OpSub _ _) [x,y] = x - y
-    eval (OpMul _ _) [x,y] = x * y
+    eval (OpNAdd _)   rs = sum rs
+    eval (OpSub _)    rs = foldl1' (-) rs
+    eval (OpMul _)    rs = product rs
     eval (OpInput  i) [] = b2i (xs !! getId i)
     eval (OpSecret i) [] = getSecret c i
     eval op args = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)

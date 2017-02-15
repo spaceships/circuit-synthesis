@@ -95,9 +95,8 @@ showCirc symlen c = unlines (header ++ gateLines)
                                 Nothing -> ""
                                 Just y  -> show y
                 return $ printf "%d const %s" ref' secret
-            Just (OpAdd x y) -> pr ref' "+" x y
-            Just (OpSub x y) -> pr ref' "-" x y
-            Just (OpMul x y) -> pr ref' "*" x y
+            Just (OpSub xs)  -> prs ref' "-" xs
+            Just (OpMul xs)  -> prs ref' "*" xs
             Just (OpNAdd xs) -> prs ref' "+" xs
 
     pr :: Int -> String -> Ref -> Ref -> S.State (M.Map Ref Int, Int) String
@@ -192,12 +191,13 @@ parseGate ref = do
     opType <- oneOfStr ["+", "-", "*"]
     spaces
     -- xref <- Ref <$> read <$> ((:) <$> option ' ' (char '-') <*> many1 digit)
-    xref <- Ref <$> Prelude.read <$> many1 digit
-    spaces
-    yref <- Ref <$> Prelude.read <$> many1 digit
+    -- spaces
+    -- yref <- Ref <$> read <$> ((:) <$> option ' ' (char '-') <*> many1 digit)
+    let refP = Ref <$> Prelude.read <$> many1 digit
+    xrefs <- refP `sepBy1` spaces
     let op = case opType of
-            "+" -> OpAdd xref yref
-            "*" -> OpMul xref yref
-            "-" -> OpSub xref yref
+            "+" -> OpNAdd xrefs
+            "*" -> OpMul xrefs
+            "-" -> OpSub xrefs
             g     -> error ("[parser] unkonwn gate type " ++ g)
     insertOp ref op
