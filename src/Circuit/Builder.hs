@@ -110,6 +110,9 @@ foldTreeM f xs  = do
 buildCircuit :: Builder a -> Circuit
 buildCircuit = bs_circ . flip execState emptyBuild
 
+buildCircuitRes :: Builder a -> a
+buildCircuitRes = fst . flip runState emptyBuild
+
 input :: Builder Ref
 input = do
     id   <- nextInputId
@@ -164,6 +167,23 @@ circSum = foldTreeM circAdd
 
 circSumN :: [Ref] -> Builder Ref
 circSumN = newOp . OpNAdd
+
+gatherSums :: Ref -> Builder Ref
+gatherSums ref = do
+    c <- getCirc
+    circSumN $ g c ref
+  where
+    g c r =
+      let op = circ_refmap c M.! r
+      in case f c op of
+            Just rs -> rs
+            Nothing -> [r]
+
+    f c (OpAdd x y)  = Just $ g c x ++ g c y
+    f _ (OpNAdd rs)  = Just rs
+    f _ _            = Nothing
+
+
 
 circXor :: Ref -> Ref -> Builder Ref
 circXor x y = do

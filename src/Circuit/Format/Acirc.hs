@@ -98,12 +98,19 @@ showCirc symlen c = unlines (header ++ gateLines)
             Just (OpAdd x y) -> pr ref' "+" x y
             Just (OpSub x y) -> pr ref' "-" x y
             Just (OpMul x y) -> pr ref' "*" x y
+            Just (OpNAdd xs) -> prs ref' "+" xs
 
     pr :: Int -> String -> Ref -> Ref -> S.State (M.Map Ref Int, Int) String
     pr ref' gateTy x y = do
         x' <- tr x
         y' <- tr y
         return $ printf "%d %s %d %d" ref' gateTy x' y'
+
+    prs :: Int -> String -> [Ref] -> S.State (M.Map Ref Int, Int) String
+    prs ref' gateTy xs = do
+        xs' <- mapM tr xs
+        let summands = concat $ fmap (printf " %d") xs' :: String
+        return $ printf "%d %s%s" ref' gateTy summands
 
 showTest :: TestCase -> String
 showTest (inp, out) = printf ":test %s = %s" (addSpaces $ showBits' $ reverse inp) (addSpaces $ showBits' $ reverse out)
