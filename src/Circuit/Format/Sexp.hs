@@ -12,8 +12,11 @@ data Sexp = Sexp String [Sexp] | Atom String
 -- ref is the reference to const 1
 type SexpParser = ParsecT String Ref B.Builder
 
--- parse :: String -> Circuit
--- parse s = buildCircuit $ do
+-- parse :: [String] -> Circuit
+-- parse ss = B.buildCircuit $ do
+--     one  <- B.constant 1
+--     outs <- mapM (runParserT parseSexp one) ss
+--     B.outputs outs
 
 parseSexp :: SexpParser Ref
 parseSexp = parseAdd <|> parseNegate <|> parseMul <|> parseInput <|> parseConst

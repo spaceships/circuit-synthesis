@@ -319,7 +319,7 @@ buildAes :: Int -> IO Circuit
 buildAes n = do
     linearParts <- fst <$> Acirc.readAcirc "linearParts.c2a.acirc"
     return $ buildCircuit $ do
-        np  <- inputs n
+        inp  <- inputs n
         one  <- constant 1
         zero <- constant 0
         key  <- secrets (replicate 128 0)
