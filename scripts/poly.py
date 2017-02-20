@@ -2,7 +2,7 @@
 
 from sympy import *
 from sympy.printing.dot import dotprint
-import argparse, sys
+import argparse, sys, time
 
 def _simplify(expr):
     if type(expr) == Pow:
@@ -15,10 +15,16 @@ def _simplify(expr):
         return expr
 
 def simplify(expr):
-    # print("Expanding expression...", file=sys.stderr)
+    print("Expanding expression... ", file=sys.stderr, end='')
+    start = time.time()
     expr = expand(expr)
-    # print("Simplifying expression...", file=sys.stderr)
+    end = time.time()
+    print("%.2f seconds" % (end - start), file=sys.stderr)
+    print("Simplifying expression... ", file=sys.stderr, end='')
+    start = time.time()
     expr = _simplify(expr)
+    end = time.time()
+    print("%.2f seconds" % (end - start), file=sys.stderr)
     return expr
 
 def main(argv):
