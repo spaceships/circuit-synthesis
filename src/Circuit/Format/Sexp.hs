@@ -23,17 +23,23 @@ parseNInputs n ss = B.buildCircuit $ do
     outs <- rights <$> mapM (runParserT parseSexp () "") ss
     B.outputs outs
 
-parseSexp :: SexpParser Ref
-parseSexp = try parseSub <|> try parseAdd <|> try parseNegate <|> try parseMul <|> try parseInput <|> parseConst
+parseNInputs1 :: Int -> String -> Circuit
+parseNInputs1 n s = B.buildCircuit $ do
+    _   <- B.inputs n
+    out <- either (error.show) id <$> runParserT parseSexp () "" s
+    B.output out
 
-parseSub :: SexpParser Ref
-parseSub = do
-    _ <- string "Add("
-    x <- parseSexp
-    _ <- string ", Mul(Integer(-1), "
-    y <- parseSexp
-    _ <- string "))"
-    lift (B.circSub x y)
+parseSexp :: SexpParser Ref
+parseSexp = try parseAdd <|> try parseMul <|> try parseInput <|> try parseConst <|> parseInteger
+
+-- parseSub :: SexpParser Ref
+-- parseSub = do
+--     _ <- string "Add("
+--     x <- parseSexp
+--     _ <- string ", Mul(Integer(-1), "
+--     y <- parseSexp
+--     _ <- string "))"
+--     lift (B.circSub x y)
 
 parseAdd :: SexpParser Ref
 parseAdd = do
@@ -44,13 +50,13 @@ parseAdd = do
     _ <- string ")"
     lift (B.circSum args)
 
-parseNegate :: SexpParser Ref
-parseNegate = do
-    _ <- string "Mul(Integer(-1), "
-    x <- parseSexp
-    _ <- string ")"
-    y <- lift (B.constant 1)
-    lift (B.circSub y x)
+-- parseNegate :: SexpParser Ref
+-- parseNegate = do
+--     _ <- string "Mul(Integer(-1), "
+--     x <- parseSexp
+--     _ <- string ")"
+--     y <- lift (B.constant 1)
+--     lift (B.circSub y x)
 
 parseMul :: SexpParser Ref
 parseMul = do
@@ -75,11 +81,9 @@ parseConst = do
     _ <- string "')"
     lift (B.secret_n n)
 
-
--- parseSexp :: String -> Builder (Ref
--- parseSexp :: String -> (Sexp, String)
--- parseSexp s = Sexp elem (map parseSexp
---   where
---     op = takeWhile (/= '(') s
---     r0 = tail (dropWhile (/= '('))
---     r1 =
+parseInteger :: SexpParser Ref
+parseInteger = do
+    _ <- string "Integer("
+    n <- read <$> many (digit <|> char '-')
+    _ <- string ")"
+    lift (B.constant n)
