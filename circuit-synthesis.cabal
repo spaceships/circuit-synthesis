@@ -40,6 +40,7 @@ executable circuit-synthesis
                      , vector
                      , split
                      , monad-par
+                     , wl-pprint-text
                      , circuit-synthesis
 
   hs-source-dirs:      src
@@ -69,6 +70,7 @@ library
                      , vector
                      , split
                      , monad-par
+                     , wl-pprint-text
 
   hs-source-dirs:      src
   default-language:    Haskell2010
@@ -79,6 +81,7 @@ library
     Circuit.Format.Acirc
     Circuit.Format.Verilog
     Circuit.Parser
+    Circuit.Graphviz
   other-modules:
     Rand
     Util
