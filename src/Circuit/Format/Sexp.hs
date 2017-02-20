@@ -5,21 +5,35 @@ import qualified Circuit.Builder as B
 import Control.Monad
 import Control.Monad.Trans
 import Circuit
+import Data.Either (rights)
 
 data Sexp = Sexp String [Sexp] | Atom String
           deriving (Eq, Show)
 
--- ref is the reference to const 1
-type SexpParser = ParsecT String Ref B.Builder
+type SexpParser = ParsecT String () B.Builder
 
--- parse :: [String] -> Circuit
--- parse ss = B.buildCircuit $ do
---     one  <- B.constant 1
---     outs <- mapM (runParserT parseSexp one) ss
---     B.outputs outs
+parse :: [String] -> Circuit
+parse ss = B.buildCircuit $ do
+    outs <- rights <$> mapM (runParserT parseSexp () "") ss
+    B.outputs outs
+
+parseNInputs :: Int -> [String] -> Circuit
+parseNInputs n ss = B.buildCircuit $ do
+    _    <- B.inputs n
+    outs <- rights <$> mapM (runParserT parseSexp () "") ss
+    B.outputs outs
 
 parseSexp :: SexpParser Ref
-parseSexp = parseAdd <|> parseNegate <|> parseMul <|> parseInput <|> parseConst
+parseSexp = try parseSub <|> try parseAdd <|> try parseNegate <|> try parseMul <|> try parseInput <|> parseConst
+
+parseSub :: SexpParser Ref
+parseSub = do
+    _ <- string "Add("
+    x <- parseSexp
+    _ <- string ", Mul(Integer(-1), "
+    y <- parseSexp
+    _ <- string "))"
+    lift (B.circSub x y)
 
 parseAdd :: SexpParser Ref
 parseAdd = do
@@ -35,7 +49,7 @@ parseNegate = do
     _ <- string "Mul(Integer(-1), "
     x <- parseSexp
     _ <- string ")"
-    y <- getState -- const 1
+    y <- lift (B.constant 1)
     lift (B.circSub y x)
 
 parseMul :: SexpParser Ref
@@ -59,7 +73,7 @@ parseConst = do
     _ <- string "Symbol('y"
     n <- read <$> many digit
     _ <- string "')"
-    lift (B.input_n n)
+    lift (B.secret_n n)
 
 
 -- parseSexp :: String -> Builder (Ref
