@@ -136,9 +136,9 @@ parseTest :: ParseCirc ()
 parseTest = do
     string "test"
     spaces
-    inps <- many (oneOf "01")
+    inps <- many digit
     spaces
-    outs <- many (oneOf "01")
+    outs <- many digit
     let inp = readBits' inps
         res = readBits' outs
     addTest (reverse inp, reverse res)
