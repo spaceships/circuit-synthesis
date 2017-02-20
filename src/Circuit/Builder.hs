@@ -117,6 +117,16 @@ input = do
     insertInput ref id
     return ref
 
+-- get the ref of a particular input, even if it does not exist already.
+input_n :: Int -> Builder Ref
+input_n n = do
+    dedup <- gets bs_dedup
+    case M.lookup (OpInput (Id n)) dedup of
+        Just ref -> return ref
+        Nothing  -> do
+            cur <- gets bs_next_inp
+            last <$> replicateM (n - getId cur) input
+
 inputs :: Int -> Builder [Ref]
 inputs n = replicateM n input
 
