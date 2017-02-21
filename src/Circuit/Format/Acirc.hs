@@ -41,9 +41,8 @@ addTestsToFile fp = do
     writeFile fp (unlines ts ++ s)
 
 writeAcirc :: FilePath -> Circuit -> IO ()
-writeAcirc fp c = do
-    s <- showCircWithTests 10 c
-    writeFile fp s
+writeAcirc fp c = writeFile fp s
+  where s = showCirc 1 c
 
 writeAcircR :: FilePath -> Int -> Circuit -> IO ()
 writeAcircR fp symlen c = do
@@ -51,7 +50,7 @@ writeAcircR fp symlen c = do
     writeFile fp s
 
 showCircWithTests :: Int -> Circuit -> IO String
-showCircWithTests ntests c = showCircWithTestsR 1 ntests c
+showCircWithTests = showCircWithTestsR 1
 
 showCircWithTestsR :: Int -> Int -> Circuit -> IO String
 showCircWithTestsR symlen ntests c = do
