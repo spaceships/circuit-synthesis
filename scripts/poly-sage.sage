@@ -6,9 +6,23 @@ import argparse, sys, time
 def _mysimplify(expr):
     newexpr = 0
     for i in range(len(expr)):
+        subexpr = repr(expr.op[i])
         simple = prod(expr.op[i].args())
-        if expr.op[i].op[-1].is_constant():
-            simple *= expr.op[i].op[-1]
+        try:
+            # extract the 1st value, which is the coefficient
+            leading, _ = subexpr.split('*', 1)
+            try:
+                simple *= int(leading)
+            except ValueError:
+                # -1's are treated as -variable, so extract '-' if possible.
+                # Otherwise, it has no coefficient
+                if leading.startswith('-'):
+                    simple *= -1
+        except ValueError:
+            # If the subexpression only has a single term, it could have a
+            # negation in front of it, so check for that
+            if subexpr.startswith('-'):
+                simple *= -1
         newexpr += simple
     return newexpr
 
