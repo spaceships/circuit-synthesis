@@ -39,6 +39,23 @@ def mysimplify(expr):
     print >>sys.stderr, "%.2f seconds" % (end - start)
     return expr
 
+def sexp(expr):
+    if ' + ' in expr:
+        a, b = expr.split(' + ', 1)
+        return "Add(%s, %s)" % (sexp(a), sexp(b))
+    elif ' - ' in expr:
+        a, b = expr.split(' - ', 1)
+        return "Add(Mul(Integer(-1), %s), %s)" % (sexp(a), sexp(b))
+    elif '*' in expr:
+        a, b = expr.split('*', 1)
+        return "Mul(%s, %s)" % (sexp(a), sexp(b))
+    else:
+        try:
+            v = int(expr)
+            return "Integer(%s)" % expr
+        except ValueError:
+            return "Symbol('%s')" % expr
+
 def main(argv):
     parser = argparse.ArgumentParser(
         description='Polynomial optimizer.')
@@ -62,7 +79,7 @@ def main(argv):
     if args.dot:
         print(dotprint(expr))
     else:
-        print(expr)
+        print(sexp(repr(expr)))
 
 if __name__ == '__main__':
     try:
