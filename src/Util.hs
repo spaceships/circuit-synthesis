@@ -102,4 +102,4 @@ transpose xs | null (head xs) = []
 
 
 numBits :: Int -> Int
-numBits n = ceiling (logBase 2 (fromIntegral n))
+numBits n = ceiling (logBase 2 (fromIntegral n) :: Double)

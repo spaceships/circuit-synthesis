@@ -6,7 +6,6 @@ import Rand
 import Circuit.Builder
 import Circuit.Parser (CircuitParser)
 import qualified Circuit.Format.Acirc   as Acirc
-import qualified Circuit.Format.Verilog as Verilog
 
 import Circuits.Aes as Aes
 import Circuits.Goldreich as Goldreich
@@ -126,7 +125,6 @@ getKappa c = δ + 2*n + n*(2*n-1)
 parserFor :: String -> CircuitParser
 parserFor filename = case extension filename of
     "acirc" -> Acirc.parseCirc
-    "v"     -> Verilog.parseCirc
     ext     -> error $ printf "[error] unknown circuit type: \"%s\"" ext
   where
     extension = reverse . takeWhile (/= '.') . reverse

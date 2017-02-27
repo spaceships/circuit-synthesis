@@ -16,6 +16,7 @@ data ParseSt = ParseSt {
     , st_next_const_id :: Int
     }
 
+emptySt :: ParseSt
 emptySt = ParseSt emptyCirc [] M.empty 0
 
 type ParseCirc = Parsec String ParseSt

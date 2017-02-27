@@ -52,6 +52,7 @@ type TestCase = ([Bool], [Bool])
 --------------------------------------------------------------------------------
 -- instances and such
 
+emptyCirc :: Circuit
 emptyCirc = Circuit [] [] M.empty M.empty M.empty B.empty
 
 instance Show Ref where
@@ -202,8 +203,8 @@ circDegree c = maximum $ foldCirc f c
     f (OpAdd _ _) [x,y] = max x y
     f (OpSub _ _) [x,y] = max x y
     f (OpMul _ _) [x,y] = x + y
-    f (OpInput  id) _ = 1
-    f (OpSecret id) _ = 1
+    f (OpInput  _) _ = 1
+    f (OpSecret _) _ = 1
     f _ _ = error "[circDegree] unknown input"
 
 -- evaluate the circuit using an arbitrary integral type as input

@@ -4,16 +4,12 @@ module Circuit.Builder where
 
 import Circuit
 import Util
-import Rand
 
 import Control.Monad.State
 import Data.List.Split (chunksOf)
 import Text.Printf
 import qualified Data.Map as M
 import qualified Data.Bimap as B
-import qualified Data.Set as S
-import qualified Data.Vector as V
-import Debug.Trace
 
 type Builder = State BuildSt
 
@@ -95,8 +91,8 @@ markConst :: Ref -> Integer -> Builder ()
 markConst ref val = modifyCirc (\c -> c { circ_consts = B.insert val ref (circ_consts c) })
 
 foldTreeM :: Monad m => (a -> a -> m a) -> [a] -> m a
-foldTreeM f [ ] = error "[foldTreeM] empty list"
-foldTreeM f [x] = return x
+foldTreeM _ [ ] = error "[foldTreeM] empty list"
+foldTreeM _ [x] = return x
 foldTreeM f xs  = do
     let g ys = if length ys == 1
                   then return (head ys)
@@ -224,7 +220,7 @@ subcircuit' c xs ys
     translate (OpMul _ _) _ [x,y] = circMul x y
     translate (OpInput  id) _ _ = return (xs !! getId id)
     translate (OpSecret id) _ _ = return (ys !! getId id)
-    translate op ref args =
+    translate op _ args =
         error ("[subcircuit'] weird input: " ++ show op ++ " " ++ show args)
 
 -- lift the subcircuit's constants and secrets into the circuit above
@@ -244,7 +240,7 @@ selectPT :: [Ref] -> [Bool] -> Builder [Ref]
 selectPT xs bs = do
     one <- constant 1
     when (length xs /= length bs) $ error "[select] unequal length inputs"
-    let set one (x, True)  = return x
+    let set _   (x, True)  = return x
         set one (x, False) = circSub one x
     mapM (set one) (zip xs bs)
 

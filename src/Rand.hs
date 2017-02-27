@@ -88,7 +88,7 @@ randPrimes nprimes nbits = do
     return ps
 
 randInv :: Integer -> Rand (Integer, Integer)
-randInv q = try 100
+randInv q = try (100 :: Int)
   where
     try 0 = error "[randInv] ran out of tries!"
     try n = do

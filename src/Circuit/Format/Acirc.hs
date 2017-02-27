@@ -14,13 +14,12 @@ module Circuit.Format.Acirc
 
 import Circuit
 import Circuit.Parser
-import Util (forceM, readBits', showBits', safeInsert)
+import Util (forceM, readBits', showBits')
 
 import Control.Monad
 import qualified Control.Monad.State as S
 import Text.Parsec hiding (spaces, parseTest)
 import Text.Printf
-import qualified Data.Set as S
 import qualified Data.Map as M
 
 --------------------------------------------------------------------------------
