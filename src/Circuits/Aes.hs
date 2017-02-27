@@ -13,8 +13,6 @@ import Control.Monad
 import Data.List.Split
 import qualified Data.Vector as V
 
-import Debug.Trace
-
 make :: IO ()
 make = do
     Acirc.writeAcirc "aes1r.dsl.acirc" =<< buildAes 128
@@ -294,8 +292,7 @@ sbox =
 
 toRachel :: Int -> Circuit
 toRachel n = buildCircuit $ do
-    xs  <- inputs n
-    one <- constant 1
+    xs <- inputs n
     let vals = sequence (replicate n [False, True])
     zs <- mapM (bitsSet xs) vals
     outputs zs

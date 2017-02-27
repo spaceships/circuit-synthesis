@@ -9,13 +9,8 @@ module Circuits.Tribes where
 import Circuit
 import Circuit.Builder
 import qualified Circuit.Format.Acirc as Acirc
-import Util
 import Rand
-
-import Control.Monad
 import Data.List.Split
-import Debug.Trace
-import qualified Data.Vector as V
 
 make :: IO ()
 make = do
@@ -30,7 +25,7 @@ tribes k y z = circXor z =<< circOrs =<< mapM circProd (chunksOf k y)
 
 fa :: Int -> Int -> IO Circuit
 fa n k = do
-    keyBits <- randKeyIO ((n+1)^2)
+    keyBits <- randKeyIO ((n+1)^(2 :: Int))
     return $ buildCircuit $ do
         a <- chunksOf (n+1) <$> secrets keyBits
         x <- inputs (n+1)
@@ -57,7 +52,7 @@ fa_128 = fa 128 4
 -- trying to use lookup for matrix mul
 
 matrixTimesVectBool :: Int -> Int -> [Bool] -> [Bool]
-matrixTimesVectBool nrows ncols elems =
+matrixTimesVectBool _ ncols elems =
     if not $ all ((== ncols) . length) rows
        then error "[matrixTimesVect] bad dimensions"
        else map (foldl1 xor . zipWith (&&) vect) rows

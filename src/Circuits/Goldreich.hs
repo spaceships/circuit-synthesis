@@ -14,7 +14,6 @@ import Rand
 
 import Control.Monad
 import Data.List.Split
-import Debug.Trace
 
 makePRG :: IO ()
 makePRG = do
@@ -94,7 +93,7 @@ f1 :: Int -> Int -> IO Circuit
 f1 n m = do
     keyBits <- randKeyIO n
     return $ buildCircuit $ do
-        let l = ceiling (logBase 2 (fromIntegral n))
+        let l = ceiling (logBase 2 (fromIntegral n) :: Double)
             d = l
         key <- secrets keyBits
         zs  <- replicateM m $ do
@@ -107,7 +106,7 @@ f1_rachel :: Int -> Int -> IO Circuit
 f1_rachel n m = do
     keyBits <- randKeyIO n
     return $ buildCircuit $ do
-        let d = ceiling (logBase 2 (fromIntegral n))
+        let d = ceiling (logBase 2 (fromIntegral n) :: Double)
         key <- secrets keyBits
         zs  <- replicateM m $ do
             xs <- replicateM d (inputs n)
@@ -134,7 +133,7 @@ f1_128 = f1 128 1
 f2 :: Int -> Int -> IO Circuit
 f2 n m = do
     keyBits <- randKeyIO n
-    let l = ceiling (logBase 2 (fromIntegral n))
+    let l = ceiling (logBase 2 (fromIntegral n) :: Double)
         d = l
     ext <- genExt (2*m) m
     return $ buildCircuit $ do
@@ -162,14 +161,14 @@ f3 :: Int -> Int -> IO Circuit
 f3 n m = do
     -- n is K_f size
     keyBits <- randKeyIO n
-    let l = ceiling (logBase 2 (fromIntegral n))
-        ninputs = 2*m*(l^2)
+    let l = ceiling (logBase 2 (fromIntegral n) :: Double)
+        ninputs = 2*m*(l^(2 :: Int))
     ext <- genExt (2*m) m -- goes from m output bits to m/2 output bits
     mapper <- loadMapper ninputs
     return $ buildCircuit $ do
         kf <- secrets keyBits
         xs <- subcircuit mapper =<< inputs ninputs
-        zs <- forM (chunksOf (l^2) xs) $ \x -> do
+        zs <- forM (chunksOf (l^(2 :: Int)) xs) $ \x -> do
             bs <- selects kf (chunksOf l x)
             xorMaj bs
         ws <- subcircuit ext zs
@@ -199,7 +198,7 @@ genMapper n = do
         outputs zs
 
 polyDiv :: [Bool] -> [Bool] -> [Bool]
-polyDiv x y = undefined
+polyDiv _ _ = undefined
 
 --------------------------------------------------------------------------------
 -- prg
@@ -224,11 +223,9 @@ prgKey n m = do
     keyBits <- randKeyIO n
     selections <- replicateM m $ replicateM d (randIO (randIntegerMod (fromIntegral n)))
     return $ buildCircuit $ do
-        x   <- input
         xs  <- secrets keyBits
         zs  <- forM selections $ \s -> xorMaj =<< selectsPt (map fromIntegral s) xs
         outputs zs
-
 
 --------------------------------------------------------------------------------
 -- ggm
