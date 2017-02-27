@@ -3,6 +3,7 @@ module Circuit.Optimizer where
 import Circuit
 import qualified Circuit.Format.Sexp as Sexp
 import Text.Printf
+import System.Process
 
 circToSexp :: Circuit -> [String]
 circToSexp c = foldCirc eval c
@@ -24,3 +25,10 @@ circToSage c = foldCirc eval c
     eval (OpSecret i) []   = printf "var('y%d')" (getId i)
     eval op args  = error ("[circToSexp] weird input: " ++ show op ++ " " ++ show args)
 
+flattenPolynomial :: Circuit -> IO Circuit
+flattenPolynomial c
+  | ninputs c /= 1 = error "[flattenPolynomial] only single bit output supported"
+  | otherwise = do
+    let s = head (circToSage c)
+    r <- readProcess "./scripts/poly-sage.sage" [] s
+    return $ Sexp.parseNInputs1 (ninputs c) r
