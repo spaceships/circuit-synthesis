@@ -72,14 +72,14 @@ parseInput = do
     _ <- string "Symbol('x"
     n <- read <$> many digit
     _ <- string "')"
-    lift (B.input_n n)
+    lift (B.input_n (Id n))
 
 parseConst :: SexpParser Ref
 parseConst = do
     _ <- string "Symbol('y"
     n <- read <$> many digit
     _ <- string "')"
-    lift (B.secret_n n)
+    lift (B.secret_n (Id n))
 
 parseInteger :: SexpParser Ref
 parseInteger = do

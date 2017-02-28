@@ -114,14 +114,14 @@ input = do
     return ref
 
 -- get the ref of a particular input, even if it does not exist already.
-input_n :: Int -> Builder Ref
+input_n :: Id -> Builder Ref
 input_n n = do
     dedup <- gets bs_dedup
-    case M.lookup (OpInput (Id n)) dedup of
+    case M.lookup (OpInput n) dedup of
         Just ref -> return ref
         Nothing  -> do
             cur <- gets bs_next_inp
-            last <$> replicateM (n - getId cur + 1) input
+            last <$> replicateM (getId n - getId cur + 1) input
 
 inputs :: Int -> Builder [Ref]
 inputs n = replicateM n input
@@ -135,14 +135,14 @@ secret val = do
     return ref
 
 -- get the ref of a particular secret, even if it does not exist already.
-secret_n :: Int -> Builder Ref
+secret_n :: Id -> Builder Ref
 secret_n n = do
     dedup <- gets bs_dedup
-    case M.lookup (OpSecret (Id n)) dedup of
+    case M.lookup (OpSecret n) dedup of
         Just ref -> return ref
         Nothing  -> do
             cur <- gets bs_next_secret
-            last <$> replicateM (n - getId cur + 1) (secret 0)
+            last <$> replicateM (getId n - getId cur + 1) (secret 0)
 
 secrets :: [Integer] -> Builder [Ref]
 secrets = mapM secret
