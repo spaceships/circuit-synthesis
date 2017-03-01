@@ -1,6 +1,19 @@
 #!/bin/bash
+#
+# Cryptol to acirc through Verilog
+#
 
 set -e
+
+usage () {
+    echo "C2C: Cryptol to acirc through AND-inverter graphs"
+    echo "Usage: $0 <cryptol-file> <function>"
+    exit $1
+}
+
+if [ x$1 = x ] || [ x$2 = x ]; then
+    usage 1
+fi
 
 num_test_cases=10
 

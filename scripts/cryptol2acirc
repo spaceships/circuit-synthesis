@@ -1,6 +1,19 @@
 #!/bin/bash
+#
+# Cryptol to acirc optimized by ABC
+#
 
 set -e
+
+usage () {
+    echo "C2A: Cryptol to acirc through Verilog"
+    echo "Usage: $0 <cryptol-file> <function>"
+    exit $1
+}
+
+if [ x$1 = x ] || [ x$2 = x ]; then
+    usage 1
+fi
 
 cryptolfile=$(realpath $1)
 func=$2
@@ -54,10 +67,6 @@ sizes=($(egrep "^$func\\s*:\\s*" $cryptolfile | perl -ne \
 ))
 inputsize=${sizes[0]}
 keysize=${sizes[1]}
-
-# saw sawcmds.saw 
-# abc -f abccmds.abc
-# yosys yosys.ys
 
 saw sawcmds.saw > /dev/null
 abc -f abccmds.abc > /dev/null
