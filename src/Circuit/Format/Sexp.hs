@@ -30,16 +30,16 @@ parseNInputs1 n s = B.buildCircuit $ do
     B.output out
 
 parseSexp :: SexpParser Ref
-parseSexp = try parseAdd <|> try parseMul <|> try parseInput <|> try parseConst <|> parseInteger
+parseSexp = try parseAdd <|> try parseSub <|> try parseMul <|> try parseInput <|> try parseConst <|> parseInteger
 
--- parseSub :: SexpParser Ref
--- parseSub = do
---     _ <- string "Add("
---     x <- parseSexp
---     _ <- string ", Mul(Integer(-1), "
---     y <- parseSexp
---     _ <- string "))"
---     lift (B.circSub x y)
+parseSub :: SexpParser Ref
+parseSub = do
+    _ <- string "Sub("
+    x <- parseSexp
+    _ <- string ", "
+    y <- parseSexp
+    _ <- string ")"
+    lift (B.circSub x y)
 
 parseAdd :: SexpParser Ref
 parseAdd = do

@@ -3,7 +3,7 @@
 from sage.calculus.functional import *
 import argparse, sys, time
 
-def _mysimplify(expr):
+def _simplify(expr):
     newexpr = 0
     for i in range(len(expr)):
         subexpr = repr(expr.op[i])
@@ -26,15 +26,49 @@ def _mysimplify(expr):
         newexpr += simple
     return newexpr
 
-def mysimplify(expr):
+def unroll(expr, negate=False):
+    assert not expr.startswith('-')
+    if ' + ' in expr:
+        a, b = expr.split(' + ', 1)
+        return "%s + %s" % (unroll(a, negate), unroll(b))
+    if ' - ' in expr:
+        a, b = expr.split(' - ', 1)
+        return "%s - %s" % (unroll(a, negate), unroll(b, True))
+    try:
+        a, b = expr.split('*', 1)
+    except ValueError:
+        return expr
+    op = '-' if negate else '+'
+    try:
+        v = abs(int(a))
+        return ('%s' % b) + (' %s %s' * (v-1)) % ((op, b) * (v-1))
+    except ValueError:
+        return expr
+
+def firstpos(expr):
+    if ' + ' in expr:
+        a, b = expr.split(' + ', 1)
+        if a.startswith('-'):
+            return '%s - %s' % (b, a[1:])
+        else:
+            return expr
+    else:
+        return expr
+
+def simplify(expr):
     print >>sys.stderr, "Expanding expression... ",
     start = time.time()
-    expr = expand(eval(expr))
+    expr = expand(expr)
     end = time.time()
     print >>sys.stderr, "%.2f seconds" % (end - start)
     print >>sys.stderr, "Simplifying expression... ",
     start = time.time()
-    expr = _mysimplify(expr)
+    expr = _simplify(expr)
+    end = time.time()
+    print >>sys.stderr, "%.2f seconds" % (end - start)
+    print >>sys.stderr, "Unrolling expression... ",
+    start = time.time()
+    expr = unroll(firstpos(repr(expr)))
     end = time.time()
     print >>sys.stderr, "%.2f seconds" % (end - start)
     return expr
@@ -45,7 +79,7 @@ def sexp(expr):
         return "Add(%s, %s)" % (sexp(a), sexp(b))
     elif ' - ' in expr:
         a, b = expr.split(' - ', 1)
-        return "Add(Mul(Integer(-1), %s), %s)" % (sexp(a), sexp(b))
+        return "Sub(%s, %s)" % (sexp(a), sexp(b))
     elif '*' in expr:
         a, b = expr.split('*', 1)
         return "Mul(%s, %s)" % (sexp(a), sexp(b))
@@ -67,19 +101,23 @@ def main(argv):
     args = parser.parse_args()
     if args.file:
         with open(argv[1], 'r') as f:
-            expr = f.read()
+            exprs = f.read()
     else:
-        expr = sys.stdin.read().strip()
+        exprs = sys.stdin.read().strip()
 
-    if args.no_opt:
-        expr = eval(expr)       # XXX: can we do this w/o eval?
-    else:
-        expr = mysimplify(expr)
+    exprs = eval(exprs)
+    if type(exprs) != list:
+        exprs = [exprs]
+    for expr in exprs:
+        if type(expr) == str:
+            expr = eval(expr)
+        if not args.no_opt:
+            expr = simplify(expr)
 
-    if args.dot:
-        print(dotprint(expr))
-    else:
-        print(sexp(repr(expr)))
+        if args.dot:
+            print(dotprint(expr))
+        else:
+            print(sexp(expr))
 
 if __name__ == '__main__':
     try:
