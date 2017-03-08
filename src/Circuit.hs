@@ -297,7 +297,19 @@ foldCirc f c = runIdentity (foldCircM f' c)
     f' op _ xs = return (f op xs)
 
 foldCircM :: Monad m => (Op -> Ref -> [a] -> m a) -> Circuit -> m [a]
-foldCircM f c = mapM (foldCircRefM f c) (circ_outputs c)
+foldCircM f c = evalStateT (mapM eval (circ_outputs c)) M.empty
+  where
+    eval ref = gets (M.lookup ref) >>= \case
+        Just val -> return val
+        Nothing  -> do
+            when (M.notMember ref (circ_refmap c))
+                (traceM (printf "unknown ref \"%s\"" (show ref)))
+            let op = circ_refmap c ! ref
+            argVals <- mapM eval (opArgs op)
+            val     <- lift (f op ref argVals)
+            modify (M.insert ref val)
+            return val
+
 
 foldCircRefM :: Monad m => (Op -> Ref -> [a] -> m a) -> Circuit -> Ref -> m a
 foldCircRefM f c ref = evalStateT (eval ref) M.empty
