@@ -43,6 +43,9 @@ prg_32_128 (x, _) = [ xor_maj (select s x : [5]) | s <- split (split k) ]
 select : {d,l,n} (fin d, fin n, n == 2^^l) => [d][l] -> [n] -> [d]
 select s val = [ val@i | i <- s ]
 
+ggm_1_16 : ([16], [16]) -> [16]
+ggm_1_16 (x,y) = select (split (prg_16_64 (y,zero))) x
+
 xor_maj : {d} (fin d) => [d] -> Bit
 xor_maj w = wl ^ wr
   where
