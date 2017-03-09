@@ -45,6 +45,7 @@ data Circuit = Circuit {
     , circ_secret_refs :: M.Map Ref Id
     , circ_refmap      :: M.Map Ref Op
     , circ_consts      :: B.Bimap Integer Ref
+    , circ_const_ids   :: S.Set Id -- which OpSecrets are public
     } deriving (Show)
 
 type TestCase = ([Bool], [Bool])
@@ -53,7 +54,7 @@ type TestCase = ([Bool], [Bool])
 -- instances and such
 
 emptyCirc :: Circuit
-emptyCirc = Circuit [] [] M.empty M.empty M.empty B.empty
+emptyCirc = Circuit [] [] M.empty M.empty M.empty B.empty S.empty
 
 instance Show Ref where
     show ref = show (getRef ref)
@@ -65,6 +66,9 @@ getSecret :: Circuit -> Id -> Integer
 getSecret c id = case M.lookup id (circ_secrets c) of
     Just x  -> x
     Nothing -> error ("[getSecret] no secret known for y" ++ show id)
+
+publicConst :: Id -> Circuit -> Bool
+publicConst id c = S.member id (circ_const_ids c)
 
 randomizeSecrets :: Circuit -> IO Circuit
 randomizeSecrets c = do

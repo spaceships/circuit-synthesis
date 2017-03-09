@@ -4,6 +4,7 @@ import Circuit
 import Util
 import Rand
 import Circuit.Builder
+import Circuit.Optimizer (flatten)
 import Circuit.Parser (CircuitParser)
 import qualified Circuit.Format.Acirc   as Acirc
 
@@ -22,9 +23,10 @@ data MainOptions = MainOptions { opt_info       :: Bool
                                , opt_test       :: Bool
                                , opt_gentests   :: Maybe Int
                                , opt_gencirc    :: Maybe String
-                               , opt_add_acirc_tests :: Bool
-                               , opt_randomize_secrets :: Bool
-                               , opt_write_to_file :: Maybe String
+                               , opt_add_acirc_tests    :: Bool
+                               , opt_randomize_secrets  :: Bool
+                               , opt_write_to_file      :: Maybe String
+                               , opt_flatten            :: Bool
                                }
 
 instance Options MainOptions where
@@ -73,6 +75,11 @@ instance Options MainOptions where
                      , optionLongFlags   = ["output"]
                      , optionDescription = "Write the circuit to file FILE"
                      })
+        <*> defineOption optionType_bool
+            (\o -> o { optionShortFlags  = "f"
+                     , optionLongFlags   = ["flatten"]
+                     , optionDescription = "Flatten the input using Sage"
+                     })
 
 
 main :: IO ()
@@ -95,16 +102,17 @@ main = runCommand $ \opts args -> do
                 parser    = parserFor inputFile :: CircuitParser
             when (opt_add_acirc_tests opts) $ Acirc.addTestsToFile inputFile
             (c,ts) <- parser <$> readFile inputFile
-            c' <- if opt_randomize_secrets opts then randomizeSecrets c else return c
-            when (opt_info opts) $ printCircInfo c'
-            when (opt_latex_info opts) $ printCircInfoLatex c'
+            c <- if opt_flatten opts then flatten c else return c
+            c <- if opt_randomize_secrets opts then randomizeSecrets c else return c
+            when (opt_info opts) $ printCircInfo c
+            when (opt_latex_info opts) $ printCircInfoLatex c
             ts' <- case opt_gentests opts of
                 Nothing -> return ts
-                Just i  -> replicateM i (genTest (ninputs c') c')
-            when (opt_test opts) $ evalTests opts c' ts'
+                Just i  -> replicateM i (genTest (ninputs c) c)
+            when (opt_test opts) $ evalTests opts c ts'
             case opt_write_to_file opts of
-                Just f  -> Acirc.write f c'
-                Nothing -> return ()
+                Just f  -> Acirc.write f c
+                Nothing -> putStrLn =<< Acirc.showCircWithTests 10 c
             exitSuccess
 
 evalTests :: MainOptions -> Circuit -> [TestCase] -> IO ()

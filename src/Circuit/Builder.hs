@@ -10,6 +10,7 @@ import Data.List.Split (chunksOf)
 import Text.Printf
 import qualified Data.Map as M
 import qualified Data.Bimap as B
+import qualified Data.Set as S
 
 type Builder = State BuildSt
 
@@ -87,8 +88,10 @@ nextSecretId = do
 markOutput :: Ref -> Builder ()
 markOutput ref = modifyCirc (\c -> c { circ_outputs = circ_outputs c ++ [ref] })
 
-markConst :: Ref -> Integer -> Builder ()
-markConst ref val = modifyCirc (\c -> c { circ_consts = B.insert val ref (circ_consts c) })
+markConst :: Integer -> Ref -> Id -> Builder ()
+markConst val ref id = modifyCirc (\c -> c { circ_consts    = B.insert val ref (circ_consts c)
+                                           , circ_const_ids = S.insert id (circ_const_ids c)
+                                           })
 
 foldTreeM :: Monad m => (a -> a -> m a) -> [a] -> m a
 foldTreeM _ [ ] = error "[foldTreeM] empty list"
@@ -153,8 +156,11 @@ constant val = do
     if B.member val (circ_consts c) then do
         return (circ_consts c B.! val)
     else do
-        ref <- secret val
-        markConst ref val
+        id  <- nextSecretId
+        ref <- nextRef
+        insertSecret ref id
+        insertSecretVal id val
+        markConst val ref id
         return ref
 
 constants :: [Integer] -> Builder [Ref]

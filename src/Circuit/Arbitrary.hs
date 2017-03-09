@@ -3,9 +3,6 @@ module Circuit.Arbitrary
   )
 where
 
-import Zim15.Circuit
-import Zim15.Util (b2i)
-
 import Control.Monad.State.Strict
 import Test.QuickCheck hiding (verbose)
 import Test.QuickCheck.Gen

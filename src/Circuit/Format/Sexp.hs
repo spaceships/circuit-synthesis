@@ -1,14 +1,30 @@
 module Circuit.Format.Sexp where
 
 import Text.Parsec
+import Text.Printf
 import qualified Circuit.Builder as B
 import Control.Monad
 import Control.Monad.Trans
 import Circuit
 import Data.Either (rights)
 
-data Sexp = Sexp String [Sexp] | Atom String
-          deriving (Eq, Show)
+c :: Circuit
+c = B.buildCircuit $ do
+    x <- B.input
+    z <- B.circNot x
+    B.output z
+
+circToSexp :: Circuit -> [String]
+circToSexp c = foldCirc eval c
+  where
+    eval (OpAdd _ _) [x,y] = printf "Add(%s, %s)" x y
+    eval (OpSub _ _) [x,y] = printf "Add(%s, Mul(Integer(-1), %s))" x y
+    eval (OpMul _ _) [x,y] = printf "Mul(%s, %s)" x y
+    eval (OpInput  i) []   = printf "Symbol('x%d')" (getId i)
+    eval (OpSecret i) []   = if publicConst i c
+                                then printf "Integer(%d)" (getSecret c i)
+                                else printf "Symbol('y%d')" (getId i)
+    eval op args  = error ("[circToSexp] weird input: " ++ show op ++ " " ++ show args)
 
 type SexpParser = ParsecT String () B.Builder
 
