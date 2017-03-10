@@ -13,6 +13,7 @@ module Circuit.Format.Acirc
   ) where
 
 import Circuit
+import Types (Type'(..), BaseType(..), getBT, Type)
 import Circuit.Parser
 import Util (addSpaces, forceM, readBits', showBits', safeInsert)
 
@@ -31,6 +32,14 @@ read = fmap fst . readAcirc
 
 write :: FilePath -> Circuit -> IO ()
 write = writeAcirc
+
+showType :: MType -> String
+showType Nothing  = ""
+showType (Just t) = " @ " ++
+  case t of
+       Wire bt   -> show bt
+       Vector bt -> "["  ++ show bt ++  "]"
+       Matrix bt -> "[[" ++ show bt ++ "]]"
 
 addTestsToFile :: FilePath -> IO ()
 addTestsToFile fp = do
@@ -69,6 +78,7 @@ showCirc symlen c = unlines (header ++ gateLines)
 
     output = do
         outs <- map show <$> mapM tr (circ_outputs c)
+        let outWithTypes = zipWith (++) outs (map showType (circ_output_type c))
         return [printf ":outputs %s" (unwords outs)]
 
     gateLines = concat $ S.evalState (sequence [inputs, consts, gates, output]) (M.empty, 0)
@@ -88,8 +98,8 @@ showCirc symlen c = unlines (header ++ gateLines)
         ref' <- tr ref
         case M.lookup ref (circ_refmap c) of
             Nothing -> error (printf "[gateStr] unknown ref %s" (show ref))
-            Just (OpInput  id) -> return $ printf "%d input %d" ref' (getId id)
-            Just (OpSecret id) -> do
+            Just (OpInput  id t) -> return $ printf "%d input %d%s" ref' (getId id) (showType t)
+            Just (OpSecret id)   -> do
                 let secret = case M.lookup id (circ_secrets c) of
                                 Nothing -> ""
                                 Just y  -> show y
@@ -127,10 +137,21 @@ parseCirc s = case runParser (circParser >> getState) emptySt "" s of
     Left err -> error (show err)
     Right st -> (st_circ st, reverse (st_tests st))
   where
-    circParser = preamble >> lines >> end >> eof
+    circParser = optional parseVersion >> preamble >> lines >> end >> eof
     preamble = many $ (char ':' >> (parseTest <|> parseParam))
     lines    = many parseRefLine
     end      = parseOutputs
+
+parseVersion :: ParseCirc Version
+parseVersion = do
+    char 'v'
+    ma <- many1 digit
+    char '.'
+    mi <- many1 digit
+    let v = Prelude.read ma :.: Prelude.read mi
+    modifyState (\st -> st { st_ver = v })
+    endLine
+    return v
 
 parseParam :: ParseCirc ()
 parseParam = do
@@ -167,12 +188,30 @@ parseRefLine = do
     choice [parseConst ref, parseInput ref, parseGate ref]
     endLine
 
+parseBaseType :: ParseCirc BaseType
+parseBaseType = (string "Integer" *> return Integer) <|> (string "Rational" *> return Rational)
+
+parseType :: ParseCirc Type
+parseType =  (parseBaseType >>= return . Wire)
+         <|> (char '[' *> (parseVector <|> parseMatrix) <* char ']')
+  where
+    parseVector = parseBaseType >>= return . Vector
+    parseMatrix = char '[' *> (parseBaseType >>= return . Matrix) <* char ']'
+
 parseInput :: Ref -> ParseCirc ()
 parseInput ref = do
     string "input"
     spaces
     id <- Id <$> Prelude.read <$> many1 digit
-    insertInput ref id
+    v <- getVersion
+    case v == vZero of
+         True  -> insertInput ref id
+         False -> do
+            spaces
+            char '@'
+            spaces
+            t <- parseType
+            insertInputType ref id (Just t)
 
 parseConst :: Ref -> ParseCirc ()
 parseConst ref = do

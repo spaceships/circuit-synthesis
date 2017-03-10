@@ -3,6 +3,7 @@
 module Circuit.Builder where
 
 import Circuit
+import Types
 import Util
 import Rand
 
@@ -54,10 +55,13 @@ insertSecretVal id val = do
     let ys' = safeInsert ("reassignment of y" ++ show id) id val ys
     modifyCirc (\c -> c { circ_secrets = ys' })
 
-insertInput :: Ref -> Id -> Builder ()
-insertInput ref id = do
+insertInputType :: Ref -> Id -> MType -> Builder ()
+insertInputType ref id t = do
     modifyCirc (\c -> c { circ_inputs = circ_inputs c ++ [ref] })
-    insertOp ref (OpInput id)
+    insertOp ref (OpInput id t)
+
+insertInput :: Ref -> Id -> Builder ()
+insertInput r i = insertInputType r i Nothing
 
 newOp :: Op -> Builder Ref
 newOp op = do
@@ -223,8 +227,8 @@ subcircuit' c xs ys
     translate (OpSub {})  _ xs    = circSubN xs
     translate (OpMul {})  _ [x,y] = circMul x y
     translate (OpMul {})  _ xs    = circMulN xs
-    translate (OpInput  id) _ _ = return (xs !! getId id)
-    translate (OpSecret id) _ _ = return (ys !! getId id)
+    translate (OpInput  id _) _ _ = return (xs !! getId id)
+    translate (OpSecret id)   _ _ = return (ys !! getId id)
     translate op ref args =
         error ("[subcircuit'] weird input: " ++ show op ++ " " ++ show args)
 

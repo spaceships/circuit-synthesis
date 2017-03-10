@@ -10,6 +10,7 @@ module Circuit where
 
 import Util
 import Rand
+import Types
 
 import Control.Monad.Identity
 import Control.Monad.Par (IVar, Par, fork, runPar)
@@ -29,19 +30,23 @@ import qualified Data.Bimap as B
 
 import Debug.Trace
 
+type MType = Maybe Type
+
 newtype Ref = Ref { getRef :: Int } deriving (Eq, Ord, NFData, Num)
 newtype Id  = Id  { getId  :: Int } deriving (Eq, Ord, NFData, Num)
 
 data Op = OpNAdd [Ref]
         | OpSub [Ref]
         | OpMul [Ref]
-        | OpInput Id
+        | OpInput Id MType
         | OpSecret Id
-        deriving (Eq, Ord, Show)
+        deriving (Eq, Show)
 
 data Circuit = Circuit {
       circ_outputs     :: [Ref]
+    , circ_output_type :: [MType]
     , circ_inputs      :: [Ref]
+    , circ_input_type  :: [MType]
     , circ_secrets     :: M.Map Id Integer
     , circ_secret_refs :: M.Map Ref Id
     , circ_refmap      :: M.Map Ref Op
@@ -53,13 +58,30 @@ type TestCase = ([Bool], [Bool])
 --------------------------------------------------------------------------------
 -- instances and such
 
-emptyCirc = Circuit [] [] M.empty M.empty M.empty B.empty
+emptyCirc = Circuit [] [] [] [] M.empty M.empty M.empty B.empty
 
 instance Show Ref where
     show ref = show (getRef ref)
 
 instance Show Id where
     show id = show (getId id)
+
+-- compare :: a -> a -> Ordering
+instance Ord Op where
+  compare (OpNAdd rs)   (OpNAdd ts)   = compare rs ts
+  compare (OpNAdd _)    op2           = LT
+  compare op1           (OpNAdd _)    = GT
+  compare (OpSub rs)    (OpSub ts)    = compare rs ts
+  compare (OpSub _)     op2           = LT
+  compare op1           (OpSub _)     = GT
+  compare (OpMul rs)    (OpMul ts)    = compare rs ts
+  compare (OpMul _)     op2           = LT
+  compare op1           (OpMul _)     = GT
+  compare (OpInput i _) (OpInput j _) = compare i j
+  compare (OpInput i _) op2           = LT
+  compare op1           (OpInput i _) = GT
+  compare (OpSecret i)  (OpSecret j)  = compare i j
+
 
 getSecret :: Circuit -> Id -> Integer
 getSecret c id = case M.lookup id (circ_secrets c) of
@@ -144,7 +166,7 @@ opArgs (OpNAdd rs)  = rs
 opArgs (OpSub rs)   = rs
 opArgs (OpMul rs)   = rs
 opArgs (OpSecret _) = []
-opArgs (OpInput  _) = []
+opArgs (OpInput  _ _) = []
 
 ngates :: Circuit -> Int
 ngates = M.size . circ_refmap
@@ -170,14 +192,14 @@ xdeg c i = degs c !! (i+1)
 degs :: Circuit -> [Integer]
 degs c = map (varDegree c) ids
   where
-    ids = OpSecret (Id (-1)) : map (OpInput . Id) [0 .. ninputs c-1]
+    ids = OpSecret (Id (-1)) : map (flip OpInput Nothing . Id) [0 .. ninputs c-1]
 
 depth :: Circuit -> Integer
 depth c = maximum $ foldCirc f c
   where
-    f (OpInput  _) [] = 0
-    f (OpSecret _) [] = 0
-    f _            xs = maximum xs + 1
+    f (OpInput  _ _) [] = 0
+    f (OpSecret _)   [] = 0
+    f _              xs = maximum xs + 1
 
 varDegree :: Circuit -> Op -> Integer
 varDegree c z = maximum (varDegree' c z)
@@ -191,8 +213,8 @@ varDegree' c z = foldCirc f c
 
     f x _ = if eq x z then 1 else 0
 
-    eq (OpInput  x) (OpInput  y) = x == y
-    eq (OpSecret _) (OpSecret _) = True
+    eq (OpInput  x _) (OpInput  y _) = x == y
+    eq (OpSecret _)   (OpSecret _)   = True
     eq _ _ = False
 
 -- TODO make me better! does this really reflect the degree of the multivariate
@@ -200,44 +222,44 @@ varDegree' c z = foldCirc f c
 circDegree :: Circuit -> Integer
 circDegree c = maximum $ foldCirc f c
   where
-    f (OpNAdd _)  rs = maximum rs
-    f (OpSub _)   rs = maximum rs
-    f (OpMul _)   rs = sum rs
-    f (OpInput  id) _ = 1
-    f (OpSecret id) _ = 1
+    f (OpNAdd _)     rs = maximum rs
+    f (OpSub _)      rs = maximum rs
+    f (OpMul _)      rs = sum rs
+    f (OpInput  id _) _ = 1
+    f (OpSecret id)   _ = 1
     f _ _ = error "[circDegree] unknown input"
 
 -- evaluate the circuit using an arbitrary integral type as input
 evalMod :: (Show a, Integral a) => Circuit -> [a] -> a -> [a]
 evalMod c inps q = foldCirc eval c
   where
-    eval (OpNAdd _)   rs = sum rs % q
-    eval (OpSub _)    rs = foldl1' (-) rs % q
-    eval (OpMul _)    rs = product rs % q
-    eval (OpInput  i) [] = inps !! getId i
-    eval (OpSecret i) [] = fromIntegral (getSecret c i)
+    eval (OpNAdd _)     rs = sum rs % q
+    eval (OpSub _)      rs = foldl1' (-) rs % q
+    eval (OpMul _)      rs = product rs % q
+    eval (OpInput  i _) [] = inps !! getId i
+    eval (OpSecret i)   [] = fromIntegral (getSecret c i)
     eval op args  = error ("[evalMod] weird input: " ++ show op ++ " " ++ show args)
 
 plainEval :: Circuit -> [Bool] -> [Bool]
 plainEval c inps = map (/= 0) (foldCirc eval c)
   where
     eval :: Op -> [Integer] -> Integer
-    eval (OpNAdd _)   rs = sum rs
-    eval (OpSub _)    rs = foldl1' (-) rs
-    eval (OpMul _)    rs = product rs
-    eval (OpInput  i) [] = b2i (inps !! getId i)
-    eval (OpSecret i) [] = getSecret c i
+    eval (OpNAdd _)     rs = sum rs
+    eval (OpSub _)      rs = foldl1' (-) rs
+    eval (OpMul _)      rs = product rs
+    eval (OpInput  i _) [] = b2i (inps !! getId i)
+    eval (OpSecret i)   [] = getSecret c i
     eval op args = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
 
 parEval :: Circuit -> [Bool] -> [Bool]
 parEval c inps = map (0/=) . runPar $ mapM IVar.get =<< foldCircM eval c
   where
     eval :: Op -> Ref -> [IVar Integer] -> Par (IVar Integer)
-    eval (OpNAdd _)  _ rs = liftNary (+) rs
-    eval (OpSub _)   _ rs = liftNary (-) rs
-    eval (OpMul _)   _ rs = liftNary (*) rs
-    eval (OpInput  i) _ [] = IVar.newFull (b2i (inps !! getId i))
-    eval (OpSecret i) _ [] = IVar.newFull (getSecret c i)
+    eval (OpNAdd _)     _ rs = liftNary (+) rs
+    eval (OpSub _)      _ rs = liftNary (-) rs
+    eval (OpMul _)      _ rs = liftNary (*) rs
+    eval (OpInput  i _) _ [] = IVar.newFull (b2i (inps !! getId i))
+    eval (OpSecret i)   _ [] = IVar.newFull (getSecret c i)
     eval op _ args = error ("[parEval] weird input: " ++ show op ++ " with " ++ show (length args) ++ " arguments")
 
     -- TODO: this may be redundant now
@@ -257,11 +279,11 @@ plainEvalIO c xs = do
     return $ map (/= 0) zs
   where
     eval :: Op -> [Integer] -> Integer
-    eval (OpNAdd _)   rs = sum rs
-    eval (OpSub _)    rs = foldl1' (-) rs
-    eval (OpMul _)    rs = product rs
-    eval (OpInput  i) [] = b2i (xs !! getId i)
-    eval (OpSecret i) [] = getSecret c i
+    eval (OpNAdd _)     rs = sum rs
+    eval (OpSub _)      rs = foldl1' (-) rs
+    eval (OpMul _)      rs = product rs
+    eval (OpInput  i _) [] = b2i (xs !! getId i)
+    eval (OpSecret i)   [] = getSecret c i
     eval op args = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
 
 ensure :: Bool -> Circuit -> [TestCase] -> IO Bool
@@ -364,8 +386,8 @@ topoLevels c = map S.toAscList lvls
 
     dependencies :: Ref -> [Ref]
     dependencies ref = case circ_refmap c ! ref of
-        OpInput  _ -> []
-        OpSecret _ -> []
+        OpInput  _ _ -> []
+        OpSecret _   -> []
         op -> opArgs op ++ concatMap dependencies (opArgs op)
 
 nonInputGates :: Circuit -> [Ref]

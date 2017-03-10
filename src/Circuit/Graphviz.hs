@@ -6,6 +6,7 @@ module Circuit.Graphviz
   ) where
 
 import Circuit
+import Types
 
 import Control.Monad.Reader
 import Control.Monad.State
@@ -56,8 +57,8 @@ isRendered i = state $ \s -> (i `S.member` s, S.insert i s)
 label :: Doc -> Doc
 label t = text "[label=\"" <> t <> text "\"];"
 
-pprInput :: Int -> Doc
-pprInput i = int i <+> label (text "input" <+> int i)
+pprInput :: Int -> MType -> Doc
+pprInput i t = int i <+> label (text "input" <+> int i <+> pprType t)
 
 mkGroup :: [Doc] -> Doc
 mkGroup [d] = d
@@ -94,11 +95,11 @@ infix 7 -->
 a --> b = a <+> text "->" <+> b <> semi
 
 pprOp :: Int -> Op -> PrettyPr Doc
-pprOp i (OpNAdd rs)  = pprOp' i rs (text "+")
-pprOp i (OpSub rs)   = pprOp' i rs (text "-")
-pprOp i (OpMul rs)   = pprOp' i rs (text "*")
-pprOp _ (OpInput i)  = pure $ pprInput $ getId i
-pprOp _ (OpSecret _) = undefined
+pprOp i (OpNAdd rs)   = pprOp' i rs (text "+")
+pprOp i (OpSub rs)    = pprOp' i rs (text "-")
+pprOp i (OpMul rs)    = pprOp' i rs (text "*")
+pprOp _ (OpInput i t) = pure $ pprInput (getId i) t
+pprOp _ (OpSecret _)  = undefined
 
 pprOp' :: Int -> [Ref] -> Doc -> PrettyPr Doc
 pprOp' i rs op = do
@@ -118,3 +119,17 @@ pprRef r@(Ref i) = do
       let op = circ_refmap c ! r
       pprOp i op
     True -> return empty
+
+-- pretty print basetypes
+pprBaseType :: BaseType -> Doc
+pprBaseType Integer  = text "Integer"
+pprBaseType Rational = text "Rational"
+
+-- pretty print type information
+pprType :: MType -> Doc
+pprType Nothing  = empty
+pprType (Just t) = text " @" <+>
+  case t of
+       Wire bt   -> pprBaseType bt
+       Vector bt -> text "["  <> pprBaseType bt <> text "]"
+       Matrix bt -> text "[[" <> pprBaseType bt <> text "]]"
