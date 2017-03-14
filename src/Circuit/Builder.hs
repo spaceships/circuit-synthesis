@@ -4,6 +4,7 @@ module Circuit.Builder where
 
 import Circuit
 import Types
+import Circuit.TypeCheck
 import Util
 import Rand
 
@@ -36,13 +37,20 @@ getCirc = gets bs_circ
 modifyCirc :: (Circuit -> Circuit) -> Builder ()
 modifyCirc f = modify (\st -> st { bs_circ = f (bs_circ st) })
 
-insertOp :: Ref -> Op -> Builder ()
-insertOp ref op = do
+-- This function can insert an Operator into the circuit if you already know
+-- the type of that operator (some front-ends may know this)
+insertOpType :: Ref -> Op -> MType -> Builder ()
+insertOpType ref op t = do
     refs <- circ_refmap <$> getCirc
     when (M.member ref refs) $
         error ("redefinition of ref " ++ show ref)
-    modifyCirc (\c -> c { circ_refmap = M.insert ref op refs })
+    modifyCirc (\c -> c { circ_refmap = M.insert ref (op,t) refs })
     modify (\st -> st { bs_dedup = M.insert op ref (bs_dedup st)})
+
+-- If you don't necessarily know the type, you can try to infer the type
+-- from the type of the op's arguments.
+insertOp :: Ref -> Op -> Builder ()
+insertOp ref op = getCirc >>= insertOpType ref op . typeOfOp op
 
 insertSecret :: Ref -> Id -> Builder ()
 insertSecret ref id = do
@@ -93,7 +101,7 @@ nextSecretId = do
     return id
 
 markOutput :: Ref -> Builder ()
-markOutput ref = modifyCirc (\c -> c { circ_outputs = circ_outputs c ++ [ref] })
+markOutput ref = modifyCirc (\c -> let (_,t) = circ_refmap c M.! ref in c { circ_outputs = circ_outputs c ++ [(ref,t)] })
 
 markConst :: Ref -> Integer -> Builder ()
 markConst ref val = modifyCirc (\c -> c { circ_consts = B.insert val ref (circ_consts c) })

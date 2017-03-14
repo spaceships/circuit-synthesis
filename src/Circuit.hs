@@ -30,8 +30,6 @@ import qualified Data.Bimap as B
 
 import Debug.Trace
 
-type MType = Maybe Type
-
 newtype Ref = Ref { getRef :: Int } deriving (Eq, Ord, NFData, Num)
 newtype Id  = Id  { getId  :: Int } deriving (Eq, Ord, NFData, Num)
 
@@ -40,16 +38,22 @@ data Op = OpNAdd [Ref]
         | OpMul [Ref]
         | OpInput Id MType
         | OpSecret Id
+        | OpOther SpecialOp [Ref]
         deriving (Eq, Show)
 
+data SpecialOp = LinReg
+               | GetNumer
+               | GetDenom
+  deriving (Eq, Show, Ord)
+
 data Circuit = Circuit {
-      circ_outputs     :: [Ref]
+      circ_outputs     :: [(Ref, MType)]
     , circ_output_type :: [MType]
     , circ_inputs      :: [Ref]
     , circ_input_type  :: [MType]
     , circ_secrets     :: M.Map Id Integer
     , circ_secret_refs :: M.Map Ref Id
-    , circ_refmap      :: M.Map Ref Op
+    , circ_refmap      :: M.Map Ref (Op, MType)
     , circ_consts      :: B.Bimap Integer Ref
     } deriving (Show)
 
@@ -68,19 +72,22 @@ instance Show Id where
 
 -- compare :: a -> a -> Ordering
 instance Ord Op where
-  compare (OpNAdd rs)   (OpNAdd ts)   = compare rs ts
-  compare (OpNAdd _)    op2           = LT
-  compare op1           (OpNAdd _)    = GT
-  compare (OpSub rs)    (OpSub ts)    = compare rs ts
-  compare (OpSub _)     op2           = LT
-  compare op1           (OpSub _)     = GT
-  compare (OpMul rs)    (OpMul ts)    = compare rs ts
-  compare (OpMul _)     op2           = LT
-  compare op1           (OpMul _)     = GT
-  compare (OpInput i _) (OpInput j _) = compare i j
-  compare (OpInput i _) op2           = LT
-  compare op1           (OpInput i _) = GT
-  compare (OpSecret i)  (OpSecret j)  = compare i j
+  compare (OpNAdd rs)    (OpNAdd ts)    = compare rs ts
+  compare (OpNAdd _)     op2            = LT
+  compare op1            (OpNAdd _)     = GT
+  compare (OpSub rs)     (OpSub ts)     = compare rs ts
+  compare (OpSub _)      op2            = LT
+  compare op1            (OpSub _)      = GT
+  compare (OpMul rs)     (OpMul ts)     = compare rs ts
+  compare (OpMul _)      op2            = LT
+  compare op1            (OpMul _)      = GT
+  compare (OpInput i _)  (OpInput j _)  = compare i j
+  compare (OpInput _ _)  op2            = LT
+  compare op1            (OpInput i _)  = GT
+  compare (OpOther o rs) (OpOther p ts) = compare (compare o p) (compare rs ts)
+  compare (OpOther _ _)  op2            = LT
+  compare op1           (OpOther _ _)   = GT
+  compare (OpSecret i)  (OpSecret j)    = compare i j
 
 
 getSecret :: Circuit -> Id -> Integer
@@ -166,6 +173,7 @@ opArgs (OpNAdd rs)  = rs
 opArgs (OpSub rs)   = rs
 opArgs (OpMul rs)   = rs
 opArgs (OpSecret _) = []
+opArgs (OpOther _ rs) = rs
 opArgs (OpInput  _ _) = []
 
 ngates :: Circuit -> Int
@@ -325,14 +333,14 @@ foldCirc f c = runIdentity (foldCircM f' c)
     f' op _ xs = return (f op xs)
 
 foldCircM :: Monad m => (Op -> Ref -> [a] -> m a) -> Circuit -> m [a]
-foldCircM f c = evalStateT (mapM eval (circ_outputs c)) M.empty
+foldCircM f c = evalStateT (mapM (eval . fst) (circ_outputs c)) M.empty
   where
     eval ref = gets (M.lookup ref) >>= \case
         Just val -> return val
         Nothing  -> do
             when (M.notMember ref (circ_refmap c))
                 (traceM (printf "unknown ref \"%s\"" (show ref)))
-            let op = circ_refmap c ! ref
+            let (op,_) = circ_refmap c ! ref
             argVals <- mapM eval (opArgs op)
             val     <- lift (f op ref argVals)
             modify (M.insert ref val)
@@ -345,7 +353,7 @@ foldCircIO f c = do
     mem <- (M.fromList . zip refs) <$> replicateM (length refs) newEmptyTMVarIO
     let eval :: Ref -> IO ()
         eval ref = do
-            let op      = circ_refmap c ! ref
+            let (op,_)  = circ_refmap c ! ref
                 argRefs = map (mem!) (opArgs op)
             -- this condition should never be hit since we parallelize over the topological levels
             whenM (or <$> mapM (atomically . isEmptyTMVar) argRefs) $ do
@@ -361,7 +369,7 @@ foldCircIO f c = do
     forM_ (zip [(0 :: Int)..] lvls) $ \(_, lvl) -> do
         {-printf "evaluating level %d size=%d\n" i (length lvl)-}
         parallelInterleaved (map eval lvl)
-    mapM (atomically . readTMVar . (mem !)) (circ_outputs c)
+    mapM (atomically . readTMVar . (mem !) . fst) (circ_outputs c)
 
 topologicalOrder :: Circuit -> [Ref]
 topologicalOrder c = reverse $ execState (foldCircM eval c) []
@@ -385,7 +393,7 @@ topoLevels c = map S.toAscList lvls
                             else x : putRef ref xs
 
     dependencies :: Ref -> [Ref]
-    dependencies ref = case circ_refmap c ! ref of
+    dependencies ref = case fst (circ_refmap c ! ref) of
         OpInput  _ _ -> []
         OpSecret _   -> []
         op -> opArgs op ++ concatMap dependencies (opArgs op)
@@ -400,5 +408,5 @@ intermediateGates :: Circuit -> [Ref]
 intermediateGates c = filter intermediate (topologicalOrder c)
   where
     intermediate ref = notElem ref (circ_inputs c) &&
-                       notElem ref (circ_outputs c) &&
+                       notElem ref (map fst $ circ_outputs c) &&
                        M.notMember ref (circ_secret_refs c)

@@ -36,7 +36,7 @@ pprCircuit' c = text "digraph circ {" <> linebreak
                  <> indent 4 douts    <> linebreak
                  <> text "}"          <> linebreak
   where
-    outs  = circ_outputs c
+    (outs,_)  = unzip (circ_outputs c)
     douts = vsep (runPrettyPr c S.empty (sequence $ fmap pprRef outs))
 
 
@@ -94,12 +94,13 @@ infix 7 -->
 (-->) :: Doc -> Doc -> Doc
 a --> b = a <+> text "->" <+> b <> semi
 
-pprOp :: Int -> Op -> PrettyPr Doc
-pprOp i (OpNAdd rs)   = pprOp' i rs (text "+")
-pprOp i (OpSub rs)    = pprOp' i rs (text "-")
-pprOp i (OpMul rs)    = pprOp' i rs (text "*")
-pprOp _ (OpInput i t) = pure $ pprInput (getId i) t
-pprOp _ (OpSecret _)  = undefined
+-- The `Doc` argument is for any extra label text
+pprOp :: Int -> Op -> Doc -> PrettyPr Doc
+pprOp i (OpNAdd rs)   d = pprOp' i rs (text "+" <> d)
+pprOp i (OpSub rs)    d = pprOp' i rs (text "-" <> d)
+pprOp i (OpMul rs)    d = pprOp' i rs (text "*" <> d)
+pprOp _ (OpInput i t) _ = pure $ pprInput (getId i) t
+pprOp _ (OpSecret _)  _ = undefined
 
 pprOp' :: Int -> [Ref] -> Doc -> PrettyPr Doc
 pprOp' i rs op = do
@@ -116,8 +117,8 @@ pprRef r@(Ref i) = do
   case b of
     False -> do
       c <- ask
-      let op = circ_refmap c ! r
-      pprOp i op
+      let (op,t) = circ_refmap c ! r
+      pprOp i op (pprType t)
     True -> return empty
 
 -- pretty print basetypes

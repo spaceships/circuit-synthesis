@@ -2,6 +2,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 module Types where
 
+import Control.Applicative (liftA2)
+
 -- | Top-level types in a circuit
 --   Circuit references can refer to single `wires`, and bundles of wires
 --   that either represent a vector or a matrix. It would be possible to
@@ -14,6 +16,8 @@ data Type' a = Wire a
   deriving (Show, Eq, Functor)
 
 type Type = Type' BaseType
+
+type MType = Maybe Type
 
 -- | Enumerate the possible base types
 data BaseType = Integer
@@ -66,5 +70,11 @@ ref = Right
 
 -- | Given the types of arguments applied to an operator
 --   `typeOfOp` determines the output type
-typeOfOp :: [Type] -> Type
-typeOfOp = foldr1 (/\)
+mgt :: [Type] -> Type
+mgt = foldr1 (/\)
+
+
+-- | Often we'll be using `MType`s instead of `Type`s so we need to lift
+--   operations to work on them
+mgtM :: [MType] -> MType
+mgtM = foldr1 (liftA2 (/\))

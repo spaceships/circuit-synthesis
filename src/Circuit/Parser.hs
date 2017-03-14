@@ -1,6 +1,8 @@
 module Circuit.Parser where
 
 import Circuit
+import Types
+import Circuit.TypeCheck
 import Util
 
 import Control.Monad
@@ -39,12 +41,16 @@ modifyCirc f = modifyState (\st -> st { st_circ = f (st_circ st) })
 addTest :: TestCase -> ParseCirc ()
 addTest t = modifyState (\st -> st { st_tests = t : st_tests st})
 
-insertOp :: Ref -> Op -> ParseCirc ()
-insertOp ref op = do
+insertOpType :: Ref -> Op -> MType -> ParseCirc ()
+insertOpType ref op t = do
     refs <- circ_refmap <$> getCirc
     if M.member ref refs
         then error ("redefinition of ref " ++ show ref)
-        else modifyCirc (\c -> c { circ_refmap = M.insert ref op refs })
+        else modifyCirc (\c -> c { circ_refmap = M.insert ref (op,t) refs })
+
+insertOp :: Ref -> Op -> ParseCirc ()
+insertOp ref op = getCirc >>= insertOpType ref op . typeOfOp op
+
 
 insertSecret :: Ref -> Id -> ParseCirc ()
 insertSecret ref id = do
@@ -67,7 +73,7 @@ insertInput :: Ref -> Id -> ParseCirc ()
 insertInput r i = insertInputType r i Nothing
 
 markOutput :: Ref -> ParseCirc ()
-markOutput ref = modifyCirc (\c -> c { circ_outputs = circ_outputs c ++ [ref] })
+markOutput ref = modifyCirc (\c -> let (_,t) = circ_refmap c M.! ref in c { circ_outputs = circ_outputs c ++ [(ref,t)] })
 
 nextConstId :: ParseCirc Id
 nextConstId = do

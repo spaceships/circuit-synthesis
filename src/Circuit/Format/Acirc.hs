@@ -13,7 +13,7 @@ module Circuit.Format.Acirc
   ) where
 
 import Circuit
-import Types (Type'(..), BaseType(..), getBT, Type)
+import Types
 import Circuit.Parser
 import Util (addSpaces, forceM, readBits', showBits', safeInsert)
 
@@ -77,7 +77,7 @@ showCirc symlen c = unlines (header ++ gateLines)
     gates  = mapM gateStr (nonInputGates c)
 
     output = do
-        outs <- map show <$> mapM tr (circ_outputs c)
+        outs <- map show <$> mapM (tr . fst) (circ_outputs c)
         let outWithTypes = zipWith (++) outs (map showType (circ_output_type c))
         return [printf ":outputs %s" (unwords outs)]
 
@@ -98,15 +98,15 @@ showCirc symlen c = unlines (header ++ gateLines)
         ref' <- tr ref
         case M.lookup ref (circ_refmap c) of
             Nothing -> error (printf "[gateStr] unknown ref %s" (show ref))
-            Just (OpInput  id t) -> return $ printf "%d input %d%s" ref' (getId id) (showType t)
-            Just (OpSecret id)   -> do
+            Just ((OpInput  id t),_) -> return $ printf "%d input %d%s" ref' (getId id) (showType t)
+            Just ((OpSecret id),_)   -> do
                 let secret = case M.lookup id (circ_secrets c) of
                                 Nothing -> ""
                                 Just y  -> show y
                 return $ printf "%d const %s" ref' secret
-            Just (OpSub xs)  -> prs ref' "-" xs
-            Just (OpMul xs)  -> prs ref' "*" xs
-            Just (OpNAdd xs) -> prs ref' "+" xs
+            Just ((OpSub xs),_)  -> prs ref' "-" xs
+            Just ((OpMul xs),_)  -> prs ref' "*" xs
+            Just ((OpNAdd xs),_) -> prs ref' "+" xs
 
     pr :: Int -> String -> Ref -> Ref -> S.State (M.Map Ref Int, Int) String
     pr ref' gateTy x y = do
