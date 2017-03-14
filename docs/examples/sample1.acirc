@@ -1,0 +1,11 @@
+v0.1
+0 input 0 @ Integer
+1 input 1 @ [Integer]
+2 input 2 @ [Integer]
+3 input 3 @ Integer
+4 - 0 1
+5 - 2 3
+6 * 4 4
+7 * 5 5
+8 + 6 7
+:outputs 8
