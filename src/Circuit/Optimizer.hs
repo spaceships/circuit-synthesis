@@ -6,6 +6,7 @@ import Text.Printf
 import System.Process
 import Control.Monad.State
 import qualified Circuit.Builder as B
+import Debug.Trace
 
 c :: Circuit
 c = B.buildCircuit $ do
@@ -44,8 +45,8 @@ merge cs = B.buildCircuit $ do
     B.outputs outs
 
 -- find the highest degree subcircuit within a given depth
-find :: Int -> Circuit -> Ref
-find maxDepth c = snd $ execState (foldCircM eval c) (0, Ref 0)
+find :: Int -> Circuit -> (Int, Ref)
+find maxDepth c = execState (foldCircM eval c) (0, Ref 0)
   where
     eval (OpAdd _ _) ref [(xdeg, xdepth), (ydeg, ydepth)] = do
         let deg   = max xdeg ydeg
@@ -147,3 +148,14 @@ cleanup c = B.buildCircuit $ do
     outs <- B.subcircuit c inps
     B.outputs outs
 
+flattenRec :: Int -> Circuit -> IO Circuit
+flattenRec d c = do
+    let (deg, root) = find d c
+        sub = slice root c
+    traceM (printf "flattenRec subcircuit deg=%d, root=%d, nin=%d total_degree=%d" deg (getRef root) (ninputs sub) (circDegree c))
+    sub' <- flatten sub
+    let c' = patch root c sub'
+    if circDegree c' < circDegree c then
+        flattenRec d (foldConsts c')
+    else
+        return c'
