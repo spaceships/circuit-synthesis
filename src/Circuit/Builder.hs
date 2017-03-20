@@ -239,6 +239,12 @@ subcircuit c xs = do
             secret (circ_secrets c M.! sid)
     subcircuit' c xs ys
 
+mergeCircuits :: [Circuit] -> Circuit
+mergeCircuits cs = buildCircuit $ do
+    xs   <- inputs (ninputs (head cs))
+    outs <- concat <$> mapM (flip subcircuit xs) cs
+    outputs outs
+
 --------------------------------------------------------------------------------
 -- extras!
 

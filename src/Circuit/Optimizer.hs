@@ -22,16 +22,10 @@ circToSage c = foldCirc eval c
 callSage :: Int -> String -> IO Circuit
 callSage ninputs s = do
     r <- readProcess "./scripts/poly-sage.sage" [] s
-    return $ Sexp.parseNInputs1 ninputs r
-
-mergeCircuits :: [Circuit] -> Circuit
-mergeCircuits cs = B.buildCircuit $ do
-    xs   <- B.inputs (ninputs (head cs))
-    outs <- concat <$> mapM (flip B.subcircuit xs) cs
-    B.outputs outs
+    return $ Sexp.parse ninputs r
 
 flatten :: Circuit -> IO Circuit
-flatten c = mergeCircuits <$> mapM (callSage (ninputs c)) (circToSage c)
+flatten c = B.mergeCircuits <$> mapM (callSage (ninputs c)) (circToSage c)
 
 -- find the highest degree subcircuit within a given depth
 find :: Int -> Circuit -> Ref

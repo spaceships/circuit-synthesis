@@ -6,13 +6,6 @@ import qualified Circuit.Builder as B
 import Control.Monad
 import Control.Monad.Trans
 import Circuit
-import Data.Either (rights)
-
-c :: Circuit
-c = B.buildCircuit $ do
-    x <- B.input
-    z <- B.circNot x
-    B.output z
 
 circToSexp :: Circuit -> [String]
 circToSexp c = foldCirc eval c
@@ -28,22 +21,11 @@ circToSexp c = foldCirc eval c
 
 type SexpParser = ParsecT String () B.Builder
 
-parse :: [String] -> Circuit
-parse ss = B.buildCircuit $ do
-    outs <- rights <$> mapM (runParserT parseSexp () "") ss
-    B.outputs outs
-
-parseNInputs :: Int -> [String] -> Circuit
-parseNInputs n ss = B.buildCircuit $ do
-    _    <- B.inputs n
-    outs <- rights <$> mapM (runParserT parseSexp () "") ss
-    B.outputs outs
-
-parseNInputs1 :: Int -> String -> Circuit
-parseNInputs1 n s = B.buildCircuit $ do
-    _   <- B.inputs n
-    out <- either (error.show) id <$> runParserT parseSexp () "" s
-    B.output out
+parse :: Int -> String -> Circuit
+parse ninps ss = B.buildCircuit $ do
+    _   <- B.inputs ninps
+    res <- runParserT parseSexp () "" ss
+    either (error "[Sexp::parse] parse error") B.output res
 
 parseSexp :: SexpParser Ref
 parseSexp = try parseAdd <|> try parseSub <|> try parseMul <|> try parseInput <|> try parseConst <|> parseInteger

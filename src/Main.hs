@@ -7,6 +7,7 @@ import Circuit.Builder
 import Circuit.Optimizer (flatten)
 import Circuit.Parser (CircuitParser)
 import qualified Circuit.Format.Acirc   as Acirc
+import qualified Circuit.Graphviz       as Graphviz
 
 import Circuits.Aes as Aes
 import Circuits.Goldreich as Goldreich
@@ -27,6 +28,7 @@ data MainOptions = MainOptions { opt_info       :: Bool
                                , opt_randomize_secrets  :: Bool
                                , opt_write_to_file      :: Maybe String
                                , opt_flatten            :: Bool
+                               , opt_graphviz           :: Bool
                                }
 
 instance Options MainOptions where
@@ -80,6 +82,11 @@ instance Options MainOptions where
                      , optionLongFlags   = ["flatten"]
                      , optionDescription = "Flatten the input using Sage"
                      })
+        <*> defineOption optionType_bool
+            (\o -> o { optionShortFlags  = "d"
+                     , optionLongFlags   = ["dot"]
+                     , optionDescription = "Output the circuit in Graphviz dot format"
+                     })
 
 
 main :: IO ()
@@ -110,9 +117,12 @@ main = runCommand $ \opts args -> do
                 Nothing -> return ts
                 Just i  -> replicateM i (genTest (ninputs c) c)
             when (opt_test opts) $ evalTests opts c ts'
+            s <- if opt_graphviz opts
+                    then return $ Graphviz.showCircuit c
+                    else Acirc.showCircWithTests 10 c
             case opt_write_to_file opts of
-                Just f  -> Acirc.write f c
-                Nothing -> putStrLn =<< Acirc.showCircWithTests 10 c
+                Just f  -> writeFile f s
+                Nothing -> putStrLn s
             exitSuccess
 
 evalTests :: MainOptions -> Circuit -> [TestCase] -> IO ()
