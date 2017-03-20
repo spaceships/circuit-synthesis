@@ -56,11 +56,11 @@ isRendered i = state $ \s -> (i `S.member` s, S.insert i s)
 label :: Doc -> Doc
 label t = text "[label=\"" <> t <> text "\"];"
 
-pprInput :: Int -> Doc
-pprInput i = int i <+> label (text "input" <+> int i)
+pprInput :: Int -> Id -> Doc
+pprInput i id = int i <+> label (text "input" <+> int (getId id))
 
-pprSecret :: Int -> Doc
-pprSecret i = int i <+> label (text "secret" <+> int i)
+pprSecret :: Int -> Id -> Doc
+pprSecret i id = int i <+> label (text "secret" <+> int (getId id))
 
 mkGroup :: [Doc] -> Doc
 mkGroup [d] = d
@@ -100,8 +100,8 @@ pprOp :: Int -> Op -> PrettyPr Doc
 pprOp i (OpAdd x y)  = pprOp' i [x,y] (text "+")
 pprOp i (OpSub x y)  = pprOp' i [x,y] (text "-")
 pprOp i (OpMul x y)  = pprOp' i [x,y] (text "*")
-pprOp _ (OpInput i)  = pure $ pprInput $ getId i
-pprOp _ (OpSecret i) = pure $ pprSecret $ getId i
+pprOp i (OpInput id)  = pure $ pprInput  i id
+pprOp i (OpSecret id) = pure $ pprSecret i id
 
 pprOp' :: Int -> [Ref] -> Doc -> PrettyPr Doc
 pprOp' i rs op = do

@@ -7,6 +7,12 @@ import Control.Monad
 import Control.Monad.Trans
 import Circuit
 
+c :: Circuit
+c = B.buildCircuit $ do
+    x <- B.input
+    z <- B.circNot x
+    B.output z
+
 circToSexp :: Circuit -> [String]
 circToSexp c = foldCirc eval c
   where
