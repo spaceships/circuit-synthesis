@@ -14,7 +14,7 @@ circToSage c = foldCirc eval c
     eval (OpSub _ _) [x,y] = printf "(%s) - (%s)" x y
     eval (OpMul _ _) [x,y] = printf "(%s) * (%s)" x y
     eval (OpInput  i) []   = printf "var('x%d')" (getId i)
-    eval (OpSecret i) []   = if publicConst i c
+    eval (OpSecret i) []   = if publicConst c i
                                 then show (getSecret c i)
                                 else printf "var('y%d')" (getId i)
     eval op args  = error ("[circToSexp] weird input: " ++ show op ++ " " ++ show args)
@@ -79,8 +79,10 @@ slice ref c = B.buildCircuit $ do
     eval (OpSub _ _) _ [x,y] = B.circSub x y
     eval (OpMul _ _) _ [x,y] = B.circMul x y
     eval (OpInput  i) _ _ = B.input_n i
-    eval (OpSecret i) _ _ = if publicConst i c then B.constant (getSecret c i)
-                                               else B.secret (getSecret c i)
+    eval (OpSecret i) _ _ = let sec = getSecret c i in
+                                if publicConst c i
+                                   then B.constant sec
+                                   else B.secret sec
     eval _ _ _ = error "[slice] oops"
 
 -- replace subcircuit ending at loc with c2 in c1
@@ -91,8 +93,8 @@ patch loc c1 c2
     xs <- B.inputs (ninputs c1)
     _  <- B.exportSecrets c1
 
+    -- when we get to loc, eval c2 as subcircuit and return that output
     let catch ref other = if ref /= loc then other else head <$> B.subcircuit c2 xs
-
         eval (OpAdd _ _) ref [x,y] = catch ref $ B.circAdd x y
         eval (OpSub _ _) ref [x,y] = catch ref $ B.circSub x y
         eval (OpMul _ _) ref [x,y] = catch ref $ B.circMul x y
@@ -103,6 +105,5 @@ patch loc c1 c2
     outs <- foldCircM eval c1
     B.outputs outs
 
--- when we get to loc, eval c2 as subcircuit and return that output
-
--- foldCircM :: Monad m => (Op -> Ref -> [a] -> m a) -> Circuit -> m [a]
+foldConsts :: Circuit -> Circuit
+foldConsts = undefined

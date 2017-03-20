@@ -67,8 +67,8 @@ getSecret c id = case M.lookup id (circ_secrets c) of
     Just x  -> x
     Nothing -> error ("[getSecret] no secret known for y" ++ show id)
 
-publicConst :: Id -> Circuit -> Bool
-publicConst id c = S.member id (circ_const_ids c)
+publicConst :: Circuit -> Id -> Bool
+publicConst c id = S.member id (circ_const_ids c)
 
 randomizeSecrets :: Circuit -> IO Circuit
 randomizeSecrets c = do

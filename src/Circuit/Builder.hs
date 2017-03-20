@@ -239,7 +239,7 @@ exportSecrets :: Circuit -> Builder [Ref]
 exportSecrets c = do
     forM (M.toAscList (circ_secret_refs c)) $ \(_, sid) -> do
         let x = getSecret c sid
-        if publicConst sid c then
+        if publicConst c sid then
             constant x
         else
             secret x

@@ -20,7 +20,7 @@ circToSexp c = foldCirc eval c
     eval (OpSub _ _) [x,y] = printf "Add(%s, Mul(Integer(-1), %s))" x y
     eval (OpMul _ _) [x,y] = printf "Mul(%s, %s)" x y
     eval (OpInput  i) []   = printf "Symbol('x%d')" (getId i)
-    eval (OpSecret i) []   = if publicConst i c
+    eval (OpSecret i) []   = if publicConst c i
                                 then printf "Integer(%d)" (getSecret c i)
                                 else printf "Symbol('y%d')" (getId i)
     eval op args  = error ("[circToSexp] weird input: " ++ show op ++ " " ++ show args)
