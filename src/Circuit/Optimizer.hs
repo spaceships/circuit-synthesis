@@ -7,6 +7,15 @@ import System.Process
 import Control.Monad.State
 import qualified Circuit.Builder as B
 
+c :: Circuit
+c = B.buildCircuit $ do
+    one  <- B.constant 1
+    zero <- B.constant 0
+    a <- B.circMul one one
+    b <- B.circMul one one
+    z <- B.circMul a b
+    B.output z
+
 circToSage :: Circuit -> [String]
 circToSage c = foldCirc eval c
   where
@@ -32,13 +41,6 @@ merge :: [Circuit] -> Circuit
 merge cs = B.buildCircuit $ do
     xs   <- B.inputs (ninputs (head cs))
     outs <- concat <$> mapM (flip B.subcircuit xs) cs
-    B.outputs outs
-
--- remove unused gates
-cleanup :: Circuit -> Circuit
-cleanup c = B.buildCircuit $ do
-    inps <- B.inputs (ninputs c)
-    outs <- B.subcircuit c inps
     B.outputs outs
 
 -- find the highest degree subcircuit within a given depth
@@ -106,4 +108,42 @@ patch loc c1 c2
     B.outputs outs
 
 foldConsts :: Circuit -> Circuit
-foldConsts = undefined
+foldConsts c = B.buildCircuit $ do
+    _ <- B.inputs (ninputs c)
+    _ <- B.exportSecrets c
+    zs <- foldCircM eval c
+    B.outputs (map fst zs)
+
+  where
+    eval (OpAdd _ _) _ [x,y] = case (snd x, snd y) of
+        (Just a, Just b) -> do z <- B.constant (a+b); return (z, Just (a+b))
+        (Just 0, _     ) -> return y
+        (_     , Just 0) -> return x
+        (_     , _     ) -> do z <- B.circAdd (fst x) (fst y); return (z, Nothing)
+
+    eval (OpSub _ _) _ [x,y] = case (snd x, snd y) of
+        (Just a, Just b) -> do z <- B.constant (a-b); return (z, Just (a-b))
+        (_     , Just 0) -> return x
+        (_     , _     ) -> do z <- B.circSub (fst x) (fst y); return (z, Nothing)
+
+    eval (OpMul _ _) _ [x,y] = case (snd x, snd y) of
+        (Just a, Just b) -> do z <- B.constant (a*b); return (z, Just (a*b))
+        (Just 1, _     ) -> return y
+        (_     , Just 1) -> return x
+        (_     , _     ) -> do z <- B.circMul (fst x) (fst y); return (z, Nothing)
+
+    eval (OpInput  i) _ _ = do z <- B.input_n i; return (z, Nothing)
+    eval (OpSecret i) _ _ = do
+        let sec = if publicConst c i then Just (getSecret c i) else Nothing
+        z <- B.secret_n i
+        return (z, sec)
+
+    eval _ _ _ = error "[foldConsts] oops"
+
+-- remove unused gates
+cleanup :: Circuit -> Circuit
+cleanup c = B.buildCircuit $ do
+    inps <- B.inputs (ninputs c)
+    outs <- B.subcircuit c inps
+    B.outputs outs
+

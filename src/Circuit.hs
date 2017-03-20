@@ -70,6 +70,11 @@ getSecret c id = case M.lookup id (circ_secrets c) of
 publicConst :: Circuit -> Id -> Bool
 publicConst c id = S.member id (circ_const_ids c)
 
+getGate :: Circuit -> Ref -> Op
+getGate c ref = case M.lookup ref (circ_refmap c) of
+    Nothing -> error (printf "[getGate] no ref %d!" (getRef ref))
+    Just op -> op
+
 randomizeSecrets :: Circuit -> IO Circuit
 randomizeSecrets c = do
     key <- map b2i <$> num2Bits (nsecrets c) <$> randIO (randInteger (nsecrets c))
