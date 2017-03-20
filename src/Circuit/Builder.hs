@@ -215,9 +215,9 @@ output = markOutput
 -- resulting composite circuit.
 subcircuit' :: Circuit -> [Ref] -> [Ref] -> Builder [Ref]
 subcircuit' c xs ys
-    | length xs /= ninputs c = error (printf "[subcircuit'] not enough inputs got %d, need %d"
+    | length xs < ninputs c = error (printf "[subcircuit'] not enough inputs got %d, need %d"
                                             (length xs) (ninputs c))
-    | length ys /= nconsts c = error (printf "[subcircuit'] not enough consts got %d, need %d"
+    | length ys < nconsts c = error (printf "[subcircuit'] not enough consts got %d, need %d"
                                             (length ys) (nconsts c))
     | otherwise = foldCircM translate c
   where
@@ -232,18 +232,17 @@ subcircuit' c xs ys
 -- lift the subcircuit's constants and secrets into the circuit above
 subcircuit :: Circuit -> [Ref] -> Builder [Ref]
 subcircuit c xs = do
-    ys <- forM (M.toAscList (circ_secret_refs c)) $ \(sref, sid) -> do
-        if B.memberR sref (circ_consts c) then do
-            constant (circ_consts c B.!> sref)
-        else do
-            secret (circ_secrets c M.! sid)
+    ys <- exportSecrets c
     subcircuit' c xs ys
 
-mergeCircuits :: [Circuit] -> Circuit
-mergeCircuits cs = buildCircuit $ do
-    xs   <- inputs (ninputs (head cs))
-    outs <- concat <$> mapM (flip subcircuit xs) cs
-    outputs outs
+exportSecrets :: Circuit -> Builder [Ref]
+exportSecrets c = do
+    forM (M.toAscList (circ_secret_refs c)) $ \(_, sid) -> do
+        let x = getSecret c sid
+        if publicConst sid c then
+            constant x
+        else
+            secret x
 
 --------------------------------------------------------------------------------
 -- extras!
