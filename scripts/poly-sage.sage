@@ -186,7 +186,7 @@ def main(argv):
         if args.dot:
             print(dotprint(expr))
         else:
-            if debug:
+            if args.debug:
                 print >>sys.stderr, sexp(expr)
             print(sexp(expr))
 
