@@ -314,7 +314,7 @@ subByte = buildCircuit $ do
 
 buildAes :: Int -> IO Circuit
 buildAes n = do
-    linearParts <- fst <$> Acirc.readAcirc "linearParts.c2a.acirc"
+    linearParts <- fst <$> Acirc.readAcirc "linearParts.c2v.acirc"
     return $ buildCircuit $ do
         inp  <- inputs n
         one  <- constant 1
