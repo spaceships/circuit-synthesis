@@ -66,7 +66,7 @@ def sub2end(expr):
     for (op, v) in zip(str[1::2], str[2::2]):
         if op == '+':
             if minus:
-                d.extendleft([v, op])
+                d.extendleft([op, v])
             else:
                 d.extend([op, v])
         elif op == '-':
@@ -81,11 +81,13 @@ def simplify(expr):
     expr = expand(expr)
     end = time.time()
     print >>sys.stderr, "%.2f seconds" % (end - start)
+    print >>sys.stderr, expr
     print >>sys.stderr, "Simplifying expression... ",
     start = time.time()
     expr = _simplify(expr)
     end = time.time()
     print >>sys.stderr, "%.2f seconds" % (end - start)
+    print >>sys.stderr, expr
     print >>sys.stderr, "Unrolling expression... ",
     start = time.time()
     print >>sys.stderr, ""
@@ -95,8 +97,8 @@ def simplify(expr):
     print >>sys.stderr, expr
     expr = unroll(expr)
     end = time.time()
-    print >>sys.stderr, expr
     print >>sys.stderr, "%.2f seconds" % (end - start)
+    print >>sys.stderr, expr
     return expr
 
 def _sexp(expr):
