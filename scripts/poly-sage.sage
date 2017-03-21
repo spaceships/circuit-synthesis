@@ -1,6 +1,7 @@
 #!/usr/bin/env sage
 
 from sage.calculus.functional import *
+from collections import deque
 import argparse, sys, time
 
 def _simplify(expr):
@@ -26,6 +27,7 @@ def _simplify(expr):
         newexpr += simple
     return newexpr
 
+# Unrolls all constants
 def unroll(expr, negate=False):
     assert not expr.startswith('-')
     if ' + ' in expr:
@@ -45,6 +47,7 @@ def unroll(expr, negate=False):
     except ValueError:
         return expr
 
+# Makes sure the first position is not a negation
 def firstpos(expr):
     if ' + ' in expr:
         a, b = expr.split(' + ', 1)
@@ -55,10 +58,28 @@ def firstpos(expr):
     else:
         return expr
 
+# Moves all subtractions to the end
+def sub2end(expr):
+    str = expr.split()
+    d = deque([str[0]])
+    minus = False
+    for (op, v) in zip(str[1::2], str[2::2]):
+        if op == '+':
+            if minus:
+                d.extendleft([v, op])
+            else:
+                d.extend([op, v])
+        elif op == '-':
+            minus = True
+            d.extend([op, v])
+    return ' '.join(d)
+
 def simplify(expr):
+    print >>sys.stderr, expr
     print >>sys.stderr, "Expanding expression... ",
     start = time.time()
     expr = expand(expr)
+    print >>sys.stderr, (expr.subs(x1 == 1, x3 == 1))
     end = time.time()
     print >>sys.stderr, "%.2f seconds" % (end - start)
     print >>sys.stderr, "Simplifying expression... ",
@@ -68,27 +89,51 @@ def simplify(expr):
     print >>sys.stderr, "%.2f seconds" % (end - start)
     print >>sys.stderr, "Unrolling expression... ",
     start = time.time()
-    expr = unroll(firstpos(repr(expr)))
+    print >>sys.stderr, ""
+    expr = firstpos(repr(expr))
+    print >>sys.stderr, expr
+    expr = sub2end(expr)
+    print >>sys.stderr, expr
+    expr = unroll(expr)
     end = time.time()
+    print >>sys.stderr, expr
     print >>sys.stderr, "%.2f seconds" % (end - start)
+    print >>sys.stderr, (eval(expr).subs(x1 == 1, x3 == 1))
     return expr
 
-def sexp(expr):
-    if ' + ' in expr:
-        a, b = expr.split(' + ', 1)
-        return "Add(%s, %s)" % (sexp(a), sexp(b))
-    elif ' - ' in expr:
-        a, b = expr.split(' - ', 1)
-        return "Sub(%s, %s)" % (sexp(a), sexp(b))
-    elif '*' in expr:
+def _sexp(expr):
+    if '*' in expr:
         a, b = expr.split('*', 1)
         return "Mul(%s, %s)" % (sexp(a), sexp(b))
     else:
         try:
-            v = int(expr)
+            _ = int(expr)
             return "Integer(%s)" % expr
         except ValueError:
             return "Symbol('%s')" % expr
+
+def __sexp(expr):
+    try:
+        v = int(expr)
+        return "Integer(%s)" % expr
+    except ValueError:
+        return "Symbol('%s')" % expr
+        
+def _sexp(expr):
+    lst = [__sexp(v) for v in expr.split('*')]
+    if len(lst) == 1:
+        return lst[0]
+    else:
+        return 'Mul(%s)' % (', '.join(lst))
+
+def sexp(expr):
+    if ' - ' in expr:
+        adds, minuses = expr.split(' - ', 1)
+        lst = [_sexp(v) for v in adds.split(' + ')]
+        adds = 'Add(%s)' % (', '.join(lst))
+        lst = [_sexp(v) for v in minuses.split(' - ')]
+        subs = 'Add(%s)' % (', '.join(lst))
+        return 'Sub(%s, %s)' % (adds, subs)
 
 def main(argv):
     parser = argparse.ArgumentParser(
