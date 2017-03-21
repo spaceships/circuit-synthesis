@@ -27,25 +27,31 @@ def _simplify(expr):
         newexpr += simple
     return newexpr
 
-# Unrolls all constants
-def unroll(expr, negate=False):
-    assert not expr.startswith('-')
-    if ' + ' in expr:
-        a, b = expr.split(' + ', 1)
-        return "%s + %s" % (unroll(a, negate), unroll(b))
-    if ' - ' in expr:
-        a, b = expr.split(' - ', 1)
-        return "%s - %s" % (unroll(a, negate), unroll(b, True))
+def _unroll(expr, negate):
+    lst = expr.split('*')
+    if len(lst) == 1:
+        return lst[0]
+
     try:
-        a, b = expr.split('*', 1)
+        v = abs(int(lst[0]))
     except ValueError:
         return expr
+
     op = '-' if negate else '+'
     try:
-        v = abs(int(a))
+        a, b = expr.split('*', 1)
         return ('%s' % b) + (' %s %s' * (v-1)) % ((op, b) * (v-1))
     except ValueError:
         return expr
+
+# Unrolls all constants
+def unroll(expr, negate=False):
+    assert not expr.startswith('-')
+    lst = expr.split()
+    result = [_unroll(lst[0], False)]
+    for (op, v) in zip(lst[1::2], lst[2::2]):
+        result.extend([op, _unroll(v, True if op == '-' else False)])
+    return ' '.join(result)
 
 # Makes sure the first position is not a negation
 def firstpos(expr):
@@ -95,6 +101,9 @@ def simplify(expr, debug=False):
     start = time.time()
     expr = firstpos(repr(expr))
     expr = sub2end(expr)
+    if debug:
+        print >>sys.stderr, ""
+        print >>sys.stderr, expr
     expr = unroll(expr)
     end = time.time()
     print >>sys.stderr, "%.2f seconds" % (end - start)
@@ -177,6 +186,8 @@ def main(argv):
         if args.dot:
             print(dotprint(expr))
         else:
+            if debug:
+                print >>sys.stderr, sexp(expr)
             print(sexp(expr))
 
 if __name__ == '__main__':
