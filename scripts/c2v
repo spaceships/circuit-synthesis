@@ -6,7 +6,7 @@
 set -e
 
 usage () {
-    echo "C2A: Cryptol to acirc through Verilog"
+    echo "C2V: Cryptol to acirc through Verilog"
     echo "Usage: $0 <cryptol-file> <function>"
     exit $1
 }
@@ -19,12 +19,10 @@ cryptolfile=$(realpath $1)
 func=$2
 
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
-# libertyfile=$(realpath $3)
 libertyfile=$scriptdir/../liberties/aig.lib
 
 mkdir -p work
-cd work
+pushd work
 
 cat > sawcmds.saw <<- EOM
 m <- cryptol_load "$cryptolfile";
@@ -32,26 +30,10 @@ f <- cryptol_extract m "$func";
 write_aig "${func}.aig" f;
 EOM
 
-# cat > abccmds.abc <<- EOM
-# read "${func}.aig"
-# dsd
-# strash
-# multi
-# fraig
-# rewrite -l
-# balance -s -d -x
-# write_verilog "${func}.in.v"
-# EOM
-
 cat > abccmds.abc <<- EOM
 read "${func}.aig"
 write_verilog "${func}.in.v"
 EOM
-
-# cat > yosys.ys <<- EOM
-# read_verilog "${func}.in.v"
-# write_verilog ${func}.out.v
-# EOM
 
 cat > yosys.ys <<- EOM
 read_verilog "${func}.in.v"
@@ -73,3 +55,5 @@ abc -f abccmds.abc > /dev/null
 yosys yosys.ys > /dev/null
 
 python $scriptdir/verilog2acirc.py $func.out.v $inputsize $keysize
+
+popd

@@ -1,12 +1,12 @@
 #!/bin/bash
 #
-# Cryptol to acirc through Verilog
+# Cryptol to acirc
 #
 
 set -e
 
 usage () {
-    echo "C2C: Cryptol to acirc through AND-inverter graphs"
+    echo "C2A: Cryptol to acirc through AND-inverter graphs"
     echo "Usage: $0 <cryptol-file> <function>"
     exit $1
 }
@@ -19,7 +19,7 @@ num_test_cases=10
 
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-cryptolfile=$(pwd)/$1
+cryptolfile=$(realpath $1)
 func=$2
 testfile=${2}_tests.cry
 
@@ -49,5 +49,4 @@ ysize=${sizes[1]}
 
 saw sawcmds.saw > /dev/null
 abc -f abccmds.abc > /dev/null
-# echo perl $scriptdir/bench2circ.pl $func.bench ${3:-arithmetic-circuit} $xsize $ysize
 perl $scriptdir/bench2circ.pl $func.bench ${3:-arithmetic-circuit} $xsize $ysize
