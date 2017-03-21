@@ -74,31 +74,32 @@ def sub2end(expr):
             d.extend([op, v])
     return ' '.join(d)
 
-def simplify(expr):
-    print >>sys.stderr, expr
+def simplify(expr, debug=False):
+    if debug:
+        print >>sys.stderr, expr
     print >>sys.stderr, "Expanding expression... ",
     start = time.time()
     expr = expand(expr)
     end = time.time()
     print >>sys.stderr, "%.2f seconds" % (end - start)
-    print >>sys.stderr, expr
+    if debug:
+        print >>sys.stderr, expr
     print >>sys.stderr, "Simplifying expression... ",
     start = time.time()
     expr = _simplify(expr)
     end = time.time()
     print >>sys.stderr, "%.2f seconds" % (end - start)
-    print >>sys.stderr, expr
+    if debug:
+        print >>sys.stderr, expr
     print >>sys.stderr, "Unrolling expression... ",
     start = time.time()
-    print >>sys.stderr, ""
     expr = firstpos(repr(expr))
-    print >>sys.stderr, expr
     expr = sub2end(expr)
-    print >>sys.stderr, expr
     expr = unroll(expr)
     end = time.time()
     print >>sys.stderr, "%.2f seconds" % (end - start)
-    print >>sys.stderr, expr
+    if debug:
+        print >>sys.stderr, expr
     return expr
 
 def _sexp(expr):
@@ -147,7 +148,6 @@ def sexp(expr):
         else:
             adds = 'Add(%s)' % (', '.join(lst))
         return adds
-        
 
 def main(argv):
     parser = argparse.ArgumentParser(
@@ -156,6 +156,7 @@ def main(argv):
     parser.add_argument('file', metavar='FILE', nargs='?', help='optional file to read from')
     parser.add_argument('--dot', action='store_true', help='output in dot file format')
     parser.add_argument('--no-opt', action='store_true', help='don\'t optimize')
+    parser.add_argument('--debug', action='store_true', help='debug statements')
 
     args = parser.parse_args()
     if args.file:
@@ -171,7 +172,7 @@ def main(argv):
         if type(expr) == str:
             expr = eval(expr)
         if not args.no_opt:
-            expr = simplify(expr)
+            expr = simplify(expr, debug=args.debug)
 
         if args.dot:
             print(dotprint(expr))
