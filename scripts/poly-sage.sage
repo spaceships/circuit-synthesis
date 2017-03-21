@@ -79,7 +79,6 @@ def simplify(expr):
     print >>sys.stderr, "Expanding expression... ",
     start = time.time()
     expr = expand(expr)
-    print >>sys.stderr, (expr.subs(x1 == 1, x3 == 1))
     end = time.time()
     print >>sys.stderr, "%.2f seconds" % (end - start)
     print >>sys.stderr, "Simplifying expression... ",
@@ -98,7 +97,6 @@ def simplify(expr):
     end = time.time()
     print >>sys.stderr, expr
     print >>sys.stderr, "%.2f seconds" % (end - start)
-    print >>sys.stderr, (eval(expr).subs(x1 == 1, x3 == 1))
     return expr
 
 def _sexp(expr):
