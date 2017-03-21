@@ -6,7 +6,8 @@ import qualified Circuit.Format.Sexp as Sexp
 import Text.Printf
 import System.Process
 import Control.Monad.State
--- import Control.Exception
+import Debug.Trace
+import qualified Data.Map as M
 import qualified Circuit.Builder as B
 
 circToSage :: Circuit -> [String]
@@ -24,6 +25,7 @@ circToSage c = foldCirc eval c
 callSage :: Int -> String -> IO Circuit
 callSage ninputs s = do
     r <- readProcess "./scripts/poly-sage.sage" [] s
+    -- printf "[callSage] output=\"%s\"\n" r
     return $ Sexp.parse ninputs r
 
 flatten :: Circuit -> IO Circuit
@@ -40,38 +42,41 @@ merge cs = B.buildCircuit $ do
 find :: Int -> Circuit -> Ref
 find maxDepth c = snd $ execState (foldCircM eval c) (0, Ref 0)
   where
-    eval (OpAdd _ _) ref [(xdeg, xdepth), (ydeg, ydepth)] = do
-        let deg   = max xdeg ydeg
+    eval (OpAdd _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
+        let degs  = M.unionWith (max) xdegs ydegs
             depth = max xdepth ydepth + 1
-        check ref deg depth
-        return (deg, depth)
+        check ref degs depth
+        return (degs, depth)
 
-    eval (OpSub _ _) ref [(xdeg, xdepth), (ydeg, ydepth)] = do
-        let deg   = max xdeg ydeg
+    eval (OpSub _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
+        let degs  = M.unionWith (max) xdegs ydegs
             depth = max xdepth ydepth + 1
-        check ref deg depth
-        return (deg, depth)
+        check ref degs depth
+        return (degs, depth)
 
-    eval (OpMul _ _) ref [(xdeg, xdepth), (ydeg, ydepth)] = do
-        let deg   = xdeg + ydeg
+    eval (OpMul _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
+        let degs  = M.unionWith (+) xdegs ydegs
             depth = max xdepth ydepth + 1
-        check ref deg depth
-        return (deg, depth)
+        check ref degs depth
+        return (degs, depth)
 
-    eval (OpInput _)   _ _ = return (1, 0)
+    eval op@(OpInput _)   _ _ = return (M.singleton op 1, 0)
 
-    eval (OpSecret id) _ _ = if publicConst c id
-                                then return (0, 0)
-                                else return (1, 0)
+    eval op@(OpSecret id) _ _ = if publicConst c id
+                                   then return (M.empty         , 0)
+                                   else return (M.singleton op 1, 0)
 
     eval _ _ _ = undefined
 
-    check :: Monad m => Ref -> Int -> Int -> StateT (Int, Ref) m ()
-    check ref deg depth
+    check :: Monad m => Ref -> M.Map Op Int -> Int -> StateT (Int, Ref) m ()
+    check ref degs depth
       | depth > maxDepth = return ()
       | otherwise = do
           existingDeg <- gets fst
-          when (deg > existingDeg) $ put (deg, ref)
+          let deg = maximum (0 : M.elems degs)
+          when (deg > existingDeg) $ do
+              traceM (printf "deg=%d" deg)
+              put (deg, ref)
 
 -- get a subcircuit using an intermediate ref as an output ref
 slice :: Ref -> Circuit -> Circuit
