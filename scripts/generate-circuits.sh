@@ -86,8 +86,9 @@ for ty in C2A C2V; do
 done
 
 # package everything
-rm -rf /tmp/circuits
-mkdir -p /tmp/circuits
-mv *.acirc /tmp/circuits
-dir=$PWD
-tar czf $dir/circuits.tgz /tmp/circuits
+tmpdir=$(mktemp -d)
+mkdir $tmpdir/other $tmpdir/sigma
+mv *.acirc $tmpdir
+mv $tmpdir/*sigma* $tmpdir/sigma
+mv $tmpdir/*mimc* $tmpdir/other
+tar czf $PWD/circuits.tgz $tmpdir
