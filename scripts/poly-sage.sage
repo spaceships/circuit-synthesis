@@ -140,6 +140,14 @@ def sexp(expr):
         else:
             subs = 'Add(%s)' % (', '.join(lst))
         return 'Sub(%s, %s)' % (adds, subs)
+    else:
+        lst = [_sexp(v) for v in expr.split(' + ')]
+        if len(lst) == 1:
+            adds = lst[0]
+        else:
+            adds = 'Add(%s)' % (', '.join(lst))
+        return adds
+        
 
 def main(argv):
     parser = argparse.ArgumentParser(
