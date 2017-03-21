@@ -47,7 +47,6 @@ for ty in C2A C2V; do
         generate_circuit $ty $cryptoldir/goldreich.cry $f
     done
 done
-
 cabal run --verbose=0 -- -C goldreich
 
 # generate GGM circuits
@@ -89,6 +88,6 @@ done
 tmpdir=$(mktemp -d)
 mkdir $tmpdir/other $tmpdir/sigma
 mv *.acirc $tmpdir
-mv $tmpdir/*sigma* $tmpdir/sigma
-mv $tmpdir/*mimc* $tmpdir/other
-tar czf $PWD/circuits.tgz $tmpdir
+mv $tmpdir/*sigma*acirc $tmpdir/sigma
+mv $tmpdir/*mimc*acirc $tmpdir/other
+tar --transform="s|$tmpdir|circuits|" -Pczf $PWD/circuits.tgz $tmpdir
