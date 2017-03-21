@@ -5,3 +5,4 @@ dist
 work
 *.acirc
 *.zim
+poly-sage.sage.py
