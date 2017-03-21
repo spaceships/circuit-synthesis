@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module Circuit.Optimizer where
 
 import Circuit
@@ -5,17 +6,8 @@ import qualified Circuit.Format.Sexp as Sexp
 import Text.Printf
 import System.Process
 import Control.Monad.State
+-- import Control.Exception
 import qualified Circuit.Builder as B
-import Debug.Trace
-
-c :: Circuit
-c = B.buildCircuit $ do
-    one  <- B.constant 1
-    zero <- B.constant 0
-    a <- B.circMul one one
-    b <- B.circMul one one
-    z <- B.circMul a b
-    B.output z
 
 circToSage :: Circuit -> [String]
 circToSage c = foldCirc eval c
@@ -45,25 +37,34 @@ merge cs = B.buildCircuit $ do
     B.outputs outs
 
 -- find the highest degree subcircuit within a given depth
-find :: Int -> Circuit -> (Int, Ref)
-find maxDepth c = execState (foldCircM eval c) (0, Ref 0)
+find :: Int -> Circuit -> Ref
+find maxDepth c = snd $ execState (foldCircM eval c) (0, Ref 0)
   where
     eval (OpAdd _ _) ref [(xdeg, xdepth), (ydeg, ydepth)] = do
         let deg   = max xdeg ydeg
             depth = max xdepth ydepth + 1
         check ref deg depth
         return (deg, depth)
+
     eval (OpSub _ _) ref [(xdeg, xdepth), (ydeg, ydepth)] = do
         let deg   = max xdeg ydeg
             depth = max xdepth ydepth + 1
         check ref deg depth
         return (deg, depth)
+
     eval (OpMul _ _) ref [(xdeg, xdepth), (ydeg, ydepth)] = do
         let deg   = xdeg + ydeg
             depth = max xdepth ydepth + 1
         check ref deg depth
         return (deg, depth)
-    eval _ _ _ = return (1,1)
+
+    eval (OpInput _)   _ _ = return (1, 0)
+
+    eval (OpSecret id) _ _ = if publicConst c id
+                                then return (0, 0)
+                                else return (1, 0)
+
+    eval _ _ _ = undefined
 
     check :: Monad m => Ref -> Int -> Int -> StateT (Int, Ref) m ()
     check ref deg depth
@@ -149,13 +150,16 @@ cleanup c = B.buildCircuit $ do
     B.outputs outs
 
 flattenRec :: Int -> Circuit -> IO Circuit
-flattenRec d c = do
-    let (deg, root) = find d c
-        sub = slice root c
-    traceM (printf "flattenRec subcircuit deg=%d, root=%d, nin=%d total_degree=%d" deg (getRef root) (ninputs sub) (circDegree c))
+flattenRec maxDepth c = do
+    let root = find maxDepth c
+        sub  = slice root c
+    printf "[flattenRec] root=%d, nin=%d, deg=%d, depth=%d, total_degree=%d\n"
+            (getRef root) (ninputs sub) (circDegree sub) (depth sub) (circDegree c)
+    -- sub' <- catch (flatten sub) (\(_ :: SomeException) -> writeFile "/tmp/oops" (unlines (circToSage sub)) >> undefined)
     sub' <- flatten sub
+    printf "[flattenRec] flattened subcircuit degree: %d\n" (circDegree sub')
     let c' = patch root c sub'
-    if circDegree c' < circDegree c then
-        flattenRec d (foldConsts c')
+    if circDegree sub' < circDegree sub then
+        flattenRec maxDepth (foldConsts c')
     else
         return c'

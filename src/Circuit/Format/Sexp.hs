@@ -7,12 +7,6 @@ import Control.Monad
 import Control.Monad.Trans
 import Circuit
 
-c :: Circuit
-c = B.buildCircuit $ do
-    x <- B.input
-    z <- B.circNot x
-    B.output z
-
 circToSexp :: Circuit -> [String]
 circToSexp c = foldCirc eval c
   where
@@ -28,19 +22,24 @@ circToSexp c = foldCirc eval c
 type SexpParser = ParsecT String () B.Builder
 
 parse :: Int -> String -> Circuit
-parse ninps ss = B.buildCircuit $ do
+parse ninps s = B.buildCircuit $ do
     _   <- B.inputs ninps
-    res <- runParserT parseSexp () "" ss
-    either (error "[Sexp::parse] parse error") B.output res
+    res <- runParserT parseSexp () "" s
+    case res of
+        (Left e) -> error (show e)
+        (Right ref) -> B.output ref
 
 parseSexp :: SexpParser Ref
-parseSexp = try parseAdd <|> try parseSub <|> try parseMul <|> try parseInput <|> try parseConst <|> parseInteger
+parseSexp = try parseAdd <|> try parseSub <|> try parseMul <|> try parseInput
+                         <|> try parseConst <|> parseInteger <?> "sexp"
 
 parseSub :: SexpParser Ref
 parseSub = do
     _ <- string "Sub("
     x <- parseSexp
-    _ <- string ", "
+    spaces
+    _ <- string ","
+    spaces
     y <- parseSexp
     _ <- string ")"
     lift (B.circSub x y)
