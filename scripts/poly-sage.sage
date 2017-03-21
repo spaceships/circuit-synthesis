@@ -174,7 +174,6 @@ def main(argv):
             exprs = f.read()
     else:
         exprs = sys.stdin.read().strip()
-    args.debug = True
 
     exprs = eval(exprs)
     if type(exprs) != list:
