@@ -51,7 +51,6 @@ def unroll(expr, negate=False):
     result = [_unroll(lst[0], False)]
     for (op, v) in zip(lst[1::2], lst[2::2]):
         result.extend([op, _unroll(v, True if op == '-' else False)])
-    print(result)
     return ' '.join(result)
 
 # Makes sure the first position is not a negation
