@@ -130,9 +130,15 @@ def sexp(expr):
     if ' - ' in expr:
         adds, minuses = expr.split(' - ', 1)
         lst = [_sexp(v) for v in adds.split(' + ')]
-        adds = 'Add(%s)' % (', '.join(lst))
+        if len(lst) == 1:
+            adds = lst[0]
+        else:
+            adds = 'Add(%s)' % (', '.join(lst))
         lst = [_sexp(v) for v in minuses.split(' - ')]
-        subs = 'Add(%s)' % (', '.join(lst))
+        if len(lst) == 1:
+            subs = lst[0]
+        else:
+            subs = 'Add(%s)' % (', '.join(lst))
         return 'Sub(%s, %s)' % (adds, subs)
 
 def main(argv):
