@@ -4,7 +4,7 @@ import Circuit
 import Util
 import Rand
 import Circuit.Builder
-import Circuit.Optimizer (flattenRec)
+import Circuit.Optimizer (flattenRec, foldConsts)
 import Circuit.Parser (CircuitParser)
 import qualified Circuit.Format.Acirc   as Acirc
 import qualified Circuit.Graphviz       as Graphviz
@@ -109,8 +109,15 @@ main = runCommand $ \opts args -> do
                 parser    = parserFor inputFile :: CircuitParser
             when (opt_add_acirc_tests opts) $ Acirc.addTestsToFile inputFile
             (c,ts) <- parser <$> readFile inputFile
-            c <- if opt_flatten opts then flattenRec c else return c
-            c <- if opt_randomize_secrets opts then randomizeSecrets c else return c
+
+            c <- if opt_flatten opts
+                    then flattenRec (foldConsts c)
+                    else return c
+
+            c <- if opt_randomize_secrets opts
+                    then randomizeSecrets c
+                    else return c
+
             when (opt_info opts) $ printCircInfo c
             when (opt_latex_info opts) $ printCircInfoLatex c
             ts' <- case opt_gentests opts of
