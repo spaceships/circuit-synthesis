@@ -95,7 +95,19 @@ findFirst pred c = listToMaybe $ catMaybes $ runIdentity (foldCircM eval c)
 
 -- TODO: make this ignore consts
 hasHighSingleVarDeg :: Int -> Circuit -> Bool
-hasHighSingleVarDeg deg c = any ((> deg) . fromIntegral) (degs c)
+hasHighSingleVarDeg deg c = any ((>= deg) . fromIntegral) (nonPublicDegs c)
+
+nonPublicDegs :: Circuit -> [Integer]
+nonPublicDegs c = map (varDegree c) ids
+  where
+    allIds = map (OpInput . Id) [0 .. ninputs c-1]
+
+    ok (OpSecret id) = publicConst c id
+    ok (OpInput  _ ) = True
+    ok _             = undefined
+
+    ids = filter ok allIds
+
 
 -- get a subcircuit using an intermediate ref as an output ref
 slice :: Ref -> Circuit -> Circuit
@@ -179,11 +191,11 @@ cleanup c = B.buildCircuit $ do
 
 flattenRec :: Circuit -> IO Circuit
 flattenRec c = do
-    case findFirst (hasHighSingleVarDeg 3) c of
+    case findFirst (\c -> depth c < 15 && hasHighSingleVarDeg 2 c) c of
         Nothing   -> return c
         Just root -> do
             let sub = foldConsts (cheapSlice root c)
-            putStrLn (unlines (circToSage sub))
+            -- putStrLn (unlines (circToSage sub))
             printf "[flattenRec] root=%d, nin=%d, deg=%d, depth=%d, total_degree=%d\n"
                     (getRef root) (ninputs sub) (circDegree sub) (depth sub) (circDegree c)
             sub' <- flatten sub
