@@ -6,7 +6,10 @@ import qualified Circuit.Format.Sexp as Sexp
 import Text.Printf
 import System.Process
 import Control.Monad.State
--- import Control.Exception
+import Control.Monad.Identity
+import Debug.Trace
+import Data.Maybe (isJust, catMaybes, listToMaybe)
+import qualified Data.Map as M
 import qualified Circuit.Builder as B
 
 circToSage :: Circuit -> [String]
@@ -24,6 +27,7 @@ circToSage c = foldCirc eval c
 callSage :: Int -> String -> IO Circuit
 callSage ninputs s = do
     r <- readProcess "./scripts/poly-sage.sage" [] s
+    -- printf "[callSage] output=\"%s\"\n" r
     return $ Sexp.parse ninputs r
 
 flatten :: Circuit -> IO Circuit
@@ -40,38 +44,58 @@ merge cs = B.buildCircuit $ do
 find :: Int -> Circuit -> Ref
 find maxDepth c = snd $ execState (foldCircM eval c) (0, Ref 0)
   where
-    eval (OpAdd _ _) ref [(xdeg, xdepth), (ydeg, ydepth)] = do
-        let deg   = max xdeg ydeg
+    eval (OpAdd _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
+        let degs  = M.unionWith (max) xdegs ydegs
             depth = max xdepth ydepth + 1
-        check ref deg depth
-        return (deg, depth)
+        check ref degs depth
+        return (degs, depth)
 
-    eval (OpSub _ _) ref [(xdeg, xdepth), (ydeg, ydepth)] = do
-        let deg   = max xdeg ydeg
+    eval (OpSub _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
+        let degs  = M.unionWith (max) xdegs ydegs
             depth = max xdepth ydepth + 1
-        check ref deg depth
-        return (deg, depth)
+        check ref degs depth
+        return (degs, depth)
 
-    eval (OpMul _ _) ref [(xdeg, xdepth), (ydeg, ydepth)] = do
-        let deg   = xdeg + ydeg
+    eval (OpMul _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
+        let degs  = M.unionWith (+) xdegs ydegs
             depth = max xdepth ydepth + 1
-        check ref deg depth
-        return (deg, depth)
+        check ref degs depth
+        return (degs, depth)
 
-    eval (OpInput _)   _ _ = return (1, 0)
+    eval op@(OpInput _)   _ _ = return (M.singleton op 1, 0)
 
-    eval (OpSecret id) _ _ = if publicConst c id
-                                then return (0, 0)
-                                else return (1, 0)
+    eval op@(OpSecret id) _ _ = if publicConst c id
+                                   then return (M.empty         , 0)
+                                   else return (M.singleton op 1, 0)
 
     eval _ _ _ = undefined
 
-    check :: Monad m => Ref -> Int -> Int -> StateT (Int, Ref) m ()
-    check ref deg depth
+    check :: Monad m => Ref -> M.Map Op Int -> Int -> StateT (Int, Ref) m ()
+    check ref degs depth
       | depth > maxDepth = return ()
       | otherwise = do
           existingDeg <- gets fst
-          when (deg > existingDeg) $ put (deg, ref)
+          let deg = maximum (0 : M.elems degs)
+          when (deg > existingDeg) $ do
+              traceM (printf "deg=%d" deg)
+              put (deg, ref)
+
+
+-- find the first subcircuit that satisfies some predicate
+findFirst :: (Circuit -> Bool) -> Circuit -> Maybe Ref
+findFirst pred c = listToMaybe $ catMaybes $ runIdentity (foldCircM eval c)
+  where
+    eval _ ref [xref, yref] = return $
+        if isJust xref then xref else
+        if isJust yref then yref else
+        if pred (cheapSlice ref c)
+           then Just ref
+           else Nothing
+    eval _ _ _ = return Nothing
+
+-- TODO: make this ignore consts
+hasHighSingleVarDeg :: Int -> Circuit -> Bool
+hasHighSingleVarDeg deg c = any ((> deg) . fromIntegral) (degs c)
 
 -- get a subcircuit using an intermediate ref as an output ref
 slice :: Ref -> Circuit -> Circuit
@@ -88,6 +112,10 @@ slice ref c = B.buildCircuit $ do
                                    then B.constant sec
                                    else B.secret sec
     eval _ _ _ = error "[slice] oops"
+
+-- get a slice without rebuilding!
+cheapSlice :: Ref -> Circuit -> Circuit
+cheapSlice root c = c { circ_outputs = [root] }
 
 -- replace subcircuit ending at loc with c2 in c1
 patch :: Ref -> Circuit -> Circuit -> Circuit
@@ -149,17 +177,21 @@ cleanup c = B.buildCircuit $ do
     outs <- B.subcircuit c inps
     B.outputs outs
 
-flattenRec :: Int -> Circuit -> IO Circuit
-flattenRec maxDepth c = do
-    let root = find maxDepth c
-        sub  = slice root c
-    printf "[flattenRec] root=%d, nin=%d, deg=%d, depth=%d, total_degree=%d\n"
-            (getRef root) (ninputs sub) (circDegree sub) (depth sub) (circDegree c)
-    -- sub' <- catch (flatten sub) (\(_ :: SomeException) -> writeFile "/tmp/oops" (unlines (circToSage sub)) >> undefined)
-    sub' <- flatten sub
-    printf "[flattenRec] flattened subcircuit degree: %d\n" (circDegree sub')
-    let c' = patch root c sub'
-    if circDegree sub' < circDegree sub then
-        flattenRec maxDepth (foldConsts c')
-    else
-        return c'
+flattenRec :: Circuit -> IO Circuit
+flattenRec c = do
+    case findFirst (hasHighSingleVarDeg 3) c of
+        Nothing   -> return c
+        Just root -> do
+            let sub = foldConsts (cheapSlice root c)
+            putStrLn (unlines (circToSage sub))
+            printf "[flattenRec] root=%d, nin=%d, deg=%d, depth=%d, total_degree=%d\n"
+                    (getRef root) (ninputs sub) (circDegree sub) (depth sub) (circDegree c)
+            sub' <- flatten sub
+            printf "[flattenRec] flattened subcircuit degree: %d\n" (circDegree sub')
+            let c' = patch root c sub'
+            if circDegree sub' < circDegree sub then
+                flattenRec (foldConsts c')
+            else
+                return c'
+
+
