@@ -4,30 +4,42 @@ from sage.calculus.functional import *
 from collections import deque
 import argparse, sys, time
 
-def _simplify(expr):
+def simplify_monomial(expr):
+    subexpr = repr(expr)
+    simple = prod(expr.args())
+    try:
+        # extract the 1st value, which is the coefficient
+        leading, _ = subexpr.split('*', 1)
+        try:
+            simple *= int(leading)
+        except ValueError:
+            # -1's are treated as -variable, so extract '-' if possible.
+            # Otherwise, it has no coefficient
+            if leading.startswith('-'):
+                simple *= -1
+    except ValueError:
+        # If the subexpression only has a single term, it could have a
+        # negation in front of it, so check for that
+        if subexpr.startswith('-'):
+            simple *= -1
+    return simple
+    
+
+def simplify(expr):
+    # If `expr` is a single integer, just return
+    if type(expr) is int:
+        return expr
+    # If `expr` is a monomial
+    if not ('+' in repr(expr) or '-' in repr(expr)):
+        return simplify_monomial(expr)
+    # `expr` is a polynomial, so walk through each monomial within the
+    # polynomial and simplify
     newexpr = 0
     for i in range(len(expr)):
-        subexpr = repr(expr.op[i])
-        simple = prod(expr.op[i].args())
-        try:
-            # extract the 1st value, which is the coefficient
-            leading, _ = subexpr.split('*', 1)
-            try:
-                simple *= int(leading)
-            except ValueError:
-                # -1's are treated as -variable, so extract '-' if possible.
-                # Otherwise, it has no coefficient
-                if leading.startswith('-'):
-                    simple *= -1
-        except ValueError:
-            # If the subexpression only has a single term, it could have a
-            # negation in front of it, so check for that
-            if subexpr.startswith('-'):
-                simple *= -1
-        newexpr += simple
+        newexpr += simplify_monomial(expr.op[i])
     return newexpr
 
-def _unroll(expr, negate):
+def unroll_monomial(expr, negate):
     lst = expr.split('*')
     if len(lst) == 1:
         return lst[0]
@@ -48,9 +60,9 @@ def _unroll(expr, negate):
 def unroll(expr, negate=False):
     assert not expr.startswith('-')
     lst = expr.split()
-    result = [_unroll(lst[0], False)]
+    result = [unroll_monomial(lst[0], False)]
     for (op, v) in zip(lst[1::2], lst[2::2]):
-        result.extend([op, _unroll(v, True if op == '-' else False)])
+        result.extend([op, unroll_monomial(v, True if op == '-' else False)])
     return ' '.join(result)
 
 # Makes sure the first position is not a negation
@@ -80,7 +92,7 @@ def sub2end(expr):
             d.extend([op, v])
     return ' '.join(d)
 
-def simplify(expr, debug=False):
+def flatten(expr, debug=False):
     if debug:
         print >>sys.stderr, expr
     print >>sys.stderr, "Expanding expression... ",
@@ -92,7 +104,7 @@ def simplify(expr, debug=False):
         print >>sys.stderr, expr
     print >>sys.stderr, "Simplifying expression... ",
     start = time.time()
-    expr = _simplify(expr)
+    expr = simplify(expr)
     end = time.time()
     print >>sys.stderr, "%.2f seconds" % (end - start)
     if debug:
@@ -181,7 +193,7 @@ def main(argv):
         if type(expr) == str:
             expr = eval(expr)
         if not args.no_opt:
-            expr = simplify(expr, debug=args.debug)
+            expr = flatten(expr, debug=args.debug)
 
         if args.dot:
             print(dotprint(expr))
