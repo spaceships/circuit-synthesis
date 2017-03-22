@@ -93,7 +93,6 @@ findFirst pred c = listToMaybe $ catMaybes $ runIdentity (foldCircM eval c)
            else Nothing
     eval _ _ _ = return Nothing
 
--- TODO: make this ignore consts
 hasHighSingleVarDeg :: Int -> Circuit -> Bool
 hasHighSingleVarDeg deg c = any ((>= deg) . fromIntegral) (nonPublicDegs c)
 
@@ -107,6 +106,46 @@ nonPublicDegs c = map (varDegree c) ids
     ok _             = undefined
 
     ids = filter ok allIds
+
+
+-- -- find the highest degree subcircuit within a given depth
+-- findFirstHSVD :: Int -> Circuit -> Ref
+-- findFirstHSVD maxDepth c = runIdentity $ foldCircM eval c
+--   where
+--     eval (OpMul _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
+--         let degs  = M.unionWith (+) xdegs ydegs
+--             depth = max xdepth ydepth + 1
+--         check ref degs depth
+
+--     eval (OpAdd _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
+--         let degs  = M.unionWith (max) xdegs ydegs
+--             depth = max xdepth ydepth + 1
+--         check ref degs depth
+--         return (degs, depth)
+
+--     eval (OpSub _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
+--         let degs  = M.unionWith (max) xdegs ydegs
+--             depth = max xdepth ydepth + 1
+--         check ref degs depth
+--         return (degs, depth)
+
+--     eval op@(OpInput _)   _ _ = return (M.singleton op 1, 0)
+
+--     eval op@(OpSecret id) _ _ = if publicConst c id
+--                                    then return (M.empty         , 0)
+--                                    else return (M.singleton op 1, 0)
+
+--     eval _ _ _ = undefined
+
+--     check ref degs depth
+--       | depth > maxDepth = return ()
+--       | otherwise = do
+--           existingDeg <- gets fst
+--           let deg = maximum (0 : M.elems degs)
+--           when (deg > existingDeg) $ do
+--               traceM (printf "deg=%d" deg)
+--               put (deg, ref)
+
 
 
 -- get a subcircuit using an intermediate ref as an output ref
@@ -205,5 +244,3 @@ flattenRec c = do
                 flattenRec (foldConsts c')
             else
                 return c'
-
-
