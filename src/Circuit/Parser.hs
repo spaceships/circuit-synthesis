@@ -5,7 +5,9 @@ import Util
 
 import Control.Monad
 import Text.Parsec hiding (spaces, parseTest)
-import qualified Data.Map as M
+import qualified Data.Map   as M
+import qualified Data.Bimap as B
+import qualified Data.Set   as S
 
 type CircuitParser = String -> (Circuit, [TestCase])
 
@@ -55,6 +57,15 @@ insertInput ref id = do
 
 markOutput :: Ref -> ParseCirc ()
 markOutput ref = modifyCirc (\c -> c { circ_outputs = circ_outputs c ++ [ref] })
+
+markPublicConst :: Ref -> ParseCirc ()
+markPublicConst ref = do
+    c <- getCirc
+    case M.lookup ref (circ_secret_refs c) of
+        Nothing -> error ("no const with ref " ++ show ref)
+        Just id -> modifyCirc (\c -> c { circ_consts    = B.insert (getSecret c id) ref (circ_consts c)
+                                       , circ_const_ids = S.insert id (circ_const_ids c)
+                                       })
 
 nextConstId :: ParseCirc Id
 nextConstId = do
