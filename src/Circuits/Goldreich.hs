@@ -8,6 +8,7 @@ module Circuits.Goldreich where
 
 import Circuit
 import Circuit.Builder
+import Circuit.Optimizer (foldConsts)
 import qualified Circuit.Format.Acirc as Acirc
 import Util
 import Rand
@@ -17,45 +18,45 @@ import Data.List.Split
 
 makePRG :: IO ()
 makePRG = do
-    Acirc.writeAcirc "prg_16_16.dsl.acirc" =<< prg 16 16
-    Acirc.writeAcirc "prg_16_32.dsl.acirc" =<< prg 16 32
-    Acirc.writeAcirc "prg_16_48.dsl.acirc" =<< prg 16 48
-    Acirc.writeAcirc "prg_16_64.dsl.acirc" =<< prg 16 64
-    Acirc.writeAcirc "prg_32_32.dsl.acirc" =<< prg 32 32
-    Acirc.writeAcirc "prg_32_64.dsl.acirc" =<< prg 32 64
-    Acirc.writeAcirc "prg_32_96.dsl.acirc" =<< prg 32 96
-    Acirc.writeAcirc "prg_32_128.dsl.acirc" =<< prg 32 128
+    Acirc.writeAcirc "prg_16_16.dsl.acirc"  =<< foldConsts <$> prg 16 16
+    Acirc.writeAcirc "prg_16_32.dsl.acirc"  =<< foldConsts <$> prg 16 32
+    Acirc.writeAcirc "prg_16_48.dsl.acirc"  =<< foldConsts <$> prg 16 48
+    Acirc.writeAcirc "prg_16_64.dsl.acirc"  =<< foldConsts <$> prg 16 64
+    Acirc.writeAcirc "prg_32_32.dsl.acirc"  =<< foldConsts <$> prg 32 32
+    Acirc.writeAcirc "prg_32_64.dsl.acirc"  =<< foldConsts <$> prg 32 64
+    Acirc.writeAcirc "prg_32_96.dsl.acirc"  =<< foldConsts <$> prg 32 96
+    Acirc.writeAcirc "prg_32_128.dsl.acirc" =<< foldConsts <$> prg 32 128
 
 
 makeGGM :: IO ()
 makeGGM = do
-    Acirc.writeAcirc "ggm_1_16.dsl.acirc" =<< ggm 4  16 16
-    Acirc.writeAcirc "ggm_2_16.dsl.acirc" =<< ggm 8  16 16
-    Acirc.writeAcirc "ggm_3_16.dsl.acirc" =<< ggm 12 16 16
-    Acirc.writeAcirc "ggm_4_16.dsl.acirc" =<< ggm 16 16 16
-    Acirc.writeAcirc "ggm_1_32.dsl.acirc" =<< ggm 4  32 16
-    Acirc.writeAcirc "ggm_2_32.dsl.acirc" =<< ggm 8  32 16
-    Acirc.writeAcirc "ggm_3_32.dsl.acirc" =<< ggm 12 32 16
-    Acirc.writeAcirc "ggm_4_32.dsl.acirc" =<< ggm 16 32 16
+    Acirc.writeAcirc "ggm_1_16.dsl.acirc" =<< foldConsts <$> ggm 4  16 16
+    Acirc.writeAcirc "ggm_2_16.dsl.acirc" =<< foldConsts <$> ggm 8  16 16
+    Acirc.writeAcirc "ggm_3_16.dsl.acirc" =<< foldConsts <$> ggm 12 16 16
+    Acirc.writeAcirc "ggm_4_16.dsl.acirc" =<< foldConsts <$> ggm 16 16 16
+    Acirc.writeAcirc "ggm_1_32.dsl.acirc" =<< foldConsts <$> ggm 4  32 16
+    Acirc.writeAcirc "ggm_2_32.dsl.acirc" =<< foldConsts <$> ggm 8  32 16
+    Acirc.writeAcirc "ggm_3_32.dsl.acirc" =<< foldConsts <$> ggm 12 32 16
+    Acirc.writeAcirc "ggm_4_32.dsl.acirc" =<< foldConsts <$> ggm 16 32 16
 
-    Acirc.writeAcircR "ggm_sigma_1_16.dsl.acirc" 16 =<< ggmRachel 16 16 16
-    Acirc.writeAcircR "ggm_sigma_2_16.dsl.acirc" 16 =<< ggmRachel 32 16 16
-    Acirc.writeAcircR "ggm_sigma_3_16.dsl.acirc" 16 =<< ggmRachel 48 16 16
-    Acirc.writeAcircR "ggm_sigma_4_16.dsl.acirc" 16 =<< ggmRachel 64 16 16
-    Acirc.writeAcircR "ggm_sigma_1_32.dsl.acirc" 16 =<< ggmRachel 16 32 16
-    Acirc.writeAcircR "ggm_sigma_2_32.dsl.acirc" 16 =<< ggmRachel 32 32 16
-    Acirc.writeAcircR "ggm_sigma_3_32.dsl.acirc" 16 =<< ggmRachel 48 32 16
-    Acirc.writeAcircR "ggm_sigma_4_32.dsl.acirc" 16 =<< ggmRachel 64 32 16
+    Acirc.writeAcircR "ggm_sigma_1_16.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 16 16 16
+    Acirc.writeAcircR "ggm_sigma_2_16.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 32 16 16
+    Acirc.writeAcircR "ggm_sigma_3_16.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 48 16 16
+    Acirc.writeAcircR "ggm_sigma_4_16.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 64 16 16
+    Acirc.writeAcircR "ggm_sigma_1_32.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 16 32 16
+    Acirc.writeAcircR "ggm_sigma_2_32.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 32 32 16
+    Acirc.writeAcircR "ggm_sigma_3_32.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 48 32 16
+    Acirc.writeAcircR "ggm_sigma_4_32.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 64 32 16
 
 
 makeApplebaum :: IO ()
 makeApplebaum = do
-    Acirc.writeAcirc "f1_16.dsl.acirc"    =<< f1 16 1
-    Acirc.writeAcirc "f1_32.dsl.acirc"    =<< f1 32 1
-    Acirc.writeAcirc "f1_64.dsl.acirc"    =<< f1 64 1
-    Acirc.writeAcirc "f1_128.dsl.acirc"   =<< f1 128 1
-    Acirc.writeAcirc "f1_128_2.dsl.acirc" =<< f1 128 2
-    Acirc.writeAcirc "f3_4.dsl.acirc"     =<< f3 4 1
+    Acirc.writeAcirc "f1_16.dsl.acirc"    =<< foldConsts <$> f1 16 1
+    Acirc.writeAcirc "f1_32.dsl.acirc"    =<< foldConsts <$> f1 32 1
+    Acirc.writeAcirc "f1_64.dsl.acirc"    =<< foldConsts <$> f1 64 1
+    Acirc.writeAcirc "f1_128.dsl.acirc"   =<< foldConsts <$> f1 128 1
+    Acirc.writeAcirc "f1_128_2.dsl.acirc" =<< foldConsts <$> f1 128 2
+    Acirc.writeAcirc "f3_4.dsl.acirc"     =<< foldConsts <$> f3 4 1
 
 --------------------------------------------------------------------------------
 -- f1
