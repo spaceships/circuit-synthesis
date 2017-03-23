@@ -70,6 +70,10 @@ getSecret c id = case M.lookup id (circ_secrets c) of
 publicConst :: Circuit -> Id -> Bool
 publicConst c id = S.member id (circ_const_ids c)
 
+-- refs of all non-public consts
+secretRefs :: Circuit -> [Ref]
+secretRefs c = map fst $ filter (not . publicConst c . snd) $ M.toList (circ_secret_refs c)
+
 getGate :: Circuit -> Ref -> Op
 getGate c ref = case M.lookup ref (circ_refmap c) of
     Nothing -> error (printf "[getGate] no ref %d!" (getRef ref))

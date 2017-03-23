@@ -60,8 +60,7 @@ showCircWithTestsR symlen ntests c = do
 showCirc :: Int -> Circuit -> String
 showCirc symlen c = unlines (header ++ gateLines)
   where
-    header = [printf ":nins %d" (ninputs c), printf ":depth %d" (depth c)] ++
-             if symlen /= 1 then [printf ":symlen %d" symlen] else []
+    header = if symlen /= 1 then [printf ":symlen %d" symlen] else []
 
     inputs = mapM gateStr (circ_inputs c)
     consts = mapM gateStr (M.keys (circ_secret_refs c))
@@ -69,7 +68,10 @@ showCirc symlen c = unlines (header ++ gateLines)
 
     output = do
         outs <- map show <$> mapM tr (circ_outputs c)
-        return [printf ":outputs %s" (unwords outs)]
+        secs <- map show <$> mapM tr (secretRefs c)
+        return [ printf ":outputs %s" (unwords outs)
+               , printf ":secrets %s" (unwords secs)
+               ]
 
     gateLines = concat $ S.evalState (sequence [inputs, consts, gates, output]) (M.empty, 0)
 
@@ -124,7 +126,7 @@ parseCirc s = case runParser (circParser >> getState) emptySt "" s of
     circParser = preamble >> lines >> end >> eof
     preamble = many $ (char ':' >> (parseTest <|> parseParam))
     lines    = many parseRefLine
-    end      = parseOutputs
+    end      = parseOutputs >> optional parseSecrets
 
 parseParam :: ParseCirc ()
 parseParam = do
@@ -149,6 +151,17 @@ parseOutputs = do
     spaces
     refs <- many (do ref <- parseRef; spaces; return ref)
     mapM_ markOutput refs
+    endLine
+
+parseSecrets :: ParseCirc ()
+parseSecrets = do
+    string ":secrets"
+    spaces
+    secs <- many (do ref <- parseRef; spaces; return ref)
+    ys   <- (M.keys . circ_secret_refs) <$> getCirc
+    forM_ ys $ \y -> do
+        when (y `notElem` secs) $ do
+            markPublicConst y
     endLine
 
 parseRef :: ParseCirc Ref
