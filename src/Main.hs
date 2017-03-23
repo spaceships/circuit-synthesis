@@ -27,7 +27,7 @@ data MainOptions = MainOptions { opt_info       :: Bool
                                , opt_add_acirc_tests    :: Bool
                                , opt_randomize_secrets  :: Bool
                                , opt_write_to_file      :: Maybe String
-                               , opt_flatten            :: Bool
+                               , opt_optimize           :: Maybe Int
                                , opt_graphviz           :: Bool
                                }
 
@@ -38,50 +38,60 @@ instance Options MainOptions where
                      , optionShortFlags  = "i"
                      , optionDescription = "Show circuit info."
                      })
+
         <*> defineOption optionType_bool
             (\o -> o { optionLongFlags   = ["latex"]
                      , optionShortFlags  = "l"
                      , optionDescription = "Show circuit info as a latex table."
                      })
+
         <*> defineOption optionType_bool
             (\o -> o { optionShortFlags  = "v"
                      , optionLongFlags   = ["verbose"]
                      , optionDescription = "Be verbose."
                      })
+
         <*> defineOption optionType_bool
             (\o -> o { optionShortFlags  = "t"
                      , optionLongFlags   = ["test"]
                      , optionDescription = "Run the circuit on tests (random if none exist)."
                      })
+
         <*> defineOption (optionType_maybe optionType_int)
             (\o -> o { optionLongFlags   = ["gen-tests"]
                      , optionDescription = "Generate tests."
                      })
+
         <*> defineOption (optionType_maybe optionType_string)
             (\o -> o { optionLongFlags   = ["gen-circuit"]
                      , optionShortFlags  = "C"
                      , optionDescription = "Generate a circuit"
                      })
+
         <*> defineOption optionType_bool
             (\o -> o { optionShortFlags  = "A"
                      , optionLongFlags   = ["add-tests"]
                      , optionDescription = "Add tests to the acirc file"
                      })
+
         <*> defineOption optionType_bool
             (\o -> o { optionShortFlags  = "r"
                      , optionLongFlags   = ["randomize-secrets"]
                      , optionDescription = "Randomize the key"
                      })
+
         <*> defineOption (optionType_maybe optionType_string)
             (\o -> o { optionShortFlags  = "o"
                      , optionLongFlags   = ["output"]
                      , optionDescription = "Write the circuit to file FILE"
                      })
-        <*> defineOption optionType_bool
-            (\o -> o { optionShortFlags  = "f"
-                     , optionLongFlags   = ["flatten"]
-                     , optionDescription = "Flatten the input using Sage"
+
+        <*> defineOption (optionType_maybe optionType_int)
+            (\o -> o { optionShortFlags  = "O"
+                     , optionLongFlags   = ["optimize"]
+                     , optionDescription = "Optimization level: 1=FoldConsts, 2=FoldConsts&FlattenRec"
                      })
+
         <*> defineOption optionType_bool
             (\o -> o { optionShortFlags  = "d"
                      , optionLongFlags   = ["dot"]
@@ -101,35 +111,52 @@ main = runCommand $ \opts args -> do
         Just _ -> do
             putStrLn "[error] known circuit generation modes: aes, goldreich, ggm, applebaum, tribes, gf28Mult"
             exitFailure
+
         Nothing -> do
             when (null args) $ do
                 putStrLn "[error] input circuit required"
                 exitFailure
+
             let inputFile = head args
                 parser    = parserFor inputFile :: CircuitParser
+
             when (opt_add_acirc_tests opts) $ Acirc.addTestsToFile inputFile
+
             (c,ts) <- parser <$> readFile inputFile
 
-            c <- if opt_flatten opts
-                    then flattenRec (foldConsts c)
-                    else return c
+            c <- case opt_optimize opts of
+                Nothing -> return c
+                Just 1  -> return (foldConsts c)
+                Just 2  -> flattenRec (foldConsts c)
+                Just x  -> do
+                    printf "[error] unknown optimization level %d\n" x
+                    exitFailure
 
             c <- if opt_randomize_secrets opts
                     then randomizeSecrets c
                     else return c
 
-            when (opt_info opts) $ printCircInfo c
-            when (opt_latex_info opts) $ printCircInfoLatex c
-            ts' <- case opt_gentests opts of
+            when (opt_info opts) $ do
+                printCircInfo c
+
+            when (opt_latex_info opts) $ do
+                printCircInfoLatex c
+
+            ts <- case opt_gentests opts of
                 Nothing -> return ts
                 Just i  -> replicateM i (genTest (ninputs c) c)
-            when (opt_test opts) $ evalTests opts c ts'
+
+            when (opt_test opts) $ do
+                evalTests opts c ts
+
             s <- if opt_graphviz opts
                     then return $ Graphviz.showCircuit c
                     else Acirc.showCircWithTests 10 c
+
             case opt_write_to_file opts of
                 Just f  -> writeFile f s
                 Nothing -> putStrLn s
+
             exitSuccess
 
 evalTests :: MainOptions -> Circuit -> [TestCase] -> IO ()
