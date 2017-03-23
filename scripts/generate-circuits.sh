@@ -2,8 +2,11 @@
 
 set -ex
 
-scriptdir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-cryptoldir=$(cd $scriptdir/../cryptol && pwd)
+scriptdir=$(dirname $(readlink -f "${BASH_SOURCE[0]}"))
+rootdir=$(readlink -f "$scriptdir/..")
+cryptoldir=$(readlink -f "$rootdir/cryptol")
+
+pushd $rootdir
 
 function add_tests() {
     cabal run --verbose=0 -- -A $1
@@ -90,4 +93,7 @@ mkdir $tmpdir/other $tmpdir/sigma
 mv *.acirc $tmpdir
 mv $tmpdir/*sigma*acirc $tmpdir/sigma
 mv $tmpdir/*mimc*acirc $tmpdir/other
+
+popd
+
 tar --transform="s|$tmpdir|circuits|" -Pczf $PWD/circuits.tgz $tmpdir

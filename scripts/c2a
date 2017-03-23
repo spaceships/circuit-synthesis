@@ -17,13 +17,14 @@ fi
 
 num_test_cases=10
 
-scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+scriptdir=$(dirname $(readlink -f "${BASH_SOURCE[0]}"))
 
 cryptolfile=$(realpath $1)
 func=$2
 testfile=${2}_tests.cry
 
-cd /tmp
+tmp=$(mktemp -d)
+cd $tmp
 
 cat > sawcmds.saw <<- EOM
 m <- cryptol_load "$cryptolfile";
