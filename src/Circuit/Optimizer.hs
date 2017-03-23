@@ -243,3 +243,48 @@ flattenRec c = do
                 flattenRec (foldConsts c')
             else
                 return c'
+
+-- push multiplications down toward the inputs
+pushDown :: Circuit -> Circuit
+pushDown c = B.buildCircuit $ do
+    _ <- B.inputs (ninputs c)
+    _ <- B.exportSecrets c
+    zs <- foldCircM eval c
+    B.outputs (map fst zs)
+
+  where
+    eval (OpAdd _ _) _ [x,y] = do z <- B.circAdd (fst x) (fst y); return (z, Just (OpAdd (fst x) (fst y)))
+    eval (OpSub _ _) _ [x,y] = do z <- B.circSub (fst x) (fst y); return (z, Just (OpSub (fst x) (fst y)))
+
+    eval (OpMul _ _) _ [x,y] = case (snd x, snd y) of
+        (Just (OpAdd xa xb), _) -> do
+            a <- B.circMul (fst y) xa
+            b <- B.circMul (fst y) xb
+            z <- B.circAdd a b
+            return (z, Just (OpAdd a b))
+
+        (Just (OpSub xa xb), _) -> do
+            a <- B.circMul (fst y) xa
+            b <- B.circMul (fst y) xb
+            z <- B.circSub a b
+            return (z, Just (OpSub a b))
+
+        (_ , Just (OpAdd ya yb)) -> do
+            a <- B.circMul (fst x) ya
+            b <- B.circMul (fst x) yb
+            z <- B.circAdd a b
+            return (z, Just (OpAdd a b))
+
+        (_ , Just (OpSub ya yb)) -> do
+            a <- B.circMul (fst x) ya
+            b <- B.circMul (fst x) yb
+            z <- B.circSub a b
+            return (z, Just (OpSub a b))
+
+        (_     , _     ) -> do z <- B.circMul (fst x) (fst y); return (z, Nothing)
+
+    eval (OpInput  i) _ _ = do z <- B.input_n i;  return (z, Nothing)
+    eval (OpSecret i) _ _ = do z <- B.secret_n i; return (z, Nothing)
+
+    eval _ _ _ = error "[foldConsts] oops"
+
