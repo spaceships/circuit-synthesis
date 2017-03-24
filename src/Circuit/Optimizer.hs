@@ -245,6 +245,7 @@ flattenRec c = loop maxDepth c
             printf "[flattenRec] flattened subcircuit degree: %d\n" (circDegree sub')
             let c' = patch root c sub'
             if circDegree sub' < circDegree sub then
+                -- loop minDeg (foldConsts (pushDown c'))
                 loop minDeg (foldConsts c')
             else
                 return c'
@@ -258,10 +259,61 @@ pushDown c = B.buildCircuit $ do
     B.outputs (map fst zs)
 
   where
-    eval (OpAdd _ _) _ [x,y] = do z <- B.circAdd (fst x) (fst y); return (z, Just (OpAdd (fst x) (fst y)))
-    eval (OpSub _ _) _ [x,y] = do z <- B.circSub (fst x) (fst y); return (z, Just (OpSub (fst x) (fst y)))
+    eval (OpAdd _ _) _ [x,y] = do
+        z <- B.circAdd (fst x) (fst y)
+        return (z, Just (OpAdd (fst x) (fst y)))
+
+    eval (OpSub _ _) _ [x,y] = do
+        z <- B.circSub (fst x) (fst y)
+        return (z, Just (OpSub (fst x) (fst y)))
 
     eval (OpMul _ _) _ [x,y] = case (snd x, snd y) of
+        (Just (OpAdd xa xb), Just (OpAdd ya yb)) -> do
+            a <- B.circMul xa ya
+            b <- B.circMul xa yb
+            c <- B.circMul xb ya
+            d <- B.circMul xb yb
+            e <- B.circAdd a b
+            f <- B.circAdd c d
+            g <- B.circAdd e f
+            return (g, Just (OpAdd e f))
+
+        -- (xa - xb)(ya - yb) = xa*ya - xa*yb - xb*ya + xb*yb
+        --                    = (xa*ya - xa*yb) + (xb*yb - xb*ya)
+        (Just (OpSub xa xb), Just (OpSub ya yb)) -> do
+            a <- B.circMul xa ya
+            b <- B.circMul xa yb
+            c <- B.circMul xb ya
+            d <- B.circMul xb yb
+            e <- B.circSub a b
+            f <- B.circSub d c
+            g <- B.circAdd e f
+            return (g, Just (OpAdd e f))
+
+        -- (xa + xb)(ya - yb) = xa*ya - xa*yb + xb*ya - xb*yb
+        --                    = (xa*ya - xa*yb) + (xb*ya - xb*yb)
+        (Just (OpAdd xa xb), Just (OpSub ya yb)) -> do
+            a <- B.circMul xa ya
+            b <- B.circMul xa yb
+            c <- B.circMul xb ya
+            d <- B.circMul xb yb
+            e <- B.circSub a b
+            f <- B.circSub c d
+            g <- B.circAdd e f
+            return (g, Just (OpAdd e f))
+
+        -- (xa - xb)(ya + yb) = xa*ya + xa*yb - xb*ya - xb*yb
+        --                    = (xa*ya + xa*yb) - (xb*ya + xb*yb)
+        (Just (OpSub xa xb), Just (OpAdd ya yb)) -> do
+            a <- B.circMul xa ya
+            b <- B.circMul xa yb
+            c <- B.circMul xb ya
+            d <- B.circMul xb yb
+            e <- B.circAdd a b
+            f <- B.circAdd c d
+            g <- B.circSub e f
+            return (g, Just (OpSub e f))
+
         (Just (OpAdd xa xb), _) -> do
             a <- B.circMul (fst y) xa
             b <- B.circMul (fst y) xb
@@ -286,10 +338,17 @@ pushDown c = B.buildCircuit $ do
             z <- B.circSub a b
             return (z, Just (OpSub a b))
 
-        (_     , _     ) -> do z <- B.circMul (fst x) (fst y); return (z, Nothing)
+        (_ , _) -> do
+            z <- B.circMul (fst x) (fst y)
+            return (z, Nothing)
 
-    eval (OpInput  i) _ _ = do z <- B.input_n i;  return (z, Nothing)
-    eval (OpSecret i) _ _ = do z <- B.secret_n i; return (z, Nothing)
+    eval (OpInput i) _ _ = do
+        z <- B.input_n i
+        return (z, Nothing)
+
+    eval (OpSecret i) _ _ = do
+        z <- B.secret_n i
+        return (z, Nothing)
 
     eval _ _ _ = error "[foldConsts] oops"
 
