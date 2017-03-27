@@ -228,6 +228,12 @@ prgKey n m = do
         zs  <- forM selections $ \s -> xorMaj =<< selectsPt (map fromIntegral s) xs
         outputs zs
 
+-- TSPA(x) = x1 xor (x2 + x3 + x4x5 - x2x3 - x3x4 - x2x5)
+--                              a   -   b  -   c  -  d
+tspa :: [Ref] -> Builder Ref
+tspa [x1,x2,x3,x4,x5] = undefined
+tspa _ = error "tspa requires 5 input bits"
+
 --------------------------------------------------------------------------------
 -- ggm
 
