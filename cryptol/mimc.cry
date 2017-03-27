@@ -13,12 +13,12 @@ include "mapper.cry"
 /*
 Our block cipher is constructed by iterating a round function r times where
 each round consists of a key addition with the key k, the addition of a round
-constant c_i ∈ F_{2^n}, and the application of a non-linear function defined as
-F(x) := x^3 for x ∈ F_{2^n}.
+constant c_i \in F_{2^n}, and the application of a non-linear function defined as
+F(x) := x^3 for x \in F_{2^n}.
 */
 
 /* F : [n] -> [n] */
-/* F x = x·x·x */
+/* F x = x x x */
 F : {n} (fin n, n >= 1) => [n+1] -> [n] -> [n]
 F irr x = mult irr x (mult irr x x)
 
@@ -33,18 +33,15 @@ F irr x = mult irr x (mult irr x x)
 /* irreducible : [n+1] */
 /* irreducible = <| x^^41 + x^^3 |> */
 
-/* (·) : [n] -> [n] -> [n] */
-/* x · y = pmod (pmult x y) irreducible */
-
 mult : {n} (fin n, n >= 1) => [n+1] -> [n] -> [n] -> [n]
 mult irr x y = pmod (pmult x y) irr
 
 /*
 The ciphertext is finally produced by adding the key k again to the output of
-the last round. Hence, the round function is described as F_i(x) = F(x ⊕ k ⊕
+the last round. Hence, the round function is described as F_i(x) = F(x \xor k \xor
 c_i) where c_0 = c_r = 0 and the encryption process is defined as
 
-E_k(x) = (F_{r−1} ◦ F_{r−2} ◦ . . . ◦ F_0)(x) ⊕ k.
+E_k(x) = (F_{r−1} o F_{r−2} o ... o F_0)(x) \xor k.
 */
 // Their text says to use c_r = 0, but E_k does not actually depend on c_r and
 // their block diagram agrees with E_k. So we include the c_0 = 0 bit but omit
@@ -57,11 +54,8 @@ E irr c k x = compositions!0 ^ k where
                    ]
 
 /*
-We choose n to be odd and the number of rounds as r = ⌈n / log_2 3⌉.
+We choose n to be odd and the number of rounds as r = \ceil{n / log_2 3}.
 */
-/* type n = 41 */
-/* // 1/(log_2 3) ~= 0.63092975 */
-/* type r = n * 63092975 / 100000000 + 1 */
 
 /*
 The r - 1 round constants are chosen as random elements from F_{2_n}. Note that
@@ -69,8 +63,6 @@ the random constants c_i do not need to be generated for every evaluation of
 MiMC. Instead the constants are fixed once and can be hard-coded into the
 implementation on either side.
 */
-/* c : [r-1][n] */
-/* c = random zero */
 
 mimc_16_10r : ([16], [16]) -> [16]
 mimc_16_10r (x,k) = E i16 c k x
