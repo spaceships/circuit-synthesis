@@ -41,7 +41,7 @@ The ciphertext is finally produced by adding the key k again to the output of
 the last round. Hence, the round function is described as F_i(x) = F(x \xor k \xor
 c_i) where c_0 = c_r = 0 and the encryption process is defined as
 
-E_k(x) = (F_{r−1} o F_{r−2} o ... o F_0)(x) \xor k.
+E_k(x) = (F_{r-1} o F_{r-2} o ... o F_0)(x) \xor k.
 */
 // Their text says to use c_r = 0, but E_k does not actually depend on c_r and
 // their block diagram agrees with E_k. So we include the c_0 = 0 bit but omit
