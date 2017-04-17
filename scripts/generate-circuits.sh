@@ -87,6 +87,10 @@ for ty in C2A C2V; do
     done
 done
 
+for c in ./*.dsl.acirc; do
+    cabal run --verbose=0 -- -O2 $c -o ${c/dsl/opt}
+done
+
 # package everything
 tmpdir=$(mktemp -d)
 mkdir "$tmpdir"/other "$tmpdir"/sigma
