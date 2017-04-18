@@ -1,4 +1,36 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+usage () {
+    echo "generate-circuits.sh: Generates arithmetic circuits for obfuscation"
+    echo ""
+    echo "Flags:"
+    echo "  -e, --extra  Generate tribes and mimc circuits"
+    echo "  -o, --opt    Generate optimized-DSL circuits"
+    echo "  -h, --help   Print this info and exit"
+    exit "$1"
+}
+
+_=$(getopt -o eoh --long extra,opt,help)
+if [ $? != 0 ]; then
+    echo "Error: failed parsing options"
+    usage 1
+fi
+
+extra='n'
+opt='n'
+
+while true; do
+    case "$1" in
+        -e | --extra )
+            extra='y'; shift ;;
+        -o | --opt )
+            opt='y'; shift ;;
+        -h | --help )
+            usage 0 ;;
+        -- ) shift; break ;;
+        *) break ;;
+    esac
+done
 
 set -ex
 
@@ -24,7 +56,7 @@ function generate_circuit() {
             ;;
 
         C2V)
-            result_file=$3.c2v.acirc
+            result_file=$func_name.c2v.acirc
             "$scriptdir"/c2v "$source_file" "$func_name" > "$result_file"
             ;;
 
@@ -75,44 +107,57 @@ done
 # ensure the mapper exists for f3_4
 if [ ! -e mappers/mapper_8 ]; then
     mkdir -p mappers
-    # generate_circuit C2V "$cryptoldir"/mapper.cry mapper_8
     cp mapper_8.c2v.acirc mappers
 fi
 cabal run --verbose=0 -- -C applebaum
 
-#
-# Generate tribes circuits
-#
-# cabal run --verbose=0 -- -C tribes
+if [[ $extra == y ]]; then
+    #
+    # Generate tribes circuits
+    #
+    cabal run --verbose=0 -- -C tribes
 
-#
-# Generate MIMC circuits
-#
-# for ty in C2A C2V; do
-#     for f in mimc_16_10r mimc_16_5r mimc_16_1r mimc_8_5r mimc_8_1r; do
-#         generate_circuit $ty "$cryptoldir"/mimc.cry $f
-#     done
-# done
+    #
+    # Generate MIMC circuits
+    #
+    for ty in C2A C2V; do
+        for f in mimc_16_10r mimc_16_5r mimc_16_1r mimc_8_5r mimc_8_1r; do
+            generate_circuit $ty "$cryptoldir"/mimc.cry $f
+        done
+    done
+fi
 
 #
 # Generate optimized-DSL circuits
 #
-for c in ./*.dsl.acirc; do
-    # skip ones that take forever
-    if [ "$c" == aesr1.dsl.acirc ]; then
-        continue
-    fi
-    cabal run --verbose=0 -- -O2 "$c" -o "${c/dsl/opt}"
-done
+if [[ $opt == y ]]; then
+    for c in ./*.dsl.acirc; do
+        _c=$(basename "$c")
+        # skip ones that take forever
+        if [[ $_c == aes1r.dsl.acirc ]]; then
+            continue
+        fi
+        if [[ $_c =~ ^f.* ]]; then
+            continue
+        fi
+        if [[ $_c =~ ^ggm.* ]]; then
+            continue
+        fi
+        cabal run --verbose=0 -- -O2 "$c" -o "${c/dsl/opt}"
+    done
+fi
 
 #
 # Package everything
 #
 tmpdir=$(mktemp -d)
-mkdir "$tmpdir"/other "$tmpdir"/sigma
 mv ./*.acirc "$tmpdir"
+mkdir "$tmpdir"/sigma
 mv "$tmpdir"/*sigma*acirc "$tmpdir"/sigma
-mv "$tmpdir"/*mimc*acirc "$tmpdir"/other
+if [[ $extra == y ]]; then
+    mkdir "$tmpdir"/other
+    mv "$tmpdir"/*mimc*acirc "$tmpdir"/other
+fi
 
 popd
 
