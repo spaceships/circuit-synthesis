@@ -134,13 +134,13 @@ if [[ $opt == y ]]; then
     for c in ./*.dsl.acirc; do
         _c=$(basename "$c")
         # skip ones that take forever
-        if [[ $_c == aes1r.dsl.acirc ]]; then
+        if [[ $_c =~ ^f ]]; then
             continue
         fi
-        if [[ $_c =~ ^f.* ]]; then
+        if [[ $_c =~ ^ggm_(2|3|4) ]]; then
             continue
         fi
-        if [[ $_c =~ ^ggm.* ]]; then
+        if [[ $_c =~ ^ggm_sigma_(2|3|4) ]]; then
             continue
         fi
         cabal run --verbose=0 -- -O2 "$c" -o "${c/dsl/opt}"
