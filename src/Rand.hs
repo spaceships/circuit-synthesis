@@ -81,6 +81,9 @@ randIntegerMod q = do
     else
         return x
 
+randIntMod :: Int -> Rand Int
+randIntMod q = fromIntegral <$> randIntegerMod (fromIntegral q)
+
 randPrimes :: Int -> Int -> Rand [Integer]
 randPrimes nprimes nbits = do
     rngs <- splitRand nprimes

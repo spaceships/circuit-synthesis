@@ -19,6 +19,9 @@ cexp_32 x = (zero # x) ^^ 5
 cexp_64 : [8] -> [64]
 cexp_64 x = (zero # x) ^^ 8
 
+mul_4 : ([4], [4]) -> [4]
+mul_4 (x,y) = x * y
+
 mul_16 : ([8], [8]) -> [16]
 mul_16 (x, y) = (zero # x) * (zero # y)
 
