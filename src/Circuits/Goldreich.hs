@@ -213,8 +213,8 @@ prg n m = do
         d = l
     selections <- replicateM m $ replicateM d (randIO (randIntegerMod (fromIntegral n)))
     return $ buildCircuit $ do
-        xs  <- inputs n
-        zs  <- forM selections $ \s -> xorMaj =<< selectsPt (map fromIntegral s) xs
+        xs <- inputs n
+        zs <- forM selections $ \s -> xorMaj =<< selectsPt (map fromIntegral s) xs
         outputs zs
 
 prgKey :: Int -> Int -> IO Circuit

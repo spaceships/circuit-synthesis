@@ -285,6 +285,9 @@ matrixTimesVectPT rows vect
   | not $ all ((== length vect) . length) rows = error "[matrixTimesVectPT] bad dimensions"
   | otherwise = mapM (circXors <=< selectPT vect) rows
 
+matrixMul :: [[Ref]] -> [[Ref]] -> Builder [[Ref]]
+matrixMul a b = mapM (matrixTimesVect a) b
+
 xor :: Bool -> Bool -> Bool
 xor False False = False
 xor False True  = True

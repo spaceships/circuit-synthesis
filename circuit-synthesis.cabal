@@ -87,6 +87,7 @@ library
     Circuits.Goldreich
     Circuits.Aes
     Circuits.Tribes
+    Circuits.BBKK
   other-modules:
     Rand
     Util
