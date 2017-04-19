@@ -277,6 +277,9 @@ linPredicate (x0:x1:xs) = do
     y <- circMul x0 x1
     circXors (y : xs)
 
+linearPredicate :: [Ref] -> Builder Ref
+linearPredicate = circXors
+
 prgKey :: Int -> Int -> IO Circuit
 prgKey n m = do
     let l = numBits n
