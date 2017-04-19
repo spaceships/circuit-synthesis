@@ -66,6 +66,14 @@ function generate_circuit() {
             ;;
     esac
     add_tests "$result_file"
+    # Rename files if appropriate
+    if [[ $func_name == b0 ]]; then
+        mv $result_file ${result_file/b0/aes1r_128}
+    elif [[ $func_name =~ "b0_" ]]; then
+        mv $result_file ${result_file/b0/aes1r}
+    elif [[ $func_name == "sbox_" ]]; then
+        mv $result_file ${result_file/sbox_/sbox}
+    fi
 }
 
 #
@@ -81,11 +89,6 @@ cabal run --verbose=0 -- -C aes # requires linearParts
 #
 # Generate Goldreich PRG circuits
 #
-for ty in C2A C2V; do
-    for f in prg_16_16 prg_16_32 prg_16_48 prg_16_64 prg_32_32 prg_32_64 prg_32_96; do
-        generate_circuit $ty "$cryptoldir"/goldreich.cry $f
-    done
-done
 cabal run --verbose=0 -- -C goldreich
 
 #
@@ -94,6 +97,12 @@ cabal run --verbose=0 -- -C goldreich
 cabal run --verbose=0 -- -C ggm
 
 if [[ $extra == y ]]; then
+    for ty in C2A C2V; do
+        for f in prg_16_16 prg_16_32 prg_16_48 prg_16_64 prg_32_32 prg_32_64 prg_32_96; do
+            generate_circuit $ty "$cryptoldir"/goldreich.cry $f
+        done
+    done
+
     #
     # Generate Applebaum-Raykov circuits
     #
