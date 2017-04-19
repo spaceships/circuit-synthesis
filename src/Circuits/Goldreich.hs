@@ -244,14 +244,22 @@ selectsPt :: [Int] -> [Ref] -> Builder [Ref]
 selectsPt sels xs = return (map (xs!!) sels)
 
 prg :: Int -> Int -> IO Circuit
-prg n m = do
-    let l = numBits n
-        d = l
-    selections <- replicateM m $ replicateM d (randIO (randIntegerMod (fromIntegral n)))
+prg n m = prg' n m (numBits n) xorMaj
+
+prg' :: Int -> Int -> Int -> ([Ref] -> Builder Ref) -> IO Circuit
+prg' n m d predicate = do
+    selections <- replicateM m $ replicateM d (randIO (randIntMod n))
     return $ buildCircuit $ do
         xs <- inputs n
-        zs <- forM selections $ \s -> xorMaj =<< selectsPt (map fromIntegral s) xs
+        zs <- forM selections $ \s -> do
+            sel <- selectsPt s xs
+            predicate sel
         outputs zs
+
+linPredicate :: [Ref] -> Builder Ref
+linPredicate (x0:x1:xs) = do
+    y <- circMul x0 x1
+    circXors (y : xs)
 
 prgKey :: Int -> Int -> IO Circuit
 prgKey n m = do
@@ -263,12 +271,6 @@ prgKey n m = do
         xs  <- secrets keyBits
         zs  <- forM selections $ \s -> xorMaj =<< selectsPt (map fromIntegral s) xs
         outputs zs
-
--- -- TSPA(x) = x1 xor (x2 + x3 + x4x5 - x2x3 - x3x4 - x2x5)
--- --                              a   -   b  -   c  -  d
--- tspa :: [Ref] -> Builder Ref
--- tspa [x1,x2,x3,x4,x5] = undefined
--- tspa _ = error "tspa requires 5 input bits"
 
 --------------------------------------------------------------------------------
 -- ggm
