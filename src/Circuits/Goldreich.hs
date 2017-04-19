@@ -18,15 +18,29 @@ import Data.List.Split
 
 makePRG :: IO ()
 makePRG = do
-    Acirc.writeAcirc "prg_16_16.dsl.acirc"  =<< foldConsts <$> prg 16 16
-    Acirc.writeAcirc "prg_16_32.dsl.acirc"  =<< foldConsts <$> prg 16 32
-    Acirc.writeAcirc "prg_16_48.dsl.acirc"  =<< foldConsts <$> prg 16 48
-    Acirc.writeAcirc "prg_16_64.dsl.acirc"  =<< foldConsts <$> prg 16 64
-    Acirc.writeAcirc "prg_32_32.dsl.acirc"  =<< foldConsts <$> prg 32 32
-    Acirc.writeAcirc "prg_32_64.dsl.acirc"  =<< foldConsts <$> prg 32 64
-    Acirc.writeAcirc "prg_32_96.dsl.acirc"  =<< foldConsts <$> prg 32 96
-    Acirc.writeAcirc "prg_32_128.dsl.acirc" =<< foldConsts <$> prg 32 128
+    Acirc.writeAcirc "prg_xm_16_16.dsl.acirc"  =<< foldConsts <$> prg' 16 16 4 xorMaj
+    Acirc.writeAcirc "prg_xm_16_128.dsl.acirc"  =<< foldConsts <$> prg' 16 64 4 xorMaj
+    Acirc.writeAcirc "prg_xm_32_32.dsl.acirc"  =<< foldConsts <$> prg' 32 32 5 xorMaj
+    Acirc.writeAcirc "prg_xm_32_128.dsl.acirc" =<< foldConsts <$> prg' 32 128 5 xorMaj
+    Acirc.writeAcirc "prg_xm_64_64.dsl.acirc"  =<< foldConsts <$> prg' 64 64 6 xorMaj
+    Acirc.writeAcirc "prg_xm_64_128.dsl.acirc" =<< foldConsts <$> prg' 64 128 6 xorMaj
+    Acirc.writeAcirc "prg_xm_128_128.dsl.acirc" =<< foldConsts <$> prg' 128 128 7 xorMaj
 
+    Acirc.writeAcirc "prg_ow_16_16.dsl.acirc"  =<< foldConsts <$> prg' 16 16 5 linPredicate
+    Acirc.writeAcirc "prg_ow_16_128.dsl.acirc"  =<< foldConsts <$> prg' 16 64 5 linPredicate
+    Acirc.writeAcirc "prg_ow_32_32.dsl.acirc"  =<< foldConsts <$> prg' 32 32 5 linPredicate
+    Acirc.writeAcirc "prg_ow_32_128.dsl.acirc" =<< foldConsts <$> prg' 32 128 5 linPredicate
+    Acirc.writeAcirc "prg_ow_64_64.dsl.acirc"  =<< foldConsts <$> prg' 64 64 5 linPredicate
+    Acirc.writeAcirc "prg_ow_64_128.dsl.acirc" =<< foldConsts <$> prg' 64 128 5 linPredicate
+    Acirc.writeAcirc "prg_ow_128_128.dsl.acirc" =<< foldConsts <$> prg' 128 128 5 linPredicate
+
+    Acirc.writeAcirc "prg_dumb_16_16.dsl.acirc"  =<< foldConsts <$> prg' 16 16 5 linearPredicate
+    Acirc.writeAcirc "prg_dumb_16_128.dsl.acirc"  =<< foldConsts <$> prg' 16 64 5 linearPredicate
+    Acirc.writeAcirc "prg_dumb_32_32.dsl.acirc"  =<< foldConsts <$> prg' 32 32 5 linearPredicate
+    Acirc.writeAcirc "prg_dumb_32_128.dsl.acirc" =<< foldConsts <$> prg' 32 128 5 linearPredicate
+    Acirc.writeAcirc "prg_dumb_64_64.dsl.acirc"  =<< foldConsts <$> prg' 64 64 5 linearPredicate
+    Acirc.writeAcirc "prg_dumb_64_128.dsl.acirc" =<< foldConsts <$> prg' 64 128 5 linearPredicate
+    Acirc.writeAcirc "prg_dumb_128_128.dsl.acirc" =<< foldConsts <$> prg' 128 128 5 linearPredicate
 
 makeGGM :: IO ()
 makeGGM = do
