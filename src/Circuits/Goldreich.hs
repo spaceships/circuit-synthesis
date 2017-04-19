@@ -47,6 +47,14 @@ makeGGM = do
     Acirc.writeAcircR "ggm_sigma_2_32.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 32 32 16
     Acirc.writeAcircR "ggm_sigma_3_32.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 48 32 16
     Acirc.writeAcircR "ggm_sigma_4_32.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 64 32 16
+    Acirc.writeAcircR "ggm_sigma_1_64.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 16 64 16
+    Acirc.writeAcircR "ggm_sigma_2_64.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 32 64 16
+    Acirc.writeAcircR "ggm_sigma_3_64.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 48 64 16
+    Acirc.writeAcircR "ggm_sigma_4_64.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 64 64 16
+    Acirc.writeAcircR "ggm_sigma_1_128.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 16 128 16
+    Acirc.writeAcircR "ggm_sigma_2_128.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 32 128 16
+    Acirc.writeAcircR "ggm_sigma_3_128.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 48 128 16
+    Acirc.writeAcircR "ggm_sigma_4_128.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 64 128 16
 
 
 makeApplebaum :: IO ()
@@ -228,11 +236,11 @@ prgKey n m = do
         zs  <- forM selections $ \s -> xorMaj =<< selectsPt (map fromIntegral s) xs
         outputs zs
 
--- TSPA(x) = x1 xor (x2 + x3 + x4x5 - x2x3 - x3x4 - x2x5)
---                              a   -   b  -   c  -  d
-tspa :: [Ref] -> Builder Ref
-tspa [x1,x2,x3,x4,x5] = undefined
-tspa _ = error "tspa requires 5 input bits"
+-- -- TSPA(x) = x1 xor (x2 + x3 + x4x5 - x2x3 - x3x4 - x2x5)
+-- --                              a   -   b  -   c  -  d
+-- tspa :: [Ref] -> Builder Ref
+-- tspa [x1,x2,x3,x4,x5] = undefined
+-- tspa _ = error "tspa requires 5 input bits"
 
 --------------------------------------------------------------------------------
 -- ggm
