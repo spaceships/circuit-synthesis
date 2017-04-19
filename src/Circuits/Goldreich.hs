@@ -75,6 +75,14 @@ makeGGMNoPrg = do
     Acirc.writeAcirc "ggm_noprg_2_32.dsl.acirc" =<< foldConsts <$> ggmNoPrg 8  32 16
     Acirc.writeAcirc "ggm_noprg_3_32.dsl.acirc" =<< foldConsts <$> ggmNoPrg 12 32 16
     Acirc.writeAcirc "ggm_noprg_4_32.dsl.acirc" =<< foldConsts <$> ggmNoPrg 16 32 16
+    Acirc.writeAcirc "ggm_noprg_1_64.dsl.acirc" =<< foldConsts <$> ggmNoPrg 4  64 16
+    Acirc.writeAcirc "ggm_noprg_2_64.dsl.acirc" =<< foldConsts <$> ggmNoPrg 8  64 16
+    Acirc.writeAcirc "ggm_noprg_3_64.dsl.acirc" =<< foldConsts <$> ggmNoPrg 12 64 16
+    Acirc.writeAcirc "ggm_noprg_4_64.dsl.acirc" =<< foldConsts <$> ggmNoPrg 16 64 16
+    Acirc.writeAcirc "ggm_noprg_1_128.dsl.acirc" =<< foldConsts <$> ggmNoPrg 4  128 16
+    Acirc.writeAcirc "ggm_noprg_2_128.dsl.acirc" =<< foldConsts <$> ggmNoPrg 8  128 16
+    Acirc.writeAcirc "ggm_noprg_3_128.dsl.acirc" =<< foldConsts <$> ggmNoPrg 12 128 16
+    Acirc.writeAcirc "ggm_noprg_4_128.dsl.acirc" =<< foldConsts <$> ggmNoPrg 16 128 16
 
     Acirc.writeAcircR "ggm_sigma_noprg_1_16.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 16 16 16
     Acirc.writeAcircR "ggm_sigma_noprg_2_16.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 32 16 16
