@@ -93,25 +93,25 @@ cabal run --verbose=0 -- -C goldreich
 #
 cabal run --verbose=0 -- -C ggm
 
-#
-# Generate Applebaum-Raykov circuits
-#
-for ty in C2A C2V; do
-    for f in f1_16 f1_32 f1_64 f1_128 f3_4; do
-        generate_circuit $ty "$cryptoldir"/applebaum.cry $f
-    done
-    for f in mapper_2 mapper_4 mapper_8; do
-        generate_circuit $ty "$cryptoldir"/mapper.cry $f
-    done
-done
-# ensure the mapper exists for f3_4
-if [ ! -e mappers/mapper_8 ]; then
-    mkdir -p mappers
-    cp mapper_8.c2v.acirc mappers
-fi
-cabal run --verbose=0 -- -C applebaum
-
 if [[ $extra == y ]]; then
+    #
+    # Generate Applebaum-Raykov circuits
+    #
+    for ty in C2A C2V; do
+        for f in f1_16 f1_32 f1_64 f1_128 f3_4; do
+            generate_circuit $ty "$cryptoldir"/applebaum.cry $f
+        done
+        for f in mapper_2 mapper_4 mapper_8; do
+            generate_circuit $ty "$cryptoldir"/mapper.cry $f
+        done
+    done
+    # ensure the mapper exists for f3_4
+    if [ ! -e mappers/mapper_8 ]; then
+        mkdir -p mappers
+        cp mapper_8.c2v.acirc mappers
+    fi
+    cabal run --verbose=0 -- -C applebaum
+
     #
     # Generate tribes circuits
     #
@@ -137,10 +137,10 @@ if [[ $opt == y ]]; then
         if [[ $_c =~ ^f ]]; then
             continue
         fi
-        if [[ $_c =~ ^ggm_(2|3|4) ]]; then
+        if [[ $_c =~ ^ggm_(1|2|3|4) ]]; then
             continue
         fi
-        if [[ $_c =~ ^ggm_sigma_(2|3|4) ]]; then
+        if [[ $_c =~ ^ggm_sigma_(1|2|3|4) ]]; then
             continue
         fi
         cabal run --verbose=0 -- -O2 "$c" -o "${c/dsl/opt}"
