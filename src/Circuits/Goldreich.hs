@@ -57,6 +57,34 @@ makeGGM = do
     Acirc.writeAcircR "ggm_sigma_4_128.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 64 128 16
 
 
+makeGGMNoPrg :: IO ()
+makeGGMNoPrg = do
+    Acirc.writeAcirc "ggm_noprg_1_16.dsl.acirc" =<< foldConsts <$> ggmNoPrg 4  16 16
+    Acirc.writeAcirc "ggm_noprg_2_16.dsl.acirc" =<< foldConsts <$> ggmNoPrg 8  16 16
+    Acirc.writeAcirc "ggm_noprg_3_16.dsl.acirc" =<< foldConsts <$> ggmNoPrg 12 16 16
+    Acirc.writeAcirc "ggm_noprg_4_16.dsl.acirc" =<< foldConsts <$> ggmNoPrg 16 16 16
+    Acirc.writeAcirc "ggm_noprg_1_32.dsl.acirc" =<< foldConsts <$> ggmNoPrg 4  32 16
+    Acirc.writeAcirc "ggm_noprg_2_32.dsl.acirc" =<< foldConsts <$> ggmNoPrg 8  32 16
+    Acirc.writeAcirc "ggm_noprg_3_32.dsl.acirc" =<< foldConsts <$> ggmNoPrg 12 32 16
+    Acirc.writeAcirc "ggm_noprg_4_32.dsl.acirc" =<< foldConsts <$> ggmNoPrg 16 32 16
+
+    Acirc.writeAcircR "ggm_sigma_noprg_1_16.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 16 16 16
+    Acirc.writeAcircR "ggm_sigma_noprg_2_16.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 32 16 16
+    Acirc.writeAcircR "ggm_sigma_noprg_3_16.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 48 16 16
+    Acirc.writeAcircR "ggm_sigma_noprg_4_16.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 64 16 16
+    Acirc.writeAcircR "ggm_sigma_noprg_1_32.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 16 32 16
+    Acirc.writeAcircR "ggm_sigma_noprg_2_32.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 32 32 16
+    Acirc.writeAcircR "ggm_sigma_noprg_3_32.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 48 32 16
+    Acirc.writeAcircR "ggm_sigma_noprg_4_32.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 64 32 16
+    Acirc.writeAcircR "ggm_sigma_noprg_1_64.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 16 64 16
+    Acirc.writeAcircR "ggm_sigma_noprg_2_64.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 32 64 16
+    Acirc.writeAcircR "ggm_sigma_noprg_3_64.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 48 64 16
+    Acirc.writeAcircR "ggm_sigma_noprg_4_64.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 64 64 16
+    Acirc.writeAcircR "ggm_sigma_noprg_1_128.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 16 128 16
+    Acirc.writeAcircR "ggm_sigma_noprg_2_128.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 32 128 16
+    Acirc.writeAcircR "ggm_sigma_noprg_3_128.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 48 128 16
+    Acirc.writeAcircR "ggm_sigma_noprg_4_128.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 64 128 16
+
 makeApplebaum :: IO ()
 makeApplebaum = do
     Acirc.writeAcirc "f1_16.dsl.acirc"    =<< foldConsts <$> f1 16 1
@@ -268,6 +296,18 @@ ggm inputLength keyLength stretch = do
         res  <- foldM (ggmStep g) seed (chunksOf (numBits stretch) xs)
         outputs res
 
+ggmNoPrg :: Int -> Int -> Int -> IO Circuit
+ggmNoPrg inputLength keyLength stretch = do
+    let g = buildCircuit $ do
+                xs <- inputs keyLength
+                replicateM stretch (outputs xs)
+    keyBits <- randKeyIO keyLength
+    return $ buildCircuit $ do
+        xs   <- inputs inputLength
+        seed <- secrets keyBits
+        res  <- foldM (ggmStep g) seed (chunksOf (numBits stretch) xs)
+        outputs res
+
 --------------------------------------------------------------------------------
 -- ggm rachel
 
@@ -289,3 +329,17 @@ ggmRachel inputLength keyLength stretch = do
         when ((length xs `mod` stretch) /= 0) $ error "[ggmRachel] wrong input length"
         res  <- foldM (ggmStepR g) seed (chunksOf stretch xs)
         outputs res
+
+ggmRachelNoPrg :: Int -> Int -> Int -> IO Circuit
+ggmRachelNoPrg inputLength keyLength stretch = do
+    let g = buildCircuit $ do
+                xs <- inputs keyLength
+                replicateM stretch (outputs xs)
+    keyBits <- randKeyIO keyLength
+    return $ buildCircuit $ do
+        xs   <- inputs inputLength
+        seed <- secrets keyBits
+        when ((length xs `mod` stretch) /= 0) $ error "[ggmRachel] wrong input length"
+        res  <- foldM (ggmStepR g) seed (chunksOf stretch xs)
+        outputs res
+
