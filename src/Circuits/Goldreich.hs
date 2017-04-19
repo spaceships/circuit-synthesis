@@ -38,6 +38,14 @@ makeGGM = do
     Acirc.writeAcirc "ggm_2_32.dsl.acirc" =<< foldConsts <$> ggm 8  32 16
     Acirc.writeAcirc "ggm_3_32.dsl.acirc" =<< foldConsts <$> ggm 12 32 16
     Acirc.writeAcirc "ggm_4_32.dsl.acirc" =<< foldConsts <$> ggm 16 32 16
+    Acirc.writeAcirc "ggm_1_64.dsl.acirc" =<< foldConsts <$> ggm 4  64 16
+    Acirc.writeAcirc "ggm_2_64.dsl.acirc" =<< foldConsts <$> ggm 8  64 16
+    Acirc.writeAcirc "ggm_3_64.dsl.acirc" =<< foldConsts <$> ggm 12 64 16
+    Acirc.writeAcirc "ggm_4_64.dsl.acirc" =<< foldConsts <$> ggm 16 64 16
+    Acirc.writeAcirc "ggm_1_128.dsl.acirc" =<< foldConsts <$> ggm 4  128 16
+    Acirc.writeAcirc "ggm_2_128.dsl.acirc" =<< foldConsts <$> ggm 8  128 16
+    Acirc.writeAcirc "ggm_3_128.dsl.acirc" =<< foldConsts <$> ggm 12 128 16
+    Acirc.writeAcirc "ggm_4_128.dsl.acirc" =<< foldConsts <$> ggm 16 128 16
 
     Acirc.writeAcircR "ggm_sigma_1_16.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 16 16 16
     Acirc.writeAcircR "ggm_sigma_2_16.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 32 16 16
