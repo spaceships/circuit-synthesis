@@ -317,7 +317,7 @@ ggmStep prg seed choice = do
 
 ggm :: Int -> Int -> Int -> IO Circuit
 ggm inputLength keyLength stretch = do
-    g <- prg' keyLength (stretch * keyLength) 5 linPredicate
+    g <- prg' keyLength (stretch * keyLength) 5 xorAnd
     keyBits <- randKeyIO keyLength
     return $ buildCircuit $ do
         xs   <- inputs inputLength
@@ -350,7 +350,7 @@ ggmStepR prg seed choice = do
 
 ggmRachel :: Int -> Int -> Int -> IO Circuit
 ggmRachel inputLength keyLength stretch = do
-    g <- prg' keyLength (stretch * keyLength) 5 linPredicate
+    g <- prg' keyLength (stretch * keyLength) 5 xorAnd
     keyBits <- randKeyIO keyLength
     return $ buildCircuit $ do
         xs   <- inputs inputLength
