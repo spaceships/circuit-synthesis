@@ -176,7 +176,8 @@ patch loc c1 c2
 
     -- when we get to loc, eval c2 as subcircuit and return that output
     let catch ref other = if ref == loc
-                             then head <$> B.subcircuit' c2 xs ys
+                             -- then head <$> B.subcircuit' c2 xs ys
+                             then head <$> B.subcircuit c2 xs
                              else other
 
     let eval (OpAdd _ _) ref [x,y] = catch ref $ B.circAdd x y
