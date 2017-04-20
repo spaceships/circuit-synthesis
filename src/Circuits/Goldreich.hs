@@ -18,54 +18,23 @@ import Data.List.Split
 
 makePRG :: IO ()
 makePRG = do
-    -- Acirc.writeAcirc "prg_xor-maj_16_16.dsl.acirc"  =<< foldConsts <$> prg' 16 16 4 xorMaj
-    -- Acirc.writeAcirc "prg_xor-maj_16_128.dsl.acirc"  =<< foldConsts <$> prg' 16 64 4 xorMaj
     Acirc.writeAcirc "prg_xor-maj_32_32.dsl.acirc"  =<< foldConsts <$> prg' 32 32 5 xorMaj
     Acirc.writeAcirc "prg_xor-maj_32_128.dsl.acirc" =<< foldConsts <$> prg' 32 128 5 xorMaj
     Acirc.writeAcirc "prg_xor-maj_64_64.dsl.acirc"  =<< foldConsts <$> prg' 64 64 6 xorMaj
     Acirc.writeAcirc "prg_xor-maj_64_128.dsl.acirc" =<< foldConsts <$> prg' 64 128 6 xorMaj
     Acirc.writeAcirc "prg_xor-maj_128_128.dsl.acirc" =<< foldConsts <$> prg' 128 128 7 xorMaj
 
-    -- Acirc.writeAcirc "prg_xor-and_16_16.dsl.acirc"  =<< foldConsts <$> prg' 16 16 5 xorAnd
-    -- Acirc.writeAcirc "prg_xor-and_16_128.dsl.acirc"  =<< foldConsts <$> prg' 16 64 5 xorAnd
     Acirc.writeAcirc "prg_xor-and_32_32.dsl.acirc"  =<< foldConsts <$> prg' 32 32 5 xorAnd
     Acirc.writeAcirc "prg_xor-and_32_128.dsl.acirc" =<< foldConsts <$> prg' 32 128 5 xorAnd
     Acirc.writeAcirc "prg_xor-and_64_64.dsl.acirc"  =<< foldConsts <$> prg' 64 64 5 xorAnd
     Acirc.writeAcirc "prg_xor-and_64_128.dsl.acirc" =<< foldConsts <$> prg' 64 128 5 xorAnd
     Acirc.writeAcirc "prg_xor-and_128_128.dsl.acirc" =<< foldConsts <$> prg' 128 128 5 xorAnd
 
-    -- Acirc.writeAcirc "prg_linear_16_16.dsl.acirc"  =<< foldConsts <$> prg' 16 16 5 linearPredicate
-    -- Acirc.writeAcirc "prg_linear_16_128.dsl.acirc"  =<< foldConsts <$> prg' 16 64 5 linearPredicate
     Acirc.writeAcirc "prg_linear_32_32.dsl.acirc"  =<< foldConsts <$> prg' 32 32 5 linearPredicate
     Acirc.writeAcirc "prg_linear_32_128.dsl.acirc" =<< foldConsts <$> prg' 32 128 5 linearPredicate
     Acirc.writeAcirc "prg_linear_64_64.dsl.acirc"  =<< foldConsts <$> prg' 64 64 5 linearPredicate
     Acirc.writeAcirc "prg_linear_64_128.dsl.acirc" =<< foldConsts <$> prg' 64 128 5 linearPredicate
     Acirc.writeAcirc "prg_linear_128_128.dsl.acirc" =<< foldConsts <$> prg' 128 128 5 linearPredicate
-=======
-    Acirc.writeAcirc "prg_xm_16_16.dsl.acirc"  =<< foldConsts <$> prg' 16 16 4 xorMaj
-    Acirc.writeAcirc "prg_xm_16_128.dsl.acirc"  =<< foldConsts <$> prg' 16 64 4 xorMaj
-    Acirc.writeAcirc "prg_xm_32_32.dsl.acirc"  =<< foldConsts <$> prg' 32 32 5 xorMaj
-    Acirc.writeAcirc "prg_xm_32_128.dsl.acirc" =<< foldConsts <$> prg' 32 128 5 xorMaj
-    Acirc.writeAcirc "prg_xm_64_64.dsl.acirc"  =<< foldConsts <$> prg' 64 64 6 xorMaj
-    Acirc.writeAcirc "prg_xm_64_128.dsl.acirc" =<< foldConsts <$> prg' 64 128 6 xorMaj
-    Acirc.writeAcirc "prg_xm_128_128.dsl.acirc" =<< foldConsts <$> prg' 128 128 7 xorMaj
-
-    Acirc.writeAcirc "prg_ow_16_16.dsl.acirc"  =<< foldConsts <$> prg' 16 16 5 xorAnd
-    Acirc.writeAcirc "prg_ow_16_128.dsl.acirc"  =<< foldConsts <$> prg' 16 64 5 xorAnd
-    Acirc.writeAcirc "prg_ow_32_32.dsl.acirc"  =<< foldConsts <$> prg' 32 32 5 xorAnd
-    Acirc.writeAcirc "prg_ow_32_128.dsl.acirc" =<< foldConsts <$> prg' 32 128 5 xorAnd
-    Acirc.writeAcirc "prg_ow_64_64.dsl.acirc"  =<< foldConsts <$> prg' 64 64 5 xorAnd
-    Acirc.writeAcirc "prg_ow_64_128.dsl.acirc" =<< foldConsts <$> prg' 64 128 5 xorAnd
-    Acirc.writeAcirc "prg_ow_128_128.dsl.acirc" =<< foldConsts <$> prg' 128 128 5 xorAnd
-
-    Acirc.writeAcirc "prg_dumb_16_16.dsl.acirc"  =<< foldConsts <$> prg' 16 16 5 linearPredicate
-    Acirc.writeAcirc "prg_dumb_16_128.dsl.acirc"  =<< foldConsts <$> prg' 16 64 5 linearPredicate
-    Acirc.writeAcirc "prg_dumb_32_32.dsl.acirc"  =<< foldConsts <$> prg' 32 32 5 linearPredicate
-    Acirc.writeAcirc "prg_dumb_32_128.dsl.acirc" =<< foldConsts <$> prg' 32 128 5 linearPredicate
-    Acirc.writeAcirc "prg_dumb_64_64.dsl.acirc"  =<< foldConsts <$> prg' 64 64 5 linearPredicate
-    Acirc.writeAcirc "prg_dumb_64_128.dsl.acirc" =<< foldConsts <$> prg' 64 128 5 linearPredicate
-    Acirc.writeAcirc "prg_dumb_128_128.dsl.acirc" =<< foldConsts <$> prg' 128 128 5 linearPredicate
->>>>>>> afc2da1c7476c63c1ac653774e8564a32f4104fe
 
 makeGGM :: IO ()
 makeGGM = do
