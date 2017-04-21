@@ -142,7 +142,9 @@ fi
 if [[ $opt == y ]]; then
     for c in ./*.dsl.acirc; do
         _c=$(basename "$c")
-        # skip ones that take forever
+        # run -O1 on everything
+        cabal run --verbose=0 -- -O1 "$c" -o "${c/dsl/opt-1}"
+        # for -O2, skip ones that take forever
         if [[ $_c =~ ^f ]]; then
             continue
         fi
@@ -152,7 +154,7 @@ if [[ $opt == y ]]; then
         if [[ $_c =~ ^ggm_sigma_(1|2|3|4) ]]; then
             continue
         fi
-        cabal run --verbose=0 -- -O2 "$c" -o "${c/dsl/opt}"
+        cabal run --verbose=0 -- -O2 "$c" -o "${c/dsl/opt-2}"
     done
 fi
 
