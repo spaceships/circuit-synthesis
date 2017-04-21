@@ -156,7 +156,7 @@ main = runCommand $ \opts args -> do
 
             case opt_write_to_file opts of
                 Just f  -> writeFile f s
-                Nothing -> putStrLn s
+                Nothing -> return ()
 
             exitSuccess
 

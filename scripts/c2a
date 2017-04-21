@@ -8,8 +8,22 @@ set -e
 usage () {
     echo "C2A: Cryptol to acirc through AND-inverter graphs"
     echo "Usage: $0 <cryptol-file> <function>"
+    echo "Options:"
+    echo "  -n      skip optimization step"
     exit $1
 }
+
+optimize=1
+
+while getopts "hn" opt; do
+    case $opt in
+        h) usage && exit 0;;
+        n) optimize="";;
+        *) usage && exit 1;;
+    esac
+done
+
+shift $((OPTIND-1))
 
 if [ x$1 = x ] || [ x$2 = x ]; then
     usage 1
@@ -32,6 +46,7 @@ f <- cryptol_extract m "$func";
 write_aig "${func}.aig" f;
 EOM
 
+if [ "$optimize" ]; then 
 cat > abccmds.abc <<- EOM
 read "${func}.aig"
 strash
@@ -41,6 +56,12 @@ rewrite -l
 balance -s -d -x
 write "${func}.bench"
 EOM
+else
+cat > abccmds.abc <<- EOM
+read "${func}.aig"
+write "${func}.bench"
+EOM
+fi
 
 sizes=($(egrep "^$func\\s*:\\s*" $cryptolfile | perl -ne \
     'if (/: \(\[(\d+)],\s*\[(\d+)\]\) ->/) { print "$1 $2"; } elsif (/: \[(\d+)\] ->/) { print "$1 0"; }' \
