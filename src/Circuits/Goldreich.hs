@@ -8,7 +8,6 @@ module Circuits.Goldreich where
 
 import Circuit
 import Circuit.Builder
-import Circuit.Optimizer (foldConsts)
 import qualified Circuit.Format.Acirc as Acirc
 import Util
 import Rand
@@ -18,111 +17,111 @@ import Data.List.Split
 
 makePRG :: IO ()
 makePRG = do
-    Acirc.writeAcirc "prg_xm_16_16.dsl.acirc"   =<< foldConsts <$> prg' 16  16  4 xorMaj
-    Acirc.writeAcirc "prg_xm_16_128.dsl.acirc"  =<< foldConsts <$> prg' 16  128 4 xorMaj
-    Acirc.writeAcirc "prg_xm_32_32.dsl.acirc"   =<< foldConsts <$> prg' 32  32  5 xorMaj
-    Acirc.writeAcirc "prg_xm_32_128.dsl.acirc"  =<< foldConsts <$> prg' 32  128 5 xorMaj
-    Acirc.writeAcirc "prg_xm_64_64.dsl.acirc"   =<< foldConsts <$> prg' 64  64  6 xorMaj
-    Acirc.writeAcirc "prg_xm_64_128.dsl.acirc"  =<< foldConsts <$> prg' 64  128 6 xorMaj
-    Acirc.writeAcirc "prg_xm_128_128.dsl.acirc" =<< foldConsts <$> prg' 128 128 7 xorMaj
+    Acirc.writeAcirc "prg_xm_16_16.dsl.acirc"   =<< prg' 16  16  4 xorMaj
+    Acirc.writeAcirc "prg_xm_16_128.dsl.acirc"  =<< prg' 16  128 4 xorMaj
+    Acirc.writeAcirc "prg_xm_32_32.dsl.acirc"   =<< prg' 32  32  5 xorMaj
+    Acirc.writeAcirc "prg_xm_32_128.dsl.acirc"  =<< prg' 32  128 5 xorMaj
+    Acirc.writeAcirc "prg_xm_64_64.dsl.acirc"   =<< prg' 64  64  6 xorMaj
+    Acirc.writeAcirc "prg_xm_64_128.dsl.acirc"  =<< prg' 64  128 6 xorMaj
+    Acirc.writeAcirc "prg_xm_128_128.dsl.acirc" =<< prg' 128 128 7 xorMaj
 
-    Acirc.writeAcirc "prg_ow_16_16.dsl.acirc"   =<< foldConsts <$> prg' 16  16  5 xorAnd
-    Acirc.writeAcirc "prg_ow_16_128.dsl.acirc"  =<< foldConsts <$> prg' 16  128 5 xorAnd
-    Acirc.writeAcirc "prg_ow_32_32.dsl.acirc"   =<< foldConsts <$> prg' 32  32  5 xorAnd
-    Acirc.writeAcirc "prg_ow_32_128.dsl.acirc"  =<< foldConsts <$> prg' 32  128 5 xorAnd
-    Acirc.writeAcirc "prg_ow_64_64.dsl.acirc"   =<< foldConsts <$> prg' 64  64  5 xorAnd
-    Acirc.writeAcirc "prg_ow_64_128.dsl.acirc"  =<< foldConsts <$> prg' 64  128 5 xorAnd
-    Acirc.writeAcirc "prg_ow_128_128.dsl.acirc" =<< foldConsts <$> prg' 128 128 5 xorAnd
+    Acirc.writeAcirc "prg_ow_16_16.dsl.acirc"   =<< prg' 16  16  5 xorAnd
+    Acirc.writeAcirc "prg_ow_16_128.dsl.acirc"  =<< prg' 16  128 5 xorAnd
+    Acirc.writeAcirc "prg_ow_32_32.dsl.acirc"   =<< prg' 32  32  5 xorAnd
+    Acirc.writeAcirc "prg_ow_32_128.dsl.acirc"  =<< prg' 32  128 5 xorAnd
+    Acirc.writeAcirc "prg_ow_64_64.dsl.acirc"   =<< prg' 64  64  5 xorAnd
+    Acirc.writeAcirc "prg_ow_64_128.dsl.acirc"  =<< prg' 64  128 5 xorAnd
+    Acirc.writeAcirc "prg_ow_128_128.dsl.acirc" =<< prg' 128 128 5 xorAnd
 
-    Acirc.writeAcirc "prg_dumb_16_16.dsl.acirc"   =<< foldConsts <$> prg' 16  16  5 linearPredicate
-    Acirc.writeAcirc "prg_dumb_16_128.dsl.acirc"  =<< foldConsts <$> prg' 16  128 5 linearPredicate
-    Acirc.writeAcirc "prg_dumb_32_32.dsl.acirc"   =<< foldConsts <$> prg' 32  32  5 linearPredicate
-    Acirc.writeAcirc "prg_dumb_32_128.dsl.acirc"  =<< foldConsts <$> prg' 32  128 5 linearPredicate
-    Acirc.writeAcirc "prg_dumb_64_64.dsl.acirc"   =<< foldConsts <$> prg' 64  64  5 linearPredicate
-    Acirc.writeAcirc "prg_dumb_64_128.dsl.acirc"  =<< foldConsts <$> prg' 64  128 5 linearPredicate
-    Acirc.writeAcirc "prg_dumb_128_128.dsl.acirc" =<< foldConsts <$> prg' 128 128 5 linearPredicate
+    Acirc.writeAcirc "prg_dumb_16_16.dsl.acirc"   =<< prg' 16  16  5 linearPredicate
+    Acirc.writeAcirc "prg_dumb_16_128.dsl.acirc"  =<< prg' 16  128 5 linearPredicate
+    Acirc.writeAcirc "prg_dumb_32_32.dsl.acirc"   =<< prg' 32  32  5 linearPredicate
+    Acirc.writeAcirc "prg_dumb_32_128.dsl.acirc"  =<< prg' 32  128 5 linearPredicate
+    Acirc.writeAcirc "prg_dumb_64_64.dsl.acirc"   =<< prg' 64  64  5 linearPredicate
+    Acirc.writeAcirc "prg_dumb_64_128.dsl.acirc"  =<< prg' 64  128 5 linearPredicate
+    Acirc.writeAcirc "prg_dumb_128_128.dsl.acirc" =<< prg' 128 128 5 linearPredicate
 
 makeGGM :: IO ()
 makeGGM = do
-    Acirc.writeAcirc "ggm_1_16.dsl.acirc" =<< foldConsts <$> ggm 4  16 16
-    Acirc.writeAcirc "ggm_2_16.dsl.acirc" =<< foldConsts <$> ggm 8  16 16
-    Acirc.writeAcirc "ggm_3_16.dsl.acirc" =<< foldConsts <$> ggm 12 16 16
-    Acirc.writeAcirc "ggm_4_16.dsl.acirc" =<< foldConsts <$> ggm 16 16 16
-    Acirc.writeAcirc "ggm_1_32.dsl.acirc" =<< foldConsts <$> ggm 4  32 16
-    Acirc.writeAcirc "ggm_2_32.dsl.acirc" =<< foldConsts <$> ggm 8  32 16
-    Acirc.writeAcirc "ggm_3_32.dsl.acirc" =<< foldConsts <$> ggm 12 32 16
-    Acirc.writeAcirc "ggm_4_32.dsl.acirc" =<< foldConsts <$> ggm 16 32 16
-    Acirc.writeAcirc "ggm_1_64.dsl.acirc" =<< foldConsts <$> ggm 4  64 16
-    Acirc.writeAcirc "ggm_2_64.dsl.acirc" =<< foldConsts <$> ggm 8  64 16
-    Acirc.writeAcirc "ggm_3_64.dsl.acirc" =<< foldConsts <$> ggm 12 64 16
-    Acirc.writeAcirc "ggm_4_64.dsl.acirc" =<< foldConsts <$> ggm 16 64 16
-    Acirc.writeAcirc "ggm_1_128.dsl.acirc" =<< foldConsts <$> ggm 4  128 16
-    Acirc.writeAcirc "ggm_2_128.dsl.acirc" =<< foldConsts <$> ggm 8  128 16
-    Acirc.writeAcirc "ggm_3_128.dsl.acirc" =<< foldConsts <$> ggm 12 128 16
-    Acirc.writeAcirc "ggm_4_128.dsl.acirc" =<< foldConsts <$> ggm 16 128 16
+    Acirc.writeAcirc "ggm_1_16.dsl.acirc"  =<< ggm 4  16 16
+    Acirc.writeAcirc "ggm_2_16.dsl.acirc"  =<< ggm 8  16 16
+    Acirc.writeAcirc "ggm_3_16.dsl.acirc"  =<< ggm 12 16 16
+    Acirc.writeAcirc "ggm_4_16.dsl.acirc"  =<< ggm 16 16 16
+    Acirc.writeAcirc "ggm_1_32.dsl.acirc"  =<< ggm 4  32 16
+    Acirc.writeAcirc "ggm_2_32.dsl.acirc"  =<< ggm 8  32 16
+    Acirc.writeAcirc "ggm_3_32.dsl.acirc"  =<< ggm 12 32 16
+    Acirc.writeAcirc "ggm_4_32.dsl.acirc"  =<< ggm 16 32 16
+    Acirc.writeAcirc "ggm_1_64.dsl.acirc"  =<< ggm 4  64 16
+    Acirc.writeAcirc "ggm_2_64.dsl.acirc"  =<< ggm 8  64 16
+    Acirc.writeAcirc "ggm_3_64.dsl.acirc"  =<< ggm 12 64 16
+    Acirc.writeAcirc "ggm_4_64.dsl.acirc"  =<< ggm 16 64 16
+    Acirc.writeAcirc "ggm_1_128.dsl.acirc" =<< ggm 4  128 16
+    Acirc.writeAcirc "ggm_2_128.dsl.acirc" =<< ggm 8  128 16
+    Acirc.writeAcirc "ggm_3_128.dsl.acirc" =<< ggm 12 128 16
+    Acirc.writeAcirc "ggm_4_128.dsl.acirc" =<< ggm 16 128 16
 
-    Acirc.writeAcircR "ggm_sigma_1_16.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 16 16 16
-    Acirc.writeAcircR "ggm_sigma_2_16.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 32 16 16
-    Acirc.writeAcircR "ggm_sigma_3_16.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 48 16 16
-    Acirc.writeAcircR "ggm_sigma_4_16.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 64 16 16
-    Acirc.writeAcircR "ggm_sigma_1_32.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 16 32 16
-    Acirc.writeAcircR "ggm_sigma_2_32.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 32 32 16
-    Acirc.writeAcircR "ggm_sigma_3_32.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 48 32 16
-    Acirc.writeAcircR "ggm_sigma_4_32.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 64 32 16
-    Acirc.writeAcircR "ggm_sigma_1_64.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 16 64 16
-    Acirc.writeAcircR "ggm_sigma_2_64.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 32 64 16
-    Acirc.writeAcircR "ggm_sigma_3_64.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 48 64 16
-    Acirc.writeAcircR "ggm_sigma_4_64.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 64 64 16
-    Acirc.writeAcircR "ggm_sigma_1_128.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 16 128 16
-    Acirc.writeAcircR "ggm_sigma_2_128.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 32 128 16
-    Acirc.writeAcircR "ggm_sigma_3_128.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 48 128 16
-    Acirc.writeAcircR "ggm_sigma_4_128.dsl.acirc" 16 =<< foldConsts <$> ggmRachel 64 128 16
+    Acirc.writeAcircR "ggm_sigma_1_16.dsl.acirc"  16 =<< ggmRachel 16 16 16
+    Acirc.writeAcircR "ggm_sigma_2_16.dsl.acirc"  16 =<< ggmRachel 32 16 16
+    Acirc.writeAcircR "ggm_sigma_3_16.dsl.acirc"  16 =<< ggmRachel 48 16 16
+    Acirc.writeAcircR "ggm_sigma_4_16.dsl.acirc"  16 =<< ggmRachel 64 16 16
+    Acirc.writeAcircR "ggm_sigma_1_32.dsl.acirc"  16 =<< ggmRachel 16 32 16
+    Acirc.writeAcircR "ggm_sigma_2_32.dsl.acirc"  16 =<< ggmRachel 32 32 16
+    Acirc.writeAcircR "ggm_sigma_3_32.dsl.acirc"  16 =<< ggmRachel 48 32 16
+    Acirc.writeAcircR "ggm_sigma_4_32.dsl.acirc"  16 =<< ggmRachel 64 32 16
+    Acirc.writeAcircR "ggm_sigma_1_64.dsl.acirc"  16 =<< ggmRachel 16 64 16
+    Acirc.writeAcircR "ggm_sigma_2_64.dsl.acirc"  16 =<< ggmRachel 32 64 16
+    Acirc.writeAcircR "ggm_sigma_3_64.dsl.acirc"  16 =<< ggmRachel 48 64 16
+    Acirc.writeAcircR "ggm_sigma_4_64.dsl.acirc"  16 =<< ggmRachel 64 64 16
+    Acirc.writeAcircR "ggm_sigma_1_128.dsl.acirc" 16 =<< ggmRachel 16 128 16
+    Acirc.writeAcircR "ggm_sigma_2_128.dsl.acirc" 16 =<< ggmRachel 32 128 16
+    Acirc.writeAcircR "ggm_sigma_3_128.dsl.acirc" 16 =<< ggmRachel 48 128 16
+    Acirc.writeAcircR "ggm_sigma_4_128.dsl.acirc" 16 =<< ggmRachel 64 128 16
 
 
 makeGGMNoPrg :: IO ()
 makeGGMNoPrg = do
-    Acirc.writeAcirc "ggm_noprg_1_16.dsl.acirc" =<< foldConsts <$> ggmNoPrg 4  16 16
-    Acirc.writeAcirc "ggm_noprg_2_16.dsl.acirc" =<< foldConsts <$> ggmNoPrg 8  16 16
-    Acirc.writeAcirc "ggm_noprg_3_16.dsl.acirc" =<< foldConsts <$> ggmNoPrg 12 16 16
-    Acirc.writeAcirc "ggm_noprg_4_16.dsl.acirc" =<< foldConsts <$> ggmNoPrg 16 16 16
-    Acirc.writeAcirc "ggm_noprg_1_32.dsl.acirc" =<< foldConsts <$> ggmNoPrg 4  32 16
-    Acirc.writeAcirc "ggm_noprg_2_32.dsl.acirc" =<< foldConsts <$> ggmNoPrg 8  32 16
-    Acirc.writeAcirc "ggm_noprg_3_32.dsl.acirc" =<< foldConsts <$> ggmNoPrg 12 32 16
-    Acirc.writeAcirc "ggm_noprg_4_32.dsl.acirc" =<< foldConsts <$> ggmNoPrg 16 32 16
-    Acirc.writeAcirc "ggm_noprg_1_64.dsl.acirc" =<< foldConsts <$> ggmNoPrg 4  64 16
-    Acirc.writeAcirc "ggm_noprg_2_64.dsl.acirc" =<< foldConsts <$> ggmNoPrg 8  64 16
-    Acirc.writeAcirc "ggm_noprg_3_64.dsl.acirc" =<< foldConsts <$> ggmNoPrg 12 64 16
-    Acirc.writeAcirc "ggm_noprg_4_64.dsl.acirc" =<< foldConsts <$> ggmNoPrg 16 64 16
-    Acirc.writeAcirc "ggm_noprg_1_128.dsl.acirc" =<< foldConsts <$> ggmNoPrg 4  128 16
-    Acirc.writeAcirc "ggm_noprg_2_128.dsl.acirc" =<< foldConsts <$> ggmNoPrg 8  128 16
-    Acirc.writeAcirc "ggm_noprg_3_128.dsl.acirc" =<< foldConsts <$> ggmNoPrg 12 128 16
-    Acirc.writeAcirc "ggm_noprg_4_128.dsl.acirc" =<< foldConsts <$> ggmNoPrg 16 128 16
+    Acirc.writeAcirc "ggm_noprg_1_16.dsl.acirc"  =<< ggmNoPrg 4  16 16
+    Acirc.writeAcirc "ggm_noprg_2_16.dsl.acirc"  =<< ggmNoPrg 8  16 16
+    Acirc.writeAcirc "ggm_noprg_3_16.dsl.acirc"  =<< ggmNoPrg 12 16 16
+    Acirc.writeAcirc "ggm_noprg_4_16.dsl.acirc"  =<< ggmNoPrg 16 16 16
+    Acirc.writeAcirc "ggm_noprg_1_32.dsl.acirc"  =<< ggmNoPrg 4  32 16
+    Acirc.writeAcirc "ggm_noprg_2_32.dsl.acirc"  =<< ggmNoPrg 8  32 16
+    Acirc.writeAcirc "ggm_noprg_3_32.dsl.acirc"  =<< ggmNoPrg 12 32 16
+    Acirc.writeAcirc "ggm_noprg_4_32.dsl.acirc"  =<< ggmNoPrg 16 32 16
+    Acirc.writeAcirc "ggm_noprg_1_64.dsl.acirc"  =<< ggmNoPrg 4  64 16
+    Acirc.writeAcirc "ggm_noprg_2_64.dsl.acirc"  =<< ggmNoPrg 8  64 16
+    Acirc.writeAcirc "ggm_noprg_3_64.dsl.acirc"  =<< ggmNoPrg 12 64 16
+    Acirc.writeAcirc "ggm_noprg_4_64.dsl.acirc"  =<< ggmNoPrg 16 64 16
+    Acirc.writeAcirc "ggm_noprg_1_128.dsl.acirc" =<< ggmNoPrg 4  128 16
+    Acirc.writeAcirc "ggm_noprg_2_128.dsl.acirc" =<< ggmNoPrg 8  128 16
+    Acirc.writeAcirc "ggm_noprg_3_128.dsl.acirc" =<< ggmNoPrg 12 128 16
+    Acirc.writeAcirc "ggm_noprg_4_128.dsl.acirc" =<< ggmNoPrg 16 128 16
 
-    Acirc.writeAcircR "ggm_sigma_noprg_1_16.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 16 16 16
-    Acirc.writeAcircR "ggm_sigma_noprg_2_16.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 32 16 16
-    Acirc.writeAcircR "ggm_sigma_noprg_3_16.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 48 16 16
-    Acirc.writeAcircR "ggm_sigma_noprg_4_16.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 64 16 16
-    Acirc.writeAcircR "ggm_sigma_noprg_1_32.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 16 32 16
-    Acirc.writeAcircR "ggm_sigma_noprg_2_32.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 32 32 16
-    Acirc.writeAcircR "ggm_sigma_noprg_3_32.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 48 32 16
-    Acirc.writeAcircR "ggm_sigma_noprg_4_32.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 64 32 16
-    Acirc.writeAcircR "ggm_sigma_noprg_1_64.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 16 64 16
-    Acirc.writeAcircR "ggm_sigma_noprg_2_64.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 32 64 16
-    Acirc.writeAcircR "ggm_sigma_noprg_3_64.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 48 64 16
-    Acirc.writeAcircR "ggm_sigma_noprg_4_64.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 64 64 16
-    Acirc.writeAcircR "ggm_sigma_noprg_1_128.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 16 128 16
-    Acirc.writeAcircR "ggm_sigma_noprg_2_128.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 32 128 16
-    Acirc.writeAcircR "ggm_sigma_noprg_3_128.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 48 128 16
-    Acirc.writeAcircR "ggm_sigma_noprg_4_128.dsl.acirc" 16 =<< foldConsts <$> ggmRachelNoPrg 64 128 16
+    Acirc.writeAcircR "ggm_sigma_noprg_1_16.dsl.acirc"  16 =<< ggmRachelNoPrg 16 16 16
+    Acirc.writeAcircR "ggm_sigma_noprg_2_16.dsl.acirc"  16 =<< ggmRachelNoPrg 32 16 16
+    Acirc.writeAcircR "ggm_sigma_noprg_3_16.dsl.acirc"  16 =<< ggmRachelNoPrg 48 16 16
+    Acirc.writeAcircR "ggm_sigma_noprg_4_16.dsl.acirc"  16 =<< ggmRachelNoPrg 64 16 16
+    Acirc.writeAcircR "ggm_sigma_noprg_1_32.dsl.acirc"  16 =<< ggmRachelNoPrg 16 32 16
+    Acirc.writeAcircR "ggm_sigma_noprg_2_32.dsl.acirc"  16 =<< ggmRachelNoPrg 32 32 16
+    Acirc.writeAcircR "ggm_sigma_noprg_3_32.dsl.acirc"  16 =<< ggmRachelNoPrg 48 32 16
+    Acirc.writeAcircR "ggm_sigma_noprg_4_32.dsl.acirc"  16 =<< ggmRachelNoPrg 64 32 16
+    Acirc.writeAcircR "ggm_sigma_noprg_1_64.dsl.acirc"  16 =<< ggmRachelNoPrg 16 64 16
+    Acirc.writeAcircR "ggm_sigma_noprg_2_64.dsl.acirc"  16 =<< ggmRachelNoPrg 32 64 16
+    Acirc.writeAcircR "ggm_sigma_noprg_3_64.dsl.acirc"  16 =<< ggmRachelNoPrg 48 64 16
+    Acirc.writeAcircR "ggm_sigma_noprg_4_64.dsl.acirc"  16 =<< ggmRachelNoPrg 64 64 16
+    Acirc.writeAcircR "ggm_sigma_noprg_1_128.dsl.acirc" 16 =<< ggmRachelNoPrg 16 128 16
+    Acirc.writeAcircR "ggm_sigma_noprg_2_128.dsl.acirc" 16 =<< ggmRachelNoPrg 32 128 16
+    Acirc.writeAcircR "ggm_sigma_noprg_3_128.dsl.acirc" 16 =<< ggmRachelNoPrg 48 128 16
+    Acirc.writeAcircR "ggm_sigma_noprg_4_128.dsl.acirc" 16 =<< ggmRachelNoPrg 64 128 16
 
 makeApplebaum :: IO ()
 makeApplebaum = do
-    Acirc.writeAcirc "f1_16.dsl.acirc"    =<< foldConsts <$> f1 16 1
-    Acirc.writeAcirc "f1_32.dsl.acirc"    =<< foldConsts <$> f1 32 1
-    Acirc.writeAcirc "f1_64.dsl.acirc"    =<< foldConsts <$> f1 64 1
-    Acirc.writeAcirc "f1_128.dsl.acirc"   =<< foldConsts <$> f1 128 1
-    Acirc.writeAcirc "f1_128_2.dsl.acirc" =<< foldConsts <$> f1 128 2
-    Acirc.writeAcirc "f3_4.dsl.acirc"     =<< foldConsts <$> f3 4 1
+    Acirc.writeAcirc "f1_16.dsl.acirc"    =<< f1 16 1
+    Acirc.writeAcirc "f1_32.dsl.acirc"    =<< f1 32 1
+    Acirc.writeAcirc "f1_64.dsl.acirc"    =<< f1 64 1
+    Acirc.writeAcirc "f1_128.dsl.acirc"   =<< f1 128 1
+    Acirc.writeAcirc "f1_128_2.dsl.acirc" =<< f1 128 2
+    Acirc.writeAcirc "f3_4.dsl.acirc"     =<< f3 4 1
 
 --------------------------------------------------------------------------------
 -- f1

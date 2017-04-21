@@ -5,7 +5,6 @@ module Circuits.Aes where
 
 import Circuit
 import Circuit.Builder
-import Circuit.Optimizer (foldConsts)
 import qualified Circuit.Format.Acirc as Acirc
 import Util
 import Rand
@@ -16,19 +15,15 @@ import qualified Data.Vector as V
 
 make :: IO ()
 make = do
-    Acirc.writeAcirc "aes1r.dsl.acirc" =<< foldConsts <$> buildAes 128
-    Acirc.writeAcirc "aes1r_128.dsl.acirc"    =<< foldConsts <$> aes1Bit 128
-    Acirc.writeAcirc "aes1r_64.dsl.acirc" =<< foldConsts <$> aes1Bit 64
-    Acirc.writeAcirc "aes1r_32.dsl.acirc" =<< foldConsts <$> aes1Bit 32
-    Acirc.writeAcirc "aes1r_16.dsl.acirc" =<< foldConsts <$> aes1Bit 16
-    Acirc.writeAcirc "aes1r_8.dsl.acirc"  =<< foldConsts <$> aes1Bit 8
-    -- Acirc.writeAcirc "aes1r_7.dsl.acirc"  =<< foldConsts <$> aes1Bit 7
-    -- Acirc.writeAcirc "aes1r_6.dsl.acirc"  =<< foldConsts <$> aes1Bit 6
-    -- Acirc.writeAcirc "aes1r_5.dsl.acirc"  =<< foldConsts <$> aes1Bit 5
-    Acirc.writeAcirc "aes1r_4.dsl.acirc"  =<< foldConsts <$> aes1Bit 4
-    -- Acirc.writeAcirc "aes1r_3.dsl.acirc"  =<< foldConsts <$> aes1Bit 3
-    Acirc.writeAcirc "aes1r_2.dsl.acirc"  =<< foldConsts <$> aes1Bit 2
-    Acirc.writeAcirc "sbox.dsl.acirc"  subByte
+    Acirc.writeAcirc "aes1r.dsl.acirc"     =<< buildAes 128
+    Acirc.writeAcirc "aes1r_128.dsl.acirc" =<< aes1Bit 128
+    Acirc.writeAcirc "aes1r_64.dsl.acirc"  =<< aes1Bit 64
+    Acirc.writeAcirc "aes1r_32.dsl.acirc"  =<< aes1Bit 32
+    Acirc.writeAcirc "aes1r_16.dsl.acirc"  =<< aes1Bit 16
+    Acirc.writeAcirc "aes1r_8.dsl.acirc"   =<< aes1Bit 8
+    Acirc.writeAcirc "aes1r_4.dsl.acirc"   =<< aes1Bit 4
+    Acirc.writeAcirc "aes1r_2.dsl.acirc"   =<< aes1Bit 2
+    Acirc.writeAcirc "sbox.dsl.acirc" subByte
 
 sbox :: V.Vector (V.Vector Bool)-- {{{
 sbox =
