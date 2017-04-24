@@ -4,7 +4,7 @@ import Circuit
 import Util
 import Rand
 import Circuit.Builder
-import Circuit.Optimizer (flattenRec, foldConsts)
+import Circuit.Optimizer (flatten, flattenRec, foldConsts)
 import Circuit.Parser (CircuitParser)
 import qualified Circuit.Format.Acirc   as Acirc
 import qualified Circuit.Graphviz       as Graphviz
