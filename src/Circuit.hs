@@ -105,14 +105,15 @@ genTest symlen c
 printCircInfo :: Circuit -> IO ()
 printCircInfo c = do
     let ds = degs c
-        n = fromIntegral $ ninputs c
-    printf "circuit info: depth=%d ninputs=%d noutputs=%d nconsts=%d%s ngates=%d\n"
-            (depth c) n (noutputs c) (nconsts c)
-            (show (M.elems (circ_secrets c)))
-            (ngates c)
-    printf "degs=%s var-degree=%d circ-degree=%d\n" (show ds) (sum ds) (circDegree c)
-    printf "zimmerman-io-kappa=%d\n" (circDegree c + 2*n)
-    printf "lin16-kappa(c=n)=%d\n" (2 + fromIntegral n + sum ds + circDegree c)
+        n = ninputs c
+    printf "circuit info\n"
+    printf "============\n"
+    printf "ninputs=%d noutputs=%d nconsts=%d\n"
+            n (noutputs c) (nconsts c)
+    printf "ngates=%d depth=%d var-degree=%d circ-degree=%d\n"
+            (ngates c) (depth c) (sum ds) (circDegree c)
+    printf "number of additions with disjoint indices: %d\n"
+            (numDisjointAdditions c)
 
 printCircInfoLatex :: Circuit -> IO ()
 printCircInfoLatex c = do
@@ -402,3 +403,24 @@ intermediateGates c = filter intermediate (topologicalOrder c)
     intermediate ref = notElem ref (circ_inputs c) &&
                        notElem ref (circ_outputs c) &&
                        M.notMember ref (circ_secret_refs c)
+
+numDisjointAdditions :: Circuit -> Int
+numDisjointAdditions c = execState (foldCircM eval c) 0
+  where
+    eval :: Op -> Ref -> [M.Map Op Int] -> State Int (M.Map Op Int)
+    eval (OpAdd _ _) _ [xdegs, ydegs] = do
+        let degs = M.unionWith max xdegs ydegs
+        when (M.null (M.intersection xdegs ydegs)) (modify succ)
+        return degs
+    eval (OpSub _ _) _ [xdegs, ydegs] = do
+        let degs  = M.unionWith max xdegs ydegs
+        return degs
+    eval (OpMul _ _) _ [xdegs, ydegs] = do
+        let degs  = M.unionWith (+) xdegs ydegs
+        return degs
+    eval op@(OpInput _) _ _ = return (M.singleton op 1)
+    eval op@(OpSecret id) _ _ = if publicConst c id
+                                   then return M.empty
+                                   else return (M.singleton op 1)
+    eval _ _ _ = undefined
+

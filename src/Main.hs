@@ -89,7 +89,7 @@ instance Options MainOptions where
         <*> defineOption (optionType_maybe optionType_int)
             (\o -> o { optionShortFlags  = "O"
                      , optionLongFlags   = ["optimize"]
-                     , optionDescription = "Optimization level: 1=FoldConsts, 2=FoldConsts&FlattenRec"
+                     , optionDescription = "Optimization level: 1=FoldConsts, 2=FoldConsts&FlattenRec, 3=FoldConsts&Flatten"
                      })
 
         <*> defineOption optionType_bool
@@ -129,6 +129,7 @@ main = runCommand $ \opts args -> do
                 Nothing -> return c
                 Just 1  -> return (foldConsts c)
                 Just 2  -> flattenRec (foldConsts c)
+                Just 3  -> flatten (foldConsts c)
                 Just x  -> do
                     printf "[error] unknown optimization level %d\n" x
                     exitFailure

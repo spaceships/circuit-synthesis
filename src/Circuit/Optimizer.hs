@@ -46,7 +46,7 @@ find :: Int -> Circuit -> Ref
 find maxDepth c = snd $ execState (foldCircM eval c) (0, Ref 0)
   where
     eval (OpAdd _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
-        let degs  = M.unionWith (max) xdegs ydegs
+        let degs  = M.unionWith max xdegs ydegs
             depth = max xdepth ydepth + 1
         check ref degs depth
         return (degs, depth)
@@ -172,7 +172,7 @@ patch loc c1 c2
   | noutputs c2 /= 1 = error "[patch] expected c2 to have only one output"
   | otherwise = B.buildCircuit $ do
     xs <- B.inputs (ninputs c1)
-    ys <- B.exportSecrets c1
+    _  <- B.exportSecrets c1
 
     -- when we get to loc, eval c2 as subcircuit and return that output
     let catch ref other = if ref == loc
