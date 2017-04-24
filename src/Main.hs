@@ -5,7 +5,6 @@ import Util
 import Rand
 import Circuit.Builder
 import Circuit.Optimizer (flatten, flattenRec, foldConsts)
-import Circuit.Parser (CircuitParser)
 import qualified Circuit.Format.Acirc   as Acirc
 import qualified Circuit.Graphviz       as Graphviz
 
@@ -89,7 +88,7 @@ instance Options MainOptions where
         <*> defineOption (optionType_maybe optionType_int)
             (\o -> o { optionShortFlags  = "O"
                      , optionLongFlags   = ["optimize"]
-                     , optionDescription = "Optimization level: 1=FoldConsts, 2=FoldConsts&FlattenRec, 3=FoldConsts&Flatten"
+                     , optionDescription = "Post-compilation optimization level: 1=FoldConsts, 2=FoldConsts&FlattenRec, 3=FoldConsts&Flatten"
                      })
 
         <*> defineOption optionType_bool
@@ -102,64 +101,70 @@ instance Options MainOptions where
 main :: IO ()
 main = runCommand $ \opts args -> do
     case opt_gencirc opts of
-        Just "aes"       -> Aes.make
-        Just "goldreich" -> Goldreich.makePRG
-        Just "ggm"       -> Goldreich.makeGGM
-        Just "ggmNoPrg"  -> Goldreich.makeGGMNoPrg
-        Just "applebaum" -> Goldreich.makeApplebaum
-        Just "tribes"    -> Tribes.make
-        Just "gf28Mult"  -> Aes.makeGF28Mult
+        Just "aes"           -> mapM_ (circuitMain opts [] 1)  =<< Aes.make
+        Just "goldreich"     -> mapM_ (circuitMain opts [] 1)  =<< Goldreich.makePRG
+        Just "ggm"           -> mapM_ (circuitMain opts [] 1)  =<< Goldreich.makeGGM
+        Just "ggmSigma"      -> mapM_ (circuitMain opts [] 16) =<< Goldreich.makeGGMSigma
+        Just "ggmNoPrg"      -> mapM_ (circuitMain opts [] 1)  =<< Goldreich.makeGGMNoPrg
+        Just "ggmNoPrgSigma" -> mapM_ (circuitMain opts [] 1)  =<< Goldreich.makeGGMNoPrg
+        Just "applebaum"     -> mapM_ (circuitMain opts [] 1)  =<< Goldreich.makeApplebaum
+        Just "tribes"        -> mapM_ (circuitMain opts [] 1)  =<< Tribes.make
         Just _ -> do
-            putStrLn "[error] known circuit generation modes: aes, goldreich, ggm, ggmNoPrg, applebaum, tribes, gf28Mult"
+            putStrLn "[error] known circuit generation modes: aes, goldreich, ggm, ggmSigma, ggmNoPrg, ggmNoPrgSigma, applebaum, tribes, gf28Mult"
             exitFailure
 
         Nothing -> do
             when (null args) $ do
-                putStrLn "[error] input circuit required"
+                putStrLn "[error] input circuit or compilation mode required"
                 exitFailure
 
             let inputFile = head args
-                parser    = parserFor inputFile :: CircuitParser
 
-            when (opt_add_acirc_tests opts) $ Acirc.addTestsToFile inputFile
+            when (opt_add_acirc_tests opts) $ do
+                Acirc.addTestsToFile inputFile
+                printf "added tests to file %s. quitting..." inputFile
 
-            (c,ts) <- parser <$> readFile inputFile
+            (c,ts) <- Acirc.readAcirc inputFile
 
-            c <- case opt_optimize opts of
-                Nothing -> return c
-                Just 1  -> return (foldConsts c)
-                Just 2  -> flattenRec (foldConsts c)
-                Just 3  -> flatten (foldConsts c)
-                Just x  -> do
-                    printf "[error] unknown optimization level %d\n" x
-                    exitFailure
+            circuitMain opts ts 1 (opt_write_to_file opts, c)
 
-            c <- if opt_randomize_secrets opts
-                    then randomizeSecrets c
-                    else return c
+circuitMain :: MainOptions -> [TestCase] -> Int -> (Maybe String, Circuit) -> IO ()
+circuitMain opts ts symLen (outputName, c) = do
+    c <- case opt_optimize opts of
+        Nothing -> return c
+        Just 1  -> return (foldConsts c)
+        Just 2  -> flattenRec (foldConsts c)
+        Just 3  -> flatten (foldConsts c)
+        Just x  -> do
+            printf "[error] unknown optimization level %d\n" x
+            exitFailure
 
-            when (opt_info opts) $ do
-                printCircInfo c
+    c <- if opt_randomize_secrets opts
+            then randomizeSecrets c
+            else return c
 
-            when (opt_latex_info opts) $ do
-                printCircInfoLatex c
+    when (opt_info opts) $ do
+        printCircInfo c
 
-            ts <- case opt_gentests opts of
-                Nothing -> return ts
-                Just i  -> replicateM i (genTest (ninputs c) c)
+    when (opt_latex_info opts) $ do
+        printCircInfoLatex c
 
-            when (opt_test opts) $ do
-                evalTests opts c ts
+    ts <- case opt_gentests opts of
+        Nothing -> return ts
+        Just i  -> replicateM i (genTest (ninputs c) c)
 
-            s <- if opt_graphviz opts
-                    then return $ Graphviz.showCircuit c
-                    else Acirc.showCircWithTests 10 c
+    when (opt_test opts) $ do
+        evalTests opts c ts
 
-            case opt_write_to_file opts of
-                Just f  -> writeFile f s
-                Nothing -> return ()
+    s <- if opt_graphviz opts
+            then return $ Graphviz.showCircuit c
+            else Acirc.showCircWithTests 10 c
 
-            exitSuccess
+    case outputName of
+        Just fn -> do
+            printf "writing %s\n" fn
+            writeFile fn s
+        Nothing -> return ()
 
 evalTests :: MainOptions -> Circuit -> [TestCase] -> IO ()
 evalTests opts c ts = do
@@ -175,10 +180,3 @@ getKappa c = δ + 2*n + n*(2*n-1)
   where
     n = fromIntegral $ ninputs c
     δ = sum (degs c)
-
-parserFor :: String -> CircuitParser
-parserFor filename = case extension filename of
-    "acirc" -> Acirc.parseCirc
-    ext     -> error $ printf "[error] unknown circuit type: \"%s\"" ext
-  where
-    extension = reverse . takeWhile (/= '.') . reverse

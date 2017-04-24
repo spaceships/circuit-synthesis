@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE ParallelListComp #-}
+{-# LANGUAGE TupleSections #-}
 
 module Circuits.Aes where
 
@@ -10,20 +11,24 @@ import Util
 import Rand
 
 import Control.Monad
+import System.Process
+import System.Directory (doesFileExist)
 import Data.List.Split
 import qualified Data.Vector as V
+import Control.Monad.IfElse (whenM)
 
-make :: IO ()
-make = do
-    Acirc.writeAcirc "aes1r.dsl.acirc"     =<< buildAes 128
-    Acirc.writeAcirc "aes1r_128.dsl.acirc" =<< aes1Bit 128
-    Acirc.writeAcirc "aes1r_64.dsl.acirc"  =<< aes1Bit 64
-    Acirc.writeAcirc "aes1r_32.dsl.acirc"  =<< aes1Bit 32
-    Acirc.writeAcirc "aes1r_16.dsl.acirc"  =<< aes1Bit 16
-    Acirc.writeAcirc "aes1r_8.dsl.acirc"   =<< aes1Bit 8
-    Acirc.writeAcirc "aes1r_4.dsl.acirc"   =<< aes1Bit 4
-    Acirc.writeAcirc "aes1r_2.dsl.acirc"   =<< aes1Bit 2
-    Acirc.writeAcirc "sbox.dsl.acirc" subByte
+make :: IO [(Maybe String, Circuit)]
+make = sequence
+    [ (Just "aes1r.dsl.acirc"    ,) <$> buildAes 128
+    , (Just "aes1r_128.dsl.acirc",) <$> aes1Bit 128
+    , (Just "aes1r_64.dsl.acirc" ,) <$> aes1Bit 64
+    , (Just "aes1r_32.dsl.acirc" ,) <$> aes1Bit 32
+    , (Just "aes1r_16.dsl.acirc" ,) <$> aes1Bit 16
+    , (Just "aes1r_8.dsl.acirc"  ,) <$> aes1Bit 8
+    , (Just "aes1r_4.dsl.acirc"  ,) <$> aes1Bit 4
+    , (Just "aes1r_2.dsl.acirc"  ,) <$> aes1Bit 2
+    , return (Just "sbox.dsl.acirc", subByte)
+    ]
 
 sbox :: V.Vector (V.Vector Bool)-- {{{
 sbox =
@@ -310,6 +315,8 @@ subByte = buildCircuit $ do
 
 buildAes :: Int -> IO Circuit
 buildAes n = do
+    whenM (not <$> doesFileExist "linearParts.c2v.acirc") $ do
+        void $ system "./scripts/c2v cryptol/AES.cry linearParts > linearParts.c2v.acirc"
     linearParts <- fst <$> Acirc.readAcirc "linearParts.c2v.acirc"
     return $ buildCircuit $ do
         inp  <- inputs n
@@ -383,10 +390,6 @@ compileGF28Triple = do
         xs <- inputs 8
         ys <- lookupTableMultibit (plainEval triple) xs
         outputs ys
-
-makeGF28Mult :: IO ()
-makeGF28Mult = do
-    Acirc.write "gf28Triple.dsl.acirc" =<< compileGF28Triple
 
 -- assume inputs come in chunks of 8
 gf28DotProduct :: Circuit -> Circuit -> [Int] -> [[Ref]] -> Builder [Ref]

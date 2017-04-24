@@ -9,8 +9,6 @@ import qualified Data.Map   as M
 import qualified Data.Bimap as B
 import qualified Data.Set   as S
 
-type CircuitParser = String -> (Circuit, [TestCase])
-
 data ParseSt = ParseSt {
       st_circ   :: Circuit
     , st_tests  :: [TestCase]

@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE TupleSections #-}
 #if __GLASGOW_HASKELL__ >= 800
 {-# LANGUAGE Strict #-}
 #endif
@@ -8,17 +9,17 @@ module Circuits.Tribes where
 
 import Circuit
 import Circuit.Builder
-import qualified Circuit.Format.Acirc as Acirc
 import Rand
 import Data.List.Split
 
-make :: IO ()
-make = do
-    Acirc.writeAcirc "fa_8.dsl.acirc"   =<< fa 8 4
-    Acirc.writeAcirc "fa_16.dsl.acirc"  =<< fa 16 4
-    Acirc.writeAcirc "fa_32.dsl.acirc"  =<< fa 32 4
-    Acirc.writeAcirc "fa_64.dsl.acirc"  =<< fa 64 4
-    Acirc.writeAcirc "fa_128.dsl.acirc" =<< fa 128 4
+make :: IO [(Maybe String, Circuit)]
+make = sequence
+    [ (Just "fa_8.dsl.acirc"   ,) <$> fa 8 4
+    , (Just "fa_16.dsl.acirc"  ,) <$> fa 16 4
+    , (Just "fa_32.dsl.acirc"  ,) <$> fa 32 4
+    , (Just "fa_64.dsl.acirc"  ,) <$> fa 64 4
+    , (Just "fa_128.dsl.acirc" ,) <$> fa 128 4
+    ]
 
 tribes :: Int -> [Ref] -> Ref -> Builder Ref
 tribes k y z = circXor z =<< circOrs =<< mapM circProd (chunksOf k y)
