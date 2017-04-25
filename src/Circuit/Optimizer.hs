@@ -240,8 +240,8 @@ flattenRec c = loop maxDepth c
         Nothing   -> loop (minDeg - 1) c
         Just root -> do
             let sub = foldConsts (cheapSlice root c)
-            printf "[flattenRec] root=%d, nin=%d, deg=%d, depth=%d, total_degree=%d\n"
-                    (getRef root) (ninputs sub) (circDegree sub) (depth sub) (circDegree c)
+            printf "[flattenRec] root=%d, total_gates=%d, sub_gates=%d, nin=%d, deg=%d, depth=%d, total_degree=%d\n"
+                    (getRef root) (ngates c) (ngates sub) (ninputs sub) (circDegree sub) (depth sub) (circDegree c)
             sub' <- flatten sub
             printf "[flattenRec] flattened subcircuit degree: %d\n" (circDegree sub')
             let c' = patch root c sub'
@@ -352,4 +352,3 @@ pushDown c = B.buildCircuit $ do
         return (z, Nothing)
 
     eval _ _ _ = error "[foldConsts] oops"
-
