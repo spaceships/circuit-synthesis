@@ -317,6 +317,7 @@ buildAes :: Int -> IO Circuit
 buildAes n = do
     whenM (not <$> doesFileExist "linearParts.c2v.acirc") $ do
         void $ system "./scripts/c2v cryptol/AES.cry linearParts > linearParts.c2v.acirc"
+    -- linearParts <- fst <$> Acirc.readAcirc "linearParts.opt.acirc"
     linearParts <- fst <$> Acirc.readAcirc "linearParts.c2v.acirc"
     return $ buildCircuit $ do
         inp  <- inputs n

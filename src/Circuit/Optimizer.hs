@@ -172,12 +172,11 @@ patch loc c1 c2
   | noutputs c2 /= 1 = error "[patch] expected c2 to have only one output"
   | otherwise = B.buildCircuit $ do
     xs <- B.inputs (ninputs c1)
-    _  <- B.exportSecrets c1
+    ys <- B.exportSecrets c1
 
     -- when we get to loc, eval c2 as subcircuit and return that output
     let catch ref other = if ref == loc
-                             -- then head <$> B.subcircuit' c2 xs ys
-                             then head <$> B.subcircuit c2 xs
+                             then head <$> B.subcircuit' c2 xs ys
                              else other
 
     let eval (OpAdd _ _) ref [x,y] = catch ref $ B.circAdd x y
@@ -233,15 +232,16 @@ cleanup c = B.buildCircuit $ do
 flattenRec :: Circuit -> IO Circuit
 flattenRec c = loop maxDepth c
   where
-    maxDepth = 14
+    maxDepth = 15
 
     loop 0      c = return c
     loop minDeg c = case findFirstHSVD maxDepth minDeg c of
         Nothing   -> loop (minDeg - 1) c
         Just root -> do
             let sub = foldConsts (cheapSlice root c)
-            printf "[flattenRec] root=%d, total_gates=%d, sub_gates=%d, nin=%d, deg=%d, depth=%d, total_degree=%d\n"
-                    (getRef root) (ngates c) (ngates sub) (ninputs sub) (circDegree sub) (depth sub) (circDegree c)
+            printf "[flattenRec]\n\troot=%d, total_gates=%d, total_nconsts=%d, total_degree=%d\n\tsub_gates=%d, sub_nin=%d, sub_deg=%d, sub_depth=%d\n"
+                    (getRef root) (ngates c) (nconsts c) (circDegree c)
+                    (ngates sub) (ninputs sub) (circDegree sub) (depth sub)
             sub' <- flatten sub
             printf "[flattenRec] flattened subcircuit degree: %d\n" (circDegree sub')
             let c' = patch root c sub'
