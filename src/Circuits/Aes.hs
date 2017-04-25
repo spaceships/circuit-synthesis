@@ -20,13 +20,13 @@ import Control.Monad.IfElse (whenM)
 make :: IO [(Maybe String, Circuit)]
 make = sequence
     [ (Just "aes1r.dsl.acirc"    ,) <$> buildAes 128
-    , (Just "aes1r_128.dsl.acirc",) <$> aes1Bit 128
-    , (Just "aes1r_64.dsl.acirc" ,) <$> aes1Bit 64
-    , (Just "aes1r_32.dsl.acirc" ,) <$> aes1Bit 32
-    , (Just "aes1r_16.dsl.acirc" ,) <$> aes1Bit 16
-    , (Just "aes1r_8.dsl.acirc"  ,) <$> aes1Bit 8
-    , (Just "aes1r_4.dsl.acirc"  ,) <$> aes1Bit 4
-    , (Just "aes1r_2.dsl.acirc"  ,) <$> aes1Bit 2
+    , (Just "aes1r_128_1.dsl.acirc",) <$> aes1Bit 128
+    , (Just "aes1r_64_1.dsl.acirc" ,) <$> aes1Bit 64
+    , (Just "aes1r_32_1.dsl.acirc" ,) <$> aes1Bit 32
+    , (Just "aes1r_16_1.dsl.acirc" ,) <$> aes1Bit 16
+    , (Just "aes1r_8_1.dsl.acirc"  ,) <$> aes1Bit 8
+    , (Just "aes1r_4_1.dsl.acirc"  ,) <$> aes1Bit 4
+    , (Just "aes1r_2_1.dsl.acirc"  ,) <$> aes1Bit 2
     , return (Just "sbox.dsl.acirc", subByte)
     ]
 
