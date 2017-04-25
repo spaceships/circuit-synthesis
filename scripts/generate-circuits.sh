@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+circsynth="cabal run --verbose=0 --"
+
 usage () {
     echo "generate-circuits.sh: Generates arithmetic circuits for obfuscation"
     echo ""
@@ -14,6 +16,11 @@ _=$(getopt -o eoh --long extra,opt,help)
 if [ $? != 0 ]; then
     echo "Error: failed parsing options"
     usage 1
+fi
+
+if ! hash tar 2>/dev/null; then
+    echo "Error: tar needs to be installed"
+    exit 1
 fi
 
 extra='n'
@@ -41,7 +48,7 @@ cryptoldir=$(readlink -f "$rootdir/cryptol")
 pushd "$rootdir"
 
 function add_tests() {
-    cabal run --verbose=0 -- -A "$1"
+    $circsynth -A "$1"
 }
 
 function generate_circuit() {
@@ -68,11 +75,14 @@ function generate_circuit() {
     add_tests "$result_file"
     # Rename files if appropriate
     if [[ $func_name == b0 ]]; then
-        mv $result_file ${result_file/b0/aes1r_128}
+        mv "$result_file" "${result_file/b0/aes1r_128_1}"
     elif [[ $func_name =~ "b0_" ]]; then
-        mv $result_file ${result_file/b0/aes1r}
+        nins=$(echo "$func_name" | cut -d'_' -f2)
+        file=$(echo "$result_file" | cut -d'.' -f2-)
+        target="aes1r_${nins}_1.${file}"
+        mv "$result_file" "$target"
     elif [[ $func_name == "sbox_" ]]; then
-        mv $result_file ${result_file/sbox_/sbox}
+        mv "$result_file" "${result_file/sbox_/sbox}"
     fi
 }
 
@@ -84,17 +94,18 @@ for ty in C2A C2V; do
         generate_circuit $ty "$cryptoldir"/AES.cry $f
     done
 done
-cabal run --verbose=0 -- -C aes # requires linearParts
+$circsynth -C aes # requires linearParts
 
 #
 # Generate Goldreich PRG circuits
 #
-cabal run --verbose=0 -- -C goldreich
+$circsynth -C goldreich
 
 #
 # generate GGM circuits
 #
-cabal run --verbose=0 -- -C ggm
+$circsynth -C ggm
+$circsynth -C ggmSigma
 
 if [[ $extra == y ]]; then
     for ty in C2A C2V; do
@@ -119,12 +130,12 @@ if [[ $extra == y ]]; then
         mkdir -p mappers
         cp mapper_8.c2v.acirc mappers
     fi
-    cabal run --verbose=0 -- -C applebaum
+    $circsynth -C applebaum
 
     #
     # Generate tribes circuits
     #
-    cabal run --verbose=0 -- -C tribes
+    $circsynth -C tribes
 
     #
     # Generate MIMC circuits
@@ -143,18 +154,19 @@ if [[ $opt == y ]]; then
     for c in ./*.dsl.acirc; do
         _c=$(basename "$c")
         # run -O1 on everything
-        cabal run --verbose=0 -- -O1 "$c" -o "${c/dsl/opt-1}"
+        $circsynth -O1 "$c" -o "${c/dsl/opt-1}"
         # for -O2, skip ones that take forever
-        if [[ $_c =~ ^f ]]; then
+        if [[ $_c =~ ^f \
+           || $_c =~ ^ggm_(1|2|3|4) \
+           || $_c =~ ^ggm_sigma_(1|2|3|4) ]]; then
             continue
         fi
-        if [[ $_c =~ ^ggm_(1|2|3|4) ]]; then
-            continue
+        $circsynth -O2 "$c" -o "${c/dsl/opt-2}"
+        # for -O3, skip all but the ones that'll actually finish
+        if [[ $_c =~ ^aes1r_(2|4|8|16|32) \
+           || $_c == "sbox" ]]; then
+            $circsynth -O3 "$c" -o "${c/dsl/opt-3}"
         fi
-        if [[ $_c =~ ^ggm_sigma_(1|2|3|4) ]]; then
-            continue
-        fi
-        cabal run --verbose=0 -- -O2 "$c" -o "${c/dsl/opt-2}"
     done
 fi
 
@@ -164,10 +176,10 @@ fi
 tmpdir=$(mktemp -d)
 mv ./*.acirc "$tmpdir"
 mkdir "$tmpdir"/sigma
-mv "$tmpdir"/*sigma*acirc "$tmpdir"/sigma
+mv "$tmpdir"/*sigma*acirc "$tmpdir"/sigma 2>/dev/null || true
 if [[ $extra == y ]]; then
     mkdir "$tmpdir"/other
-    mv "$tmpdir"/*mimc*acirc "$tmpdir"/other
+    mv "$tmpdir"/*mimc*acirc "$tmpdir"/other 2>/dev/null || true
 fi
 
 popd
