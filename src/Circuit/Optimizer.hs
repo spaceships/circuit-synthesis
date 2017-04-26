@@ -232,7 +232,7 @@ cleanup c = B.buildCircuit $ do
 flattenRec :: Circuit -> IO Circuit
 flattenRec c = loop maxDepth c
   where
-    maxDepth = 15
+    maxDepth = 14
 
     loop 0      c = return c
     loop minDeg c = case findFirstHSVD maxDepth minDeg c of
