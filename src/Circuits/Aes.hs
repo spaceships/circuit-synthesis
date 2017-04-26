@@ -11,11 +11,11 @@ import Util
 import Rand
 
 import Control.Monad
-import System.Process
-import System.Directory (doesFileExist)
 import Data.List.Split
 import qualified Data.Vector as V
-import Control.Monad.IfElse (whenM)
+-- import Control.Monad.IfElse (whenM)
+-- import System.Directory (doesFileExist)
+-- import System.Process
 
 make :: IO [(Maybe String, Circuit)]
 make = sequence
@@ -315,10 +315,10 @@ subByte = buildCircuit $ do
 
 buildAes :: Int -> IO Circuit
 buildAes n = do
-    whenM (not <$> doesFileExist "linearParts.c2v.acirc") $ do
-        void $ system "./scripts/c2v cryptol/AES.cry linearParts > linearParts.c2v.acirc"
-    -- linearParts <- fst <$> Acirc.readAcirc "linearParts.opt.acirc"
-    linearParts <- fst <$> Acirc.readAcirc "linearParts.c2v.acirc"
+    -- whenM (not <$> doesFileExist "linearParts.c2v.acirc") $ do
+    --     void $ system "./scripts/c2v cryptol/AES.cry linearParts > linearParts.c2v.acirc"
+    -- linearParts <- fst <$> Acirc.readAcirc "linearParts.c2v.acirc"
+    linearParts <- fst <$> Acirc.readAcirc "linearParts.opt2.acirc"
     return $ buildCircuit $ do
         inp  <- inputs n
         one  <- constant 1
