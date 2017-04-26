@@ -151,14 +151,14 @@ circuitMain opts ts symLen (outputName, c) = do
 
     ts <- case opt_gentests opts of
         Nothing -> return ts
-        Just i  -> replicateM i (genTest (ninputs c) c)
+        Just i  -> replicateM i (genTest symLen c)
 
     when (opt_test opts) $ do
         evalTests opts c ts
 
     s <- if opt_graphviz opts
             then return $ Graphviz.showCircuit c
-            else Acirc.showCircWithTests 10 c
+            else Acirc.showCircWithTestsR symLen 10 c
 
     case outputName of
         Just fn -> do

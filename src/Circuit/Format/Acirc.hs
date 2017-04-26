@@ -10,6 +10,7 @@ module Circuit.Format.Acirc
   , genTestStr
   , addTestsToFile
   , showCircWithTests
+  , showCircWithTestsR
   ) where
 
 import Circuit
