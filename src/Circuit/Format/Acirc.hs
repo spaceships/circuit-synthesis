@@ -22,6 +22,7 @@ import qualified Control.Monad.State as S
 import Text.Parsec hiding (spaces, parseTest)
 import Text.Printf
 import qualified Data.Map as M
+import Debug.Trace
 
 --------------------------------------------------------------------------------
 -- printer

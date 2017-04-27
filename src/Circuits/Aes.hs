@@ -19,7 +19,7 @@ import qualified Data.Vector as V
 
 make :: IO [(Maybe String, Circuit)]
 make = sequence
-    [ (Just "aes1r.dsl.acirc"    ,) <$> buildAes 128
+    [ (Just "aes1r.dsl.acirc"      ,) <$> buildAes 128
     , (Just "aes1r_128_1.dsl.acirc",) <$> aes1Bit 128
     , (Just "aes1r_64_1.dsl.acirc" ,) <$> aes1Bit 64
     , (Just "aes1r_32_1.dsl.acirc" ,) <$> aes1Bit 32
@@ -410,8 +410,8 @@ gf28MatrixMult double triple xs ys = mapM (\x -> gf28VectorMult double triple x 
 
 mixColumns :: IO Circuit
 mixColumns = do
-    double <- Acirc.read "gf28Double.c2a.acirc"
-    triple <- Acirc.read "gf28Triple.dsl.acirc"
+    double <- Acirc.read "gf28Double.opt3.acirc"
+    triple <- Acirc.read "gf28Triple.opt3.acirc"
     return $ buildCircuit $ do
         xs <- replicateM 4 $ replicateM 4 (inputs 8)
         zs <- gf28MatrixMult double triple m xs

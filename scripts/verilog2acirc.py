@@ -58,7 +58,7 @@ f.close()
 
 print(":nins {}".format(input_len))
 
-# assign const 1
+# assign const 1 - the only public const
 print("0 const 1")
 
 next_x = 0
@@ -80,6 +80,8 @@ refs = {} # verilog wires to refs
 #      next_y += 1
 #      next_ref += 1
 
+secret_refs = []
+
 for i in range(input_len + key_len):
     if i < input_len: 
         print("{} input {}".format(next_ref, next_x))
@@ -87,6 +89,7 @@ for i in range(input_len + key_len):
     else:
         # just make the key 0 for convenience: change it if you care
         print("{} const 0".format(next_ref))
+        secret_refs.append(next_ref)
     if i in inputs:
         refs[inputs[i]] = next_ref
     next_ref += 1
@@ -131,3 +134,4 @@ for w in outputs:
     print_circ(w)
 
 print(":outputs {}".format(" ".join(map(lambda w: str(refs[w]), outputs))))
+print(":secrets {}".format(" ".join(map(str, secret_refs))))
