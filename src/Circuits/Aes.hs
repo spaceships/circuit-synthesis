@@ -19,7 +19,7 @@ import qualified Data.Vector as V
 
 make :: IO [(Maybe String, Circuit)]
 make = sequence
-    [ (Just "aes1r.dsl.acirc"      ,) <$> buildAes 128
+    [ (Just "aes1r.dsl.acirc"      ,) <$> buildAesRound 128
     , (Just "aes1r_128_1.dsl.acirc",) <$> aes1Bit 128
     , (Just "aes1r_64_1.dsl.acirc" ,) <$> aes1Bit 64
     , (Just "aes1r_32_1.dsl.acirc" ,) <$> aes1Bit 32
@@ -313,12 +313,8 @@ subByte = buildCircuit $ do
     ys <- subcircuit subByteFromRachael rs
     outputs ys
 
-buildAes :: Int -> IO Circuit
-buildAes n = do
-    -- whenM (not <$> doesFileExist "linearParts.c2v.acirc") $ do
-    --     void $ system "./scripts/c2v cryptol/AES.cry linearParts > linearParts.c2v.acirc"
-    -- linearParts <- fst <$> Acirc.readAcirc "linearParts.c2v.acirc"
-    -- linearParts <- fst <$> Acirc.readAcirc "linearParts.opt2.acirc"
+buildAesRound :: Int -> IO Circuit
+buildAesRound n = do
     linearParts <- buildLinearParts
     return $ buildCircuit $ do
         inp  <- inputs n
@@ -332,9 +328,25 @@ buildAes n = do
         xs'' <- zipWithM circXor xs' key -- addRoundKey
         outputs xs''
 
+buildAes :: Int -> Int -> IO Circuit
+buildAes nrounds ninputs = do
+    aesRound <- Acirc.read "aes1r.o2.acirc"
+    return $ buildCircuit $ do
+        inp     <- inputs ninputs
+        fixed   <- replicateM (128 - ninputs) (constant 0)
+        k0      <- replicateM 128 (secret 0)
+        -- round 1
+        xs <- zipWithM circXor (inp ++ fixed) k0
+        if nrounds > 1 then do
+            -- round 2+
+            zs <- foldM (\x _ -> subcircuit aesRound x) xs ([2..nrounds] :: [Int])
+            outputs zs
+        else do
+            outputs xs
+
 aes1Bit :: Int -> IO Circuit
 aes1Bit n = do
-    aes <- buildAes n
+    aes <- buildAesRound n
     return $ buildCircuit $ do
         inp <- inputs n
         zs <- subcircuit aes inp
