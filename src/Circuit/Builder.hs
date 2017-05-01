@@ -12,8 +12,6 @@ import qualified Data.Map as M
 import qualified Data.Bimap as B
 import qualified Data.Set as S
 
-import Debug.Trace
-
 type Builder = State BuildSt
 
 data BuildSt = BuildSt {
@@ -241,9 +239,7 @@ exportSecrets :: Circuit -> Builder [Ref]
 exportSecrets c = do
     forM (M.toAscList (circ_secret_refs c)) $ \(_, sid) -> do
         let x = getSecret c sid
-        traceM (show sid)
         if publicConst c sid then do
-            traceM "here"
             constant x
         else
             secret x

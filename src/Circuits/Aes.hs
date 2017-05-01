@@ -318,7 +318,8 @@ buildAes n = do
     -- whenM (not <$> doesFileExist "linearParts.c2v.acirc") $ do
     --     void $ system "./scripts/c2v cryptol/AES.cry linearParts > linearParts.c2v.acirc"
     -- linearParts <- fst <$> Acirc.readAcirc "linearParts.c2v.acirc"
-    linearParts <- fst <$> Acirc.readAcirc "linearParts.opt2.acirc"
+    -- linearParts <- fst <$> Acirc.readAcirc "linearParts.opt2.acirc"
+    linearParts <- buildLinearParts
     return $ buildCircuit $ do
         inp  <- inputs n
         one  <- constant 1
@@ -331,19 +332,19 @@ buildAes n = do
         xs'' <- zipWithM circXor xs' key -- addRoundKey
         outputs xs''
 
-buildAes' :: Int -> IO Circuit
-buildAes' n = do
-    mixCols <- fst <$> Acirc.readAcirc "mixColumns.c2a.acirc"
-    return $ buildCircuit $ do
-        inp  <- inputs n
-        one  <- constant 1
-        zero <- constant 0
-        key  <- secrets (replicate 128 0)
-        let fixed = replicate (128 - n) zero
-        xs   <- concat <$> mapM (subcircuit subByte) (chunksOf 8 (inp ++ fixed))
-        xs'  <- subcircuit' mixCols (shiftRows xs) [one]
-        xs'' <- zipWithM circXor xs' key -- addRoundKey
-        outputs xs''
+-- buildAes' :: Int -> IO Circuit
+-- buildAes' n = do
+--     mixCols <- Acirc.read "mixColumns.o2.acirc"
+--     return $ buildCircuit $ do
+--         inp  <- inputs n
+--         one  <- constant 1
+--         zero <- constant 0
+--         key  <- secrets (replicate 128 0)
+--         let fixed = replicate (128 - n) zero
+--         xs   <- concat <$> mapM (subcircuit subByte) (chunksOf 8 (inp ++ fixed))
+--         xs'  <- subcircuit' mixCols (shiftRows xs) [one]
+--         xs'' <- zipWithM circXor xs' key -- addRoundKey
+--         outputs xs''
 
 aes1Bit :: Int -> IO Circuit
 aes1Bit n = do
@@ -375,14 +376,11 @@ xor = buildCircuit $ do
     z <- circXor x y
     output z
 
-shiftRows :: [Ref] -> [Ref]
-shiftRows xs = fromState [ rotate n row | row <- toState xs | n <- [0..3] ]
-  where
-    toState   = transpose . chunksOf 4 . chunksOf 8
-    fromState = concat . concat . transpose
+toState :: [Ref] -> [[[Ref]]]
+toState = transpose . chunksOf 4 . chunksOf 8
 
-rotate :: Int -> [a] -> [a]
-rotate n xs = drop n xs ++ take n xs
+fromState :: [[[Ref]]] -> [Ref]
+fromState = concat . concat . transpose
 
 compileGF28Triple :: IO Circuit
 compileGF28Triple = do
@@ -395,30 +393,36 @@ compileGF28Triple = do
 -- assume inputs come in chunks of 8
 gf28DotProduct :: Circuit -> Circuit -> [Int] -> [[Ref]] -> Builder [Ref]
 gf28DotProduct double triple xs ys = do
+    when (length xs /= length ys) $ error "[gf28DotProduct] unequal length vectors"
     let mult (1,x) = return x
         mult (2,x) = subcircuit double x
         mult (3,x) = subcircuit triple x
         mult (_,_) = error "whoops"
     ws <- mapM mult (zip xs ys)
-    mapM circXors ws
+    mapM circXors (transpose ws)
 
 gf28VectorMult :: Circuit -> Circuit -> [Int] -> [[[Ref]]] -> Builder [[Ref]]
 gf28VectorMult double triple v ms = mapM (gf28DotProduct double triple v) ms
 
 gf28MatrixMult :: Circuit -> Circuit -> [[Int]] -> [[[Ref]]] -> Builder [[[Ref]]]
-gf28MatrixMult double triple xs ys = mapM (\x -> gf28VectorMult double triple x ys) xs
+gf28MatrixMult double triple xs ys = mapM (\x -> gf28VectorMult double triple x (transpose ys)) xs
 
-mixColumns :: IO Circuit
-mixColumns = do
-    double <- Acirc.read "gf28Double.opt3.acirc"
-    triple <- Acirc.read "gf28Triple.opt3.acirc"
+rotate :: Int -> [a] -> [a]
+rotate n xs = drop n xs ++ take n xs
+
+buildLinearParts :: IO Circuit
+buildLinearParts = do
+    double <- Acirc.read "gf28Double.o3.acirc"
+    triple <- Acirc.read "gf28Triple.o3.acirc"
     return $ buildCircuit $ do
-        xs <- replicateM 4 $ replicateM 4 (inputs 8)
-        zs <- gf28MatrixMult double triple m xs
-        outputs $ (concat . concat) zs
+        xs <- shiftRows <$> toState <$> inputs 128
+        ys <- gf28MatrixMult double triple m xs
+        outputs (fromState ys)
   where
     m = [[2, 3, 1, 1],
          [1, 2, 3, 1],
          [1, 1, 2, 3],
          [3, 1, 1, 2]]
 
+shiftRows :: [[[Ref]]] -> [[[Ref]]]
+shiftRows xs = [ rotate n row | row <- xs | n <- [0..3] ]

@@ -8,8 +8,8 @@ import System.Process
 import Control.Monad.State
 import Control.Monad.Identity
 import Control.Monad.Except
-import Debug.Trace
 import Data.Maybe (isJust, catMaybes, listToMaybe)
+import Debug.Trace
 import qualified Data.Map as M
 import qualified Circuit.Builder as B
 
