@@ -71,6 +71,8 @@ close $fh;
 my @outgaterefs = map { $mapping{$_} } @outgates;
 #my $outgateref = $mapping{$outgate};
 
+my @secrets;
+
 sub print_arith {
     # first input is const 1
     say ":nins $nxs";
@@ -83,6 +85,7 @@ sub print_arith {
             say "input ", $xctr++;
         } elsif ($var >= $ystart and $var <= $yend) {
             say "const 0";
+            push @secrets, $var;
         }
     }
     my @outs;
@@ -106,6 +109,7 @@ sub print_arith {
         say $str;
     }
     say ":outputs ", join(" ", map {$_ + 1} @outgaterefs);
+    say ":secrets ", join(" ", map {$_ + 1} @secrets);
 }
 
 sub print_bool {
