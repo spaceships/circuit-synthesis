@@ -332,20 +332,6 @@ buildAes n = do
         xs'' <- zipWithM circXor xs' key -- addRoundKey
         outputs xs''
 
--- buildAes' :: Int -> IO Circuit
--- buildAes' n = do
---     mixCols <- Acirc.read "mixColumns.o2.acirc"
---     return $ buildCircuit $ do
---         inp  <- inputs n
---         one  <- constant 1
---         zero <- constant 0
---         key  <- secrets (replicate 128 0)
---         let fixed = replicate (128 - n) zero
---         xs   <- concat <$> mapM (subcircuit subByte) (chunksOf 8 (inp ++ fixed))
---         xs'  <- subcircuit' mixCols (shiftRows xs) [one]
---         xs'' <- zipWithM circXor xs' key -- addRoundKey
---         outputs xs''
-
 aes1Bit :: Int -> IO Circuit
 aes1Bit n = do
     aes <- buildAes n
