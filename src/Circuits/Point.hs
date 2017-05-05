@@ -4,7 +4,6 @@ module Circuits.Point where
 
 import Circuit
 import Circuit.Builder
--- import qualified Circuit.Format.Acirc as Acirc
 import Data.List.Split (chunksOf)
 import Control.Monad
 import Util

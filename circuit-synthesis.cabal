@@ -93,6 +93,7 @@ library
     Circuits.Tribes
     Circuits.BBKK
     Circuits.Point
+    Circuits.Comparison
   other-modules:
     Rand
     Util

@@ -12,6 +12,7 @@ import qualified Circuits.Aes as Aes
 import qualified Circuits.Goldreich as Goldreich
 import qualified Circuits.Tribes as Tribes
 import qualified Circuits.Point as Point
+import qualified Circuits.Comparison as Comparison
 
 import Control.Monad
 import Options
@@ -111,8 +112,9 @@ main = runCommand $ \opts args -> do
         Just "applebaum"     -> mapM_ (circuitMain opts []) =<< Goldreich.makeApplebaum
         Just "tribes"        -> mapM_ (circuitMain opts []) =<< Tribes.make
         Just "point"         -> mapM_ (circuitMain opts []) =<< Point.make
+        Just "comparison"    -> mapM_ (circuitMain opts []) =<< Comparison.make
         Just _ -> do
-            putStrLn "[error] known circuit generation modes: aes, goldreich, ggm, ggmSigma, ggmNoPrg, ggmNoPrgSigma, applebaum, tribes, gf28Mult, point"
+            putStrLn "[error] known circuit generation modes: aes, goldreich, ggm, ggmSigma, ggmNoPrg, ggmNoPrgSigma, applebaum, tribes, gf28Mult, point, comparison"
             exitFailure
 
         Nothing -> do
