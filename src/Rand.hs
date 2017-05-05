@@ -81,8 +81,14 @@ randIntegerMod q = do
     else
         return x
 
+randIntegerModIO :: Integer -> IO Integer
+randIntegerModIO q = randIO (randIntegerMod q)
+
 randIntMod :: Int -> Rand Int
 randIntMod q = fromIntegral <$> randIntegerMod (fromIntegral q)
+
+randIntModIO :: Int -> IO Int
+randIntModIO q = randIO (randIntMod q)
 
 randPrimes :: Int -> Int -> Rand [Integer]
 randPrimes nprimes nbits = do

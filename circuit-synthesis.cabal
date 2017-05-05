@@ -92,6 +92,7 @@ library
     Circuits.Aes
     Circuits.Tribes
     Circuits.BBKK
+    Circuits.Point
   other-modules:
     Rand
     Util

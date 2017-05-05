@@ -1,8 +1,9 @@
 {-# LANGUAGE MagicHash #-}
+{-# LANGUAGE ParallelListComp #-}
 
 module Util where
 
-import Data.Bits ((.&.))
+import Data.Bits ((.&.), shift)
 import System.IO
 import Control.DeepSeq (deepseq)
 import Control.Parallel.Strategies
@@ -54,6 +55,9 @@ num2Bits n x = reverse bs
   where
     bs = [ x .&. 2^i > 0 | i <- [0 .. n-1] ]
 
+bits2Num :: Integral a => [Bool] -> a
+bits2Num bs = fromIntegral $ sum [ if b then shift 1 i :: Integer else 0 | b <- reverse bs | i <- [0..] ]
+
 readBits :: String -> [Bool]
 readBits s = if take 2 s == "0b"
                      then map (== '1') (drop 2 s)
@@ -101,5 +105,5 @@ transpose xs | null (head xs) = []
              | otherwise = map head xs : transpose (map tail xs)
 
 
-numBits :: Int -> Int
+numBits :: (Integral a, Integral b) => a -> b
 numBits n = ceiling (logBase 2 (fromIntegral n) :: Double)

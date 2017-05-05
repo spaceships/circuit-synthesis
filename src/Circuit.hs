@@ -20,6 +20,7 @@ import Control.DeepSeq (NFData)
 import Control.Monad.IfElse (whenM)
 import Control.Monad.State.Strict
 import Data.Map.Strict ((!))
+import System.IO
 import Text.Printf
 import qualified Control.Monad.Par as IVar
 import qualified Data.Map.Strict as M
@@ -132,8 +133,13 @@ printTruthTable :: Circuit -> IO ()
 printTruthTable c = forM_ inputs $ \inp -> do
     let outp = plainEval c inp
     printf "%s -> %s\n" (showBits' inp) (showBits' outp)
+
   where
-    inputs = sequence (replicate (ninputs c) [False, True])
+    n = ninputs c `div` symlen c
+    sym x = [ i == x | i <- [ 0 .. symlen c - 1 ] ]
+    inputs = case symlen c of
+        1 -> sequence (replicate (ninputs c) [False, True])
+        _ -> map concat $ sequence (replicate n (map sym [0..symlen c - 1]))
 
 printRandInputs :: Int -> Circuit -> IO ()
 printRandInputs n c = do
@@ -175,6 +181,9 @@ nsecrets = M.size . circ_secrets
 
 noutputs :: Circuit -> Int
 noutputs = length . circ_outputs
+
+symlen :: Circuit -> Int
+symlen = circ_symlen
 
 ydeg :: Circuit -> Integer
 ydeg c = head (degs c)
@@ -234,7 +243,10 @@ evalMod c inps q = foldCirc eval c
     eval op args  = error ("[evalMod] weird input: " ++ show op ++ " " ++ show args)
 
 plainEval :: Circuit -> [Bool] -> [Bool]
-plainEval c inps = map (/= 0) (foldCirc eval c)
+plainEval c inps
+    | ninputs c /= length inps =
+        error (printf "[plainEval] incorrect number of inputs: expected %d, got %s" (ninputs c) (show inps))
+    | otherwise = map (/= 0) (foldCirc eval c)
   where
     eval :: Op -> [Integer] -> Integer
     eval (OpAdd _ _) [x,y] = x + y

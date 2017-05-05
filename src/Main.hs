@@ -8,9 +8,10 @@ import Circuit.Optimizer (flatten, flattenRec, foldConsts)
 import qualified Circuit.Format.Acirc   as Acirc
 import qualified Circuit.Graphviz       as Graphviz
 
-import Circuits.Aes as Aes
-import Circuits.Goldreich as Goldreich
-import Circuits.Tribes as Tribes
+import qualified Circuits.Aes as Aes
+import qualified Circuits.Goldreich as Goldreich
+import qualified Circuits.Tribes as Tribes
+import qualified Circuits.Point as Point
 
 import Control.Monad
 import Options
@@ -109,8 +110,9 @@ main = runCommand $ \opts args -> do
         Just "ggmNoPrgSigma" -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMNoPrg
         Just "applebaum"     -> mapM_ (circuitMain opts []) =<< Goldreich.makeApplebaum
         Just "tribes"        -> mapM_ (circuitMain opts []) =<< Tribes.make
+        Just "point"         -> mapM_ (circuitMain opts []) =<< Point.make
         Just _ -> do
-            putStrLn "[error] known circuit generation modes: aes, goldreich, ggm, ggmSigma, ggmNoPrg, ggmNoPrgSigma, applebaum, tribes, gf28Mult"
+            putStrLn "[error] known circuit generation modes: aes, goldreich, ggm, ggmSigma, ggmNoPrg, ggmNoPrgSigma, applebaum, tribes, gf28Mult, point"
             exitFailure
 
         Nothing -> do
