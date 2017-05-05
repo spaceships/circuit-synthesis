@@ -32,6 +32,9 @@ getCirc = gets bs_circ
 modifyCirc :: (Circuit -> Circuit) -> Builder ()
 modifyCirc f = modify (\st -> st { bs_circ = f (bs_circ st) })
 
+setSymlen :: Int -> Builder ()
+setSymlen n = modifyCirc (\c -> c { circ_symlen = n })
+
 insertOp :: Ref -> Op -> Builder ()
 insertOp ref op = do
     refs <- circ_refmap <$> getCirc

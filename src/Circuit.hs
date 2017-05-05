@@ -46,6 +46,7 @@ data Circuit = Circuit {
     , circ_refmap      :: M.Map Ref Op
     , circ_consts      :: B.Bimap Integer Ref
     , circ_const_ids   :: S.Set Id -- which OpSecrets are public
+    , circ_symlen      :: Int
     } deriving (Show)
 
 type TestCase = ([Bool], [Bool])
@@ -54,7 +55,7 @@ type TestCase = ([Bool], [Bool])
 -- instances and such
 
 emptyCirc :: Circuit
-emptyCirc = Circuit [] [] M.empty M.empty M.empty B.empty S.empty
+emptyCirc = Circuit [] [] M.empty M.empty M.empty B.empty S.empty 1
 
 instance Show Ref where
     show ref = show (getRef ref)
@@ -87,18 +88,18 @@ randomizeSecrets c = do
             modify $ \c -> c { circ_secrets = M.insert (Id i) (key !! i) (circ_secrets c) }
 
 -- symlen determines how large a rachel symbol is
-genTest :: Int -> Circuit -> IO TestCase
-genTest symlen c
-    | symlen == 1 = do
+genTest :: Circuit -> IO TestCase
+genTest c
+    | circ_symlen c == 1 = do
         inp <- num2Bits (ninputs c) <$> randIO (randInteger (ninputs c))
         return (inp, plainEval c inp)
     | otherwise = do
-        when ((ninputs c `mod` symlen) /= 0) $
+        when ((ninputs c `mod` circ_symlen c) /= 0) $
             error "[genTest] inputs not evenly dividable"
-        let nsyms = ninputs c `div` symlen
+        let nsyms = ninputs c `div` circ_symlen c
         inp <- fmap concat $ replicateM nsyms $ do
-            x <- fromIntegral <$> randIO (randInteger (numBits symlen))
-            return [ i == x | i <- [0..symlen-1] ]
+            x <- fromIntegral <$> randIO (randInteger (numBits (circ_symlen c)))
+            return [ i == x | i <- [0..circ_symlen c-1] ]
         return (inp, plainEval c inp)
 
 
@@ -147,8 +148,8 @@ circEq c0 c1
   | noutputs c0 /= noutputs c1 = return False
   | otherwise = do
     let n = 10
-    t0 <- replicateM n (genTest 1 c0)
-    t1 <- replicateM n (genTest 1 c1)
+    t0 <- replicateM n (genTest c0)
+    t1 <- replicateM n (genTest c1)
     x  <- ensure False c1 t0
     y  <- ensure False c0 t1
     return (x && y)

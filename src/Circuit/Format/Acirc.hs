@@ -3,14 +3,12 @@ module Circuit.Format.Acirc
   , Circuit.Format.Acirc.write
   , readAcirc
   , writeAcirc
-  , writeAcircR
   , parseCirc
   , showCirc
   , showTest
   , genTestStr
   , addTestsToFile
   , showCircWithTests
-  , showCircWithTestsR
   ) where
 
 import Circuit
@@ -36,7 +34,7 @@ addTestsToFile :: FilePath -> IO ()
 addTestsToFile fp = do
     s <- readFile fp
     let (c,_) = parseCirc s
-    ts <- replicateM 10 (genTestStr 1 c)
+    ts <- replicateM 10 (genTestStr c)
     forceM ts
     writeFile fp (unlines ts ++ s)
 
@@ -45,23 +43,15 @@ writeAcirc fp c = do
     s <- showCircWithTests 10 c
     writeFile fp s
 
-writeAcircR :: FilePath -> Int -> Circuit -> IO ()
-writeAcircR fp symlen c = do
-    s <- showCircWithTestsR symlen 10 c
-    writeFile fp s
-
 showCircWithTests :: Int -> Circuit -> IO String
-showCircWithTests ntests c = showCircWithTestsR 1 ntests c
+showCircWithTests ntests c = do
+    ts <- replicateM ntests (genTestStr c)
+    return (unlines ts ++ showCirc c)
 
-showCircWithTestsR :: Int -> Int -> Circuit -> IO String
-showCircWithTestsR symlen ntests c = do
-    ts <- replicateM ntests (genTestStr symlen c)
-    return (unlines ts ++ showCirc symlen c)
-
-showCirc :: Int -> Circuit -> String
-showCirc symlen c = unlines (header ++ gateLines)
+showCirc :: Circuit -> String
+showCirc c = unlines (header ++ gateLines)
   where
-    header = if symlen /= 1 then [printf ":symlen %d" symlen] else []
+    header = [printf ":symlen %d" (circ_symlen c)]
 
     inputs = mapM gateStr (circ_inputs c)
     consts = mapM gateStr (M.keys (circ_secret_refs c))
@@ -110,8 +100,8 @@ showCirc symlen c = unlines (header ++ gateLines)
 showTest :: TestCase -> String
 showTest (inp, out) = printf ":test %s %s" (showBits' (reverse inp)) (showBits' (reverse out))
 
-genTestStr :: Int -> Circuit -> IO String
-genTestStr symlen c = fmap showTest (genTest symlen c)
+genTestStr :: Circuit -> IO String
+genTestStr = fmap showTest . genTest
 
 --------------------------------------------------------------------------------
 -- parser
@@ -125,12 +115,12 @@ parseCirc s = case runParser (circParser >> getState) emptySt "" s of
     Right st -> (st_circ st, reverse (st_tests st))
   where
     circParser = preamble >> lines >> end >> eof
-    preamble = many $ (char ':' >> (parseTest <|> parseParam))
+    preamble = many $ (char ':' >> (parseTest <|> parseSymlen <|> skipParam))
     lines    = many parseRefLine
     end      = parseOutputs >> optional parseSecrets
 
-parseParam :: ParseCirc ()
-parseParam = do
+skipParam :: ParseCirc ()
+skipParam = do
     skipMany (oneOf " \t" <|> alphaNum)
     endLine
 
@@ -144,6 +134,14 @@ parseTest = do
     let inp = readBits' inps
         res = readBits' outs
     addTest (reverse inp, reverse res)
+    endLine
+
+parseSymlen :: ParseCirc ()
+parseSymlen = do
+    string "symlen"
+    spaces
+    n <- Prelude.read <$> many digit
+    setSymlen n
     endLine
 
 parseOutputs :: ParseCirc ()

@@ -101,14 +101,14 @@ instance Options MainOptions where
 main :: IO ()
 main = runCommand $ \opts args -> do
     case opt_gencirc opts of
-        Just "aes"           -> mapM_ (circuitMain opts [] 1)  =<< Aes.make
-        Just "goldreich"     -> mapM_ (circuitMain opts [] 1)  =<< Goldreich.makePRG
-        Just "ggm"           -> mapM_ (circuitMain opts [] 1)  =<< Goldreich.makeGGM
-        Just "ggmSigma"      -> mapM_ (circuitMain opts [] 16) =<< Goldreich.makeGGMSigma
-        Just "ggmNoPrg"      -> mapM_ (circuitMain opts [] 1)  =<< Goldreich.makeGGMNoPrg
-        Just "ggmNoPrgSigma" -> mapM_ (circuitMain opts [] 1)  =<< Goldreich.makeGGMNoPrg
-        Just "applebaum"     -> mapM_ (circuitMain opts [] 1)  =<< Goldreich.makeApplebaum
-        Just "tribes"        -> mapM_ (circuitMain opts [] 1)  =<< Tribes.make
+        Just "aes"           -> mapM_ (circuitMain opts []) =<< Aes.make
+        Just "goldreich"     -> mapM_ (circuitMain opts []) =<< Goldreich.makePRG
+        Just "ggm"           -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGM
+        Just "ggmSigma"      -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMSigma
+        Just "ggmNoPrg"      -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMNoPrg
+        Just "ggmNoPrgSigma" -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMNoPrg
+        Just "applebaum"     -> mapM_ (circuitMain opts []) =<< Goldreich.makeApplebaum
+        Just "tribes"        -> mapM_ (circuitMain opts []) =<< Tribes.make
         Just _ -> do
             putStrLn "[error] known circuit generation modes: aes, goldreich, ggm, ggmSigma, ggmNoPrg, ggmNoPrgSigma, applebaum, tribes, gf28Mult"
             exitFailure
@@ -126,11 +126,13 @@ main = runCommand $ \opts args -> do
 
             (c,ts) <- Acirc.readAcirc inputFile
 
-            circuitMain opts ts 1 (opt_write_to_file opts, c)
+            circuitMain opts ts (opt_write_to_file opts, c)
 
-circuitMain :: MainOptions -> [TestCase] -> Int -> (Maybe String, Circuit) -> IO ()
-circuitMain opts ts symLen (outputName, c) = do
-    c <- case opt_optimize opts of
+circuitMain :: MainOptions -> [TestCase] -> (Maybe String, Circuit) -> IO ()
+circuitMain opts ts (outputName, c) = do
+    let old_symlen = circ_symlen c
+
+    c' <- case opt_optimize opts of
         Nothing -> return c
         Just 1  -> return (foldConsts c)
         Just 2  -> flattenRec (foldConsts c)
@@ -138,6 +140,8 @@ circuitMain opts ts symLen (outputName, c) = do
         Just x  -> do
             printf "[error] unknown optimization level %d\n" x
             exitFailure
+
+    let c = c' { circ_symlen = old_symlen }
 
     c <- if opt_randomize_secrets opts
             then randomizeSecrets c
@@ -151,14 +155,14 @@ circuitMain opts ts symLen (outputName, c) = do
 
     ts <- case opt_gentests opts of
         Nothing -> return ts
-        Just i  -> replicateM i (genTest symLen c)
+        Just i  -> replicateM i (genTest c)
 
     when (opt_test opts) $ do
         evalTests opts c ts
 
     s <- if opt_graphviz opts
             then return $ Graphviz.showCircuit c
-            else Acirc.showCircWithTestsR symLen 10 c
+            else Acirc.showCircWithTests 10 c
 
     case outputName of
         Just fn -> do

@@ -348,6 +348,7 @@ ggmSigma inputLength keyLength stretch = do
     g <- prg' keyLength (stretch * keyLength) 5 xorAnd
     keyBits <- randKeyIO keyLength
     return $ buildCircuit $ do
+        setSymlen stretch
         xs   <- inputs inputLength
         seed <- secrets keyBits
         when ((length xs `mod` stretch) /= 0) $ error "[ggmSigma] wrong input length"

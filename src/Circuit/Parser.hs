@@ -27,6 +27,9 @@ getCirc = st_circ <$> getState
 modifyCirc :: (Circuit -> Circuit) -> ParseCirc ()
 modifyCirc f = modifyState (\st -> st { st_circ = f (st_circ st) })
 
+setSymlen :: Int -> ParseCirc ()
+setSymlen n = modifyCirc (\c -> c { circ_symlen = n })
+
 addTest :: TestCase -> ParseCirc ()
 addTest t = modifyState (\st -> st { st_tests = t : st_tests st})
 
