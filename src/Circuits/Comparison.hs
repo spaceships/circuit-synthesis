@@ -7,7 +7,7 @@ import Circuit.Builder
 import Control.Monad
 
 make :: IO [(Maybe String, Circuit)]
-make = return [ (Just "comparison.dsl.acirc", comparison 20 4) ]
+make = return [ (Just "comparison.dsl.acirc", comparison 9 22) ]
 
 -- 10^12 input size
 -- racheled as 22 vectors of length 4
