@@ -7,7 +7,6 @@ import Text.Printf
 import System.Process
 import Control.Monad.State
 import Control.Monad.Identity
-import Control.Monad.Except
 import Control.Monad.Writer
 import Data.Maybe (isJust, catMaybes, listToMaybe)
 import Debug.Trace
@@ -232,8 +231,7 @@ cleanup c = B.buildCircuit $ do
 flattenRec :: Circuit -> IO Circuit
 flattenRec c = outerLoop maxDepth c
   where
-    maxDepth = 13
-    maxGates = 600
+    maxDepth = 14
 
     outerLoop 1      c = return c
     outerLoop minDeg c = innerLoop minDeg (findFirstHSVD maxDepth minDeg c) c
@@ -241,19 +239,16 @@ flattenRec c = outerLoop maxDepth c
     innerLoop minDeg []        c = outerLoop (minDeg - 1) c
     innerLoop minDeg (root:rs) c = do
         let sub = foldConsts (cheapSlice root c)
-        if ngates sub > maxGates then
+        printf "[flattenRec]\n\troot=%d, total_gates=%d, total_nconsts=%d, total_degree=%d\n\tsub_gates=%d, sub_nin=%d, sub_deg=%d, sub_depth=%d\n"
+                (getRef root) (ngates c) (nconsts c) (circDegree c)
+                (ngates sub) (ninputs sub) (circDegree sub) (depth sub)
+        sub' <- flatten sub
+        printf "[flattenRec] flattened subcircuit degree: %d\n" (circDegree sub')
+        let c' = patch root c sub'
+        if circDegree sub' < circDegree sub then
+            outerLoop maxDepth (foldConsts c')
+        else
             innerLoop minDeg rs c
-        else do
-            printf "[flattenRec]\n\troot=%d, total_gates=%d, total_nconsts=%d, total_degree=%d\n\tsub_gates=%d, sub_nin=%d, sub_deg=%d, sub_depth=%d\n"
-                    (getRef root) (ngates c) (nconsts c) (circDegree c)
-                    (ngates sub) (ninputs sub) (circDegree sub) (depth sub)
-            sub' <- flatten sub
-            printf "[flattenRec] flattened subcircuit degree: %d\n" (circDegree sub')
-            let c' = patch root c sub'
-            if circDegree sub' < circDegree sub then
-                outerLoop maxDepth (foldConsts c')
-            else
-                innerLoop minDeg rs c
 
 -- push multiplications down toward the inputs
 pushDown :: Circuit -> Circuit
