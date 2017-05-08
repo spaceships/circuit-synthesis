@@ -8,6 +8,7 @@ import System.Process
 import Control.Monad.State
 import Control.Monad.Identity
 import Control.Monad.Except
+import Control.Monad.Writer
 import Data.Maybe (isJust, catMaybes, listToMaybe)
 import Debug.Trace
 import qualified Data.Map as M
@@ -110,12 +111,10 @@ nonPublicDegs c = map (varDegree c) ids
 
 
 -- find the highest degree subcircuit within a given depth
-findFirstHSVD :: Int -> Int -> Circuit -> Maybe Ref
-findFirstHSVD maxDepth minDeg c = case runExcept (foldCircM eval c) of
-    Left ref -> Just ref
-    Right _  -> Nothing
-
+findFirstHSVD :: Int -> Int -> Circuit -> [Ref]
+findFirstHSVD maxDepth minDeg c = execWriter (foldCircM eval c)
   where
+    eval :: Op -> Ref -> [(M.Map Op Int, Int)] -> Writer [Ref] (M.Map Op Int, Int)
     eval (OpMul _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
         let degs  = M.unionWith (+) xdegs ydegs
             depth = max xdepth ydepth + 1
@@ -142,9 +141,10 @@ findFirstHSVD maxDepth minDeg c = case runExcept (foldCircM eval c) of
 
     eval _ _ _ = undefined
 
+    check :: Ref -> M.Map Op Int -> Int -> Writer [Ref] ()
     check ref degs depth
       | depth > maxDepth = return ()
-      | otherwise = when (any (>= minDeg) (M.elems degs)) (throwError ref)
+      | otherwise = when (any (>= minDeg) (M.elems degs)) (tell [ref])
 
 -- get a subcircuit using an intermediate ref as an output ref
 slice :: Ref -> Circuit -> Circuit
@@ -230,15 +230,20 @@ cleanup c = B.buildCircuit $ do
     B.outputs outs
 
 flattenRec :: Circuit -> IO Circuit
-flattenRec c = loop maxDepth c
+flattenRec c = outerLoop maxDepth c
   where
-    maxDepth = 14
+    maxDepth = 13
+    maxGates = 600
 
-    loop 0      c = return c
-    loop minDeg c = case findFirstHSVD maxDepth minDeg c of
-        Nothing   -> loop (minDeg - 1) c
-        Just root -> do
-            let sub = foldConsts (cheapSlice root c)
+    outerLoop 1      c = return c
+    outerLoop minDeg c = innerLoop minDeg (findFirstHSVD maxDepth minDeg c) c
+
+    innerLoop minDeg []        c = outerLoop (minDeg - 1) c
+    innerLoop minDeg (root:rs) c = do
+        let sub = foldConsts (cheapSlice root c)
+        if ngates sub > maxGates then
+            innerLoop minDeg rs c
+        else do
             printf "[flattenRec]\n\troot=%d, total_gates=%d, total_nconsts=%d, total_degree=%d\n\tsub_gates=%d, sub_nin=%d, sub_deg=%d, sub_depth=%d\n"
                     (getRef root) (ngates c) (nconsts c) (circDegree c)
                     (ngates sub) (ninputs sub) (circDegree sub) (depth sub)
@@ -246,10 +251,9 @@ flattenRec c = loop maxDepth c
             printf "[flattenRec] flattened subcircuit degree: %d\n" (circDegree sub')
             let c' = patch root c sub'
             if circDegree sub' < circDegree sub then
-                -- loop minDeg (foldConsts (pushDown c'))
-                loop minDeg (foldConsts c')
+                outerLoop maxDepth (foldConsts c')
             else
-                return c'
+                innerLoop minDeg rs c
 
 -- push multiplications down toward the inputs
 pushDown :: Circuit -> Circuit

@@ -105,14 +105,16 @@ genTest c
 
 printCircInfo :: Circuit -> IO ()
 printCircInfo c = do
-    let ds = degs c
-        n = ninputs c
+    -- let ds = degs c
+    let n = ninputs c
     printf "circuit info\n"
     printf "============\n"
     printf "ninputs=%d noutputs=%d nconsts=%d\n"
             n (noutputs c) (nconsts c)
-    printf "ngates=%d depth=%d var-degree=%d circ-degree=%d\n"
-            (ngates c) (depth c) (sum ds) (circDegree c)
+    -- printf "ngates=%d depth=%d var-degree=%d circ-degree=%d\n"
+    --         (ngates c) (depth c) (sum ds) (circDegree c)
+    printf "ngates=%d depth=%d circ-degree=%d\n"
+            (ngates c) (depth c) (circDegree c)
     printf "number of additions with disjoint indices: %d\n"
             (numDisjointAdditions c)
 
