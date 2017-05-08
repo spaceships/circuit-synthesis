@@ -109,8 +109,8 @@ printCircInfo c = do
     let n = ninputs c
     printf "circuit info\n"
     printf "============\n"
-    printf "ninputs=%d noutputs=%d nconsts=%d\n"
-            n (noutputs c) (nconsts c)
+    printf "ninputs=%d noutputs=%d nconsts=%d symlen=%d\n"
+            n (noutputs c) (nconsts c) (symlen c)
     -- printf "ngates=%d depth=%d var-degree=%d circ-degree=%d\n"
     --         (ngates c) (depth c) (sum ds) (circDegree c)
     printf "ngates=%d depth=%d circ-degree=%d\n"

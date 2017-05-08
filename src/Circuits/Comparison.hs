@@ -14,6 +14,7 @@ make = return [ (Just "comparison.dsl.acirc", comparison 27 8) ]
 -- second input is expected to come in special form
 comparison :: Int -> Int -> Circuit
 comparison nsyms symlen = buildCircuit $ do
+    setSymlen symlen
     xs <- replicateM nsyms (inputs symlen)
     ys <- replicateM nsyms (inputs symlen) -- assumed to come in the negated sigma vector form
     zs <- zipWithM squash xs ys
