@@ -26,7 +26,8 @@ point ninputs symlen = do
         setSymlen symlen
         xs <- replicateM ninputs (inputs symlen)
         ys <- mapM secrets sels
-        zs <- mapM circSum =<< mapM (uncurry (zipWithM circMul)) (zip xs ys)
-        output =<< circProd zs
+        -- !(!(x1=y1) + !(x2=y2) + ... + !(xn=yn))
+        zs <- mapM (circNot <=< circSum <=< uncurry (zipWithM circMul)) (zip xs ys)
+        output =<< circNot =<< circSum zs
   where
     toSel n x = [ if i == x then 1 else 0 | i <- [0..n-1] ]
