@@ -12,6 +12,7 @@ import Rand
 make :: IO [(Maybe String, Circuit)]
 make = sequence
     [ (Just "point.dsl.acirc",) <$> point 27 8
+    , (Just "point_base8.dsl.acirc",) <$> pointBaseN 27 8
     ]
 
 point :: Int -> Int -> IO Circuit
@@ -31,3 +32,15 @@ point ninputs symlen = do
         output =<< circNot =<< circSum zs
   where
     toSel n x = [ if i == x then 1 else 0 | i <- [0..n-1] ]
+
+pointBaseN :: Int -> Int -> IO Circuit
+pointBaseN ndigits base = do
+    let q = (fromIntegral base :: Integer) ^ (fromIntegral ndigits :: Integer)
+    thePoint <- randIntegerModIO q
+    let pointDigits = num2Base base ndigits thePoint
+    return $ buildCircuit $ do
+        setBase base
+        xs <- inputs ndigits
+        ys <- secrets pointDigits
+        -- !((x1-y1) + (x2-y2) + ... + (xn-yn))
+        output =<< circSum =<< zipWithM circSub xs ys

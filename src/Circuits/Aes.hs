@@ -330,7 +330,7 @@ buildAesRound n = do
 
 buildAes :: Int -> Int -> IO Circuit
 buildAes nrounds ninputs = do
-    aesRound <- Acirc.read "aes1r.o2.acirc"
+    aesRound <- Acirc.read "optimized_circuits/aes1r.o2.acirc"
     return $ buildCircuit $ do
         inp     <- inputs ninputs
         fixed   <- replicateM (128 - ninputs) (constant 0)
@@ -402,8 +402,8 @@ rotate n xs = drop n xs ++ take n xs
 
 buildLinearParts :: IO Circuit
 buildLinearParts = do
-    double <- Acirc.read "gf28Double.o3.acirc"
-    triple <- Acirc.read "gf28Triple.o3.acirc"
+    double <- Acirc.read "optimized_circuits/gf28Double.o3.acirc"
+    triple <- Acirc.read "optimized_circuits/gf28Triple.o3.acirc"
     return $ buildCircuit $ do
         xs <- shiftRows <$> toState <$> inputs 128
         ys <- gf28MatrixMult double triple m xs

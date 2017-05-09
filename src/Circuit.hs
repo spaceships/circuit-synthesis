@@ -92,8 +92,8 @@ randomizeSecrets c = do
 genTest :: Circuit -> IO TestCase
 genTest c
     | circ_symlen c == 1 = do
-        -- inp <- num2Base (circ_base c) (ninputs c) <$> randIO (randInteger (ninputs c))
-        inp <- num2Base (circ_base c) (ninputs c) <$> randIO (randInteger (ninputs c))
+        let q = (fromIntegral (circ_base c) :: Integer) ^ (fromIntegral (ninputs c) :: Integer)
+        inp <- num2Base (circ_base c) (ninputs c) <$> randIO (randIntegerMod q)
         return (inp, plainEval c inp)
     | otherwise = do
         when ((ninputs c `mod` circ_symlen c) /= 0) $
@@ -111,8 +111,8 @@ printCircInfo c = do
     let n = ninputs c
     printf "circuit info\n"
     printf "============\n"
-    printf "ninputs=%d noutputs=%d nconsts=%d symlen=%d\n"
-            n (noutputs c) (nconsts c) (symlen c)
+    printf "ninputs=%d noutputs=%d nconsts=%d symlen=%d base=%d\n"
+            n (noutputs c) (nconsts c) (symlen c) (circ_base c)
     -- printf "ngates=%d depth=%d var-degree=%d circ-degree=%d\n"
     --         (ngates c) (depth c) (sum ds) (circDegree c)
     printf "ngates=%d depth=%d circ-degree=%d\n"
@@ -238,11 +238,15 @@ evalMod c inps q = foldCirc eval c
     eval (OpSecret i) [] = fromIntegral (getSecret c i)
     eval op args  = error ("[evalMod] weird input: " ++ show op ++ " " ++ show args)
 
+zeroTest :: Int -> Int
+zeroTest 0 = 0
+zeroTest _ = 1
+
 plainEval :: Circuit -> [Int] -> [Int]
 plainEval c inps
     | ninputs c /= length inps =
         error (printf "[plainEval] incorrect number of inputs: expected %d, got %s" (ninputs c) (show inps))
-    | otherwise = foldCirc eval c
+    | otherwise = map zeroTest $ foldCirc eval c
   where
     eval :: Op -> [Int] -> Int
     eval (OpAdd _ _) [x,y] = x + y
@@ -253,7 +257,7 @@ plainEval c inps
     eval op args = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
 
 parEval :: Circuit -> [Int] -> [Int]
-parEval c inps = runPar $ mapM IVar.get =<< foldCircM eval c
+parEval c inps = map zeroTest $ runPar $ mapM IVar.get =<< foldCircM eval c
   where
     eval :: Op -> Ref -> [IVar Int] -> Par (IVar Int)
     eval (OpAdd _ _) _ [x,y] = liftBin (+) x y
@@ -269,7 +273,7 @@ parEval c inps = runPar $ mapM IVar.get =<< foldCircM eval c
         return result
 
 plainEvalIO :: Circuit -> [Int] -> IO [Int]
-plainEvalIO c xs = foldCircIO eval c
+plainEvalIO c xs = map zeroTest <$> foldCircIO eval c
   where
     eval :: Op -> [Int] -> Int
     eval (OpAdd _ _) [x,y] = x + y
