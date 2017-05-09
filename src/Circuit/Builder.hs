@@ -35,6 +35,9 @@ modifyCirc f = modify (\st -> st { bs_circ = f (bs_circ st) })
 setSymlen :: Int -> Builder ()
 setSymlen n = modifyCirc (\c -> c { circ_symlen = n })
 
+setBase :: Int -> Builder ()
+setBase n = modifyCirc (\c -> c { circ_base = n })
+
 insertOp :: Ref -> Op -> Builder ()
 insertOp ref op = do
     refs <- circ_refmap <$> getCirc
@@ -48,7 +51,7 @@ insertSecret ref id = do
     modifyCirc (\c -> c { circ_secret_refs = M.insert ref id (circ_secret_refs c) })
     insertOp ref (OpSecret id)
 
-insertSecretVal :: Id -> Integer -> Builder ()
+insertSecretVal :: Id -> Int -> Builder ()
 insertSecretVal id val = do
     ys <- circ_secrets <$> getCirc
     let ys' = safeInsert ("reassignment of y" ++ show id) id val ys
@@ -91,7 +94,7 @@ nextSecretId = do
 markOutput :: Ref -> Builder ()
 markOutput ref = modifyCirc (\c -> c { circ_outputs = circ_outputs c ++ [ref] })
 
-markConst :: Integer -> Ref -> Id -> Builder ()
+markConst :: Int -> Ref -> Id -> Builder ()
 markConst val ref id = modifyCirc (\c -> c { circ_consts    = B.insert val ref (circ_consts c)
                                            , circ_const_ids = S.insert id (circ_const_ids c)
                                            })
@@ -132,7 +135,7 @@ input_n n = do
 inputs :: Int -> Builder [Ref]
 inputs n = replicateM n input
 
-secret :: Integer -> Builder Ref
+secret :: Int -> Builder Ref
 secret val = do
     id  <- nextSecretId
     ref <- nextRef
@@ -150,10 +153,10 @@ secret_n n = do
             cur <- gets bs_next_secret
             last <$> replicateM (getId n - getId cur + 1) (secret 0)
 
-secrets :: [Integer] -> Builder [Ref]
+secrets :: [Int] -> Builder [Ref]
 secrets = mapM secret
 
-constant :: Integer -> Builder Ref
+constant :: Int -> Builder Ref
 constant val = do
     c <- getCirc
     if B.member val (circ_consts c) then do
@@ -166,7 +169,7 @@ constant val = do
         markConst val ref id
         return ref
 
-constants :: [Integer] -> Builder [Ref]
+constants :: [Int] -> Builder [Ref]
 constants = mapM constant
 
 circAdd :: Ref -> Ref -> Builder Ref

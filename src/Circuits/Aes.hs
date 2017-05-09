@@ -380,14 +380,6 @@ toState = transpose . chunksOf 4 . chunksOf 8
 fromState :: [[[Ref]]] -> [Ref]
 fromState = concat . concat . transpose
 
-compileGF28Triple :: IO Circuit
-compileGF28Triple = do
-    triple <- Acirc.read "gf28Triple.c2a.acirc"
-    return $ buildCircuit $ do
-        xs <- inputs 8
-        ys <- lookupTableMultibit (plainEval triple) xs
-        outputs ys
-
 -- assume inputs come in chunks of 8
 gf28DotProduct :: Circuit -> Circuit -> [Int] -> [[Ref]] -> Builder [Ref]
 gf28DotProduct double triple xs ys = do

@@ -41,21 +41,22 @@ data Op = OpAdd Ref Ref
 data Circuit = Circuit {
       circ_outputs     :: [Ref]
     , circ_inputs      :: [Ref]
-    , circ_secrets     :: M.Map Id Integer
+    , circ_secrets     :: M.Map Id Int
     , circ_secret_refs :: M.Map Ref Id
     , circ_refmap      :: M.Map Ref Op
-    , circ_consts      :: B.Bimap Integer Ref
+    , circ_consts      :: B.Bimap Int Ref
     , circ_const_ids   :: S.Set Id -- which OpSecrets are public
     , circ_symlen      :: Int
+    , circ_base        :: Int -- the expected base of the inputs
     } deriving (Show)
 
-type TestCase = ([Bool], [Bool])
+type TestCase = ([Int], [Int])
 
 --------------------------------------------------------------------------------
 -- instances and such
 
 emptyCirc :: Circuit
-emptyCirc = Circuit [] [] M.empty M.empty M.empty B.empty S.empty 1
+emptyCirc = Circuit [] [] M.empty M.empty M.empty B.empty S.empty 1 2
 
 instance Show Ref where
     show ref = show (getRef ref)
@@ -63,7 +64,7 @@ instance Show Ref where
 instance Show Id where
     show id = show (getId id)
 
-getSecret :: Circuit -> Id -> Integer
+getSecret :: Circuit -> Id -> Int
 getSecret c id = case M.lookup id (circ_secrets c) of
     Just x  -> x
     Nothing -> error ("[getSecret] no secret known for y" ++ show id)
@@ -91,7 +92,8 @@ randomizeSecrets c = do
 genTest :: Circuit -> IO TestCase
 genTest c
     | circ_symlen c == 1 = do
-        inp <- num2Bits (ninputs c) <$> randIO (randInteger (ninputs c))
+        -- inp <- num2Base (circ_base c) (ninputs c) <$> randIO (randInteger (ninputs c))
+        inp <- num2Base (circ_base c) (ninputs c) <$> randIO (randInteger (ninputs c))
         return (inp, plainEval c inp)
     | otherwise = do
         when ((ninputs c `mod` circ_symlen c) /= 0) $
@@ -99,7 +101,7 @@ genTest c
         let nsyms = ninputs c `div` circ_symlen c
         inp <- fmap concat $ replicateM nsyms $ do
             x <- fromIntegral <$> randIO (randInteger (numBits (circ_symlen c)))
-            return [ i == x | i <- [0..circ_symlen c-1] ]
+            return [ if i == x then 1 else 0 | i <- [0..circ_symlen c-1] ]
         return (inp, plainEval c inp)
 
 
@@ -132,22 +134,15 @@ printSecrets c = do
 
 printTruthTable :: Circuit -> IO ()
 printTruthTable c = forM_ inputs $ \inp -> do
-    let outp = plainEval c inp
-    printf "%s -> %s\n" (showBits' inp) (showBits' outp)
+    let out = plainEval c inp
+    printf "%s -> %s\n" (showInts inp) (showInts out)
 
   where
     n = ninputs c `div` symlen c
-    sym x = [ i == x | i <- [ 0 .. symlen c - 1 ] ]
+    sym x = [ if i == x then 1 else 0 | i <- [ 0 .. symlen c - 1 ] ]
     inputs = case symlen c of
-        1 -> sequence (replicate (ninputs c) [False, True])
+        1 -> sequence (replicate (ninputs c) [0..circ_base c - 1])
         _ -> map concat $ sequence (replicate n (map sym [0..symlen c - 1]))
-
-printRandInputs :: Int -> Circuit -> IO ()
-printRandInputs n c = do
-    inputs <- replicateM n $ randBitsIO (ninputs c)
-    forM_ inputs $ \inp -> do
-        let outp = plainEval c inp
-        printf "%s -> %s\n" (showBits' inp) (showBits' outp)
 
 circEq :: Circuit -> Circuit -> IO Bool
 circEq c0 c1
@@ -243,28 +238,28 @@ evalMod c inps q = foldCirc eval c
     eval (OpSecret i) [] = fromIntegral (getSecret c i)
     eval op args  = error ("[evalMod] weird input: " ++ show op ++ " " ++ show args)
 
-plainEval :: Circuit -> [Bool] -> [Bool]
+plainEval :: Circuit -> [Int] -> [Int]
 plainEval c inps
     | ninputs c /= length inps =
         error (printf "[plainEval] incorrect number of inputs: expected %d, got %s" (ninputs c) (show inps))
-    | otherwise = map (/= 0) (foldCirc eval c)
+    | otherwise = foldCirc eval c
   where
-    eval :: Op -> [Integer] -> Integer
+    eval :: Op -> [Int] -> Int
     eval (OpAdd _ _) [x,y] = x + y
     eval (OpSub _ _) [x,y] = x - y
     eval (OpMul _ _) [x,y] = x * y
-    eval (OpInput  i) [] = b2i (inps !! getId i)
+    eval (OpInput  i) [] = inps !! getId i
     eval (OpSecret i) [] = getSecret c i
     eval op args = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
 
-parEval :: Circuit -> [Bool] -> [Bool]
-parEval c inps = map (0/=) . runPar $ mapM IVar.get =<< foldCircM eval c
+parEval :: Circuit -> [Int] -> [Int]
+parEval c inps = runPar $ mapM IVar.get =<< foldCircM eval c
   where
-    eval :: Op -> Ref -> [IVar Integer] -> Par (IVar Integer)
+    eval :: Op -> Ref -> [IVar Int] -> Par (IVar Int)
     eval (OpAdd _ _) _ [x,y] = liftBin (+) x y
     eval (OpSub _ _) _ [x,y] = liftBin (-) x y
     eval (OpMul _ _) _ [x,y] = liftBin (*) x y
-    eval (OpInput  i) _ [] = IVar.newFull (b2i (inps !! getId i))
+    eval (OpInput  i) _ [] = IVar.newFull (inps !! getId i)
     eval (OpSecret i) _ [] = IVar.newFull (getSecret c i)
     eval op _ args = error ("[parEval] weird input: " ++ show op ++ " with " ++ show (length args) ++ " arguments")
 
@@ -273,16 +268,14 @@ parEval c inps = map (0/=) . runPar $ mapM IVar.get =<< foldCircM eval c
         fork (liftM2 f (IVar.get x) (IVar.get y) >>= IVar.put result)
         return result
 
-plainEvalIO :: Circuit -> [Bool] -> IO [Bool]
-plainEvalIO c xs = do
-    zs <- foldCircIO eval c
-    return $ map (/= 0) zs
+plainEvalIO :: Circuit -> [Int] -> IO [Int]
+plainEvalIO c xs = foldCircIO eval c
   where
-    eval :: Op -> [Integer] -> Integer
+    eval :: Op -> [Int] -> Int
     eval (OpAdd _ _) [x,y] = x + y
     eval (OpSub _ _) [x,y] = x - y
     eval (OpMul _ _) [x,y] = x * y
-    eval (OpInput  i) [] = b2i (xs !! getId i)
+    eval (OpInput  i) [] = xs !! getId i
     eval (OpSecret i) [] = getSecret c i
     eval op args = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
 
@@ -293,29 +286,29 @@ ensure verbose c ts = and <$> mapM ensure' (zip [(0::Int)..] ts)
         let res = plainEval c inps
         if res == outs then do
             let s = printf "test %d succeeded: input:%s expected:%s got:%s"
-                            i (showBits inps) (showBits outs) (showBits res)
+                            i (showInts inps) (showInts outs) (showInts res)
             when verbose (putStrLn s)
             return True
         else do
             let s = printf "test %d failed! input:%s expected:%s got:%s"
-                            i (showBits inps) (showBits outs) (showBits res)
+                            i (showInts inps) (showInts outs) (showInts res)
             putStrLn (red s)
             return False
 
 
-ensureIO :: Bool -> (Circuit -> [Bool] -> IO [Bool]) -> Circuit -> [TestCase] -> IO Bool
+ensureIO :: Bool -> (Circuit -> [Int] -> IO [Int]) -> Circuit -> [TestCase] -> IO Bool
 ensureIO verbose eval c ts = and <$> mapM ensureIO' (zip [(0::Int)..] ts)
   where
     ensureIO' (i, (inps, outs)) = do
         res <- eval c inps
         if res == outs then do
             let s = printf "test %d succeeded: input:%s expected:%s got:%s"
-                            i (showBits inps) (showBits outs) (showBits res)
+                            i (showInts inps) (showInts outs) (showInts res)
             when verbose (putStrLn s)
             return True
         else do
             let s = printf "test %d failed! input:%s expected:%s got:%s"
-                            i (showBits inps) (showBits outs) (showBits res)
+                            i (showInts inps) (showInts outs) (showInts res)
             putStrLn (red s)
             return False
 

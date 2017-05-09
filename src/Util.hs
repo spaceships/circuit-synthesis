@@ -50,13 +50,32 @@ pr s = do
     putStrLn s
     hFlush stdout
 
-num2Bits :: Int -> Integer -> [Bool]
-num2Bits n x = reverse bs
+num2Base :: Int -> Int -> Integer -> [Int]
+num2Base base ndigits x = map fromIntegral $ reverse (map snd (take ndigits (tail ds)))
   where
-    bs = [ x .&. 2^i > 0 | i <- [0 .. n-1] ]
+    ds = (x, 0) : [ (div y (fromIntegral base), mod y (fromIntegral base)) | (y, _) <- ds ]
+
+num2Bits :: Int -> Integer -> [Bool]
+num2Bits ndigits x = reverse bs
+  where
+    bs = [ x .&. 2^i > 0 | i <- [0 .. ndigits-1] ]
 
 bits2Num :: Integral a => [Bool] -> a
 bits2Num bs = fromIntegral $ sum [ if b then shift 1 i :: Integer else 0 | b <- reverse bs | i <- [0..] ]
+
+showInts :: [Int] -> String
+showInts = map toAlpha
+  where
+    alphas = ['0'..'9'] ++ ['a'..'z'] ++ ['A'..'Z']
+    toAlpha n = alphas !! n
+
+readInts :: String -> [Int]
+readInts = map fromAlpha
+  where
+    alphas = zip (['0'..'9'] ++ ['a'..'z'] ++ ['A'..'Z']) [0..]
+    fromAlpha c = case lookup c alphas of
+        Just n  -> n
+        Nothing -> error ("[readInts] unkown character " ++ [c])
 
 readBits :: String -> [Bool]
 readBits s = if take 2 s == "0b"

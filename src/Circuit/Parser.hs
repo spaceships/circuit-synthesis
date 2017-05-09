@@ -30,6 +30,9 @@ modifyCirc f = modifyState (\st -> st { st_circ = f (st_circ st) })
 setSymlen :: Int -> ParseCirc ()
 setSymlen n = modifyCirc (\c -> c { circ_symlen = n })
 
+setBase :: Int -> ParseCirc ()
+setBase n = modifyCirc (\c -> c { circ_base = n })
+
 addTest :: TestCase -> ParseCirc ()
 addTest t = modifyState (\st -> st { st_tests = t : st_tests st})
 
@@ -45,7 +48,7 @@ insertSecret ref id = do
     modifyCirc (\c -> c { circ_secret_refs = M.insert ref id (circ_secret_refs c) })
     insertOp ref (OpSecret id)
 
-insertSecretVal :: Id -> Integer -> ParseCirc ()
+insertSecretVal :: Id -> Int -> ParseCirc ()
 insertSecretVal id val = do
     ys <- circ_secrets <$> getCirc
     let ys' = safeInsert ("reassignment of y" ++ show id) id val ys

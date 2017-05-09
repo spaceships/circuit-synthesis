@@ -13,7 +13,7 @@ module Circuit.Format.Acirc
 
 import Circuit
 import Circuit.Parser
-import Util (forceM, readBits', showBits')
+import Util
 
 import Control.Monad
 import qualified Control.Monad.State as S
@@ -51,7 +51,9 @@ showCircWithTests ntests c = do
 showCirc :: Circuit -> String
 showCirc c = unlines (header ++ gateLines)
   where
-    header = [printf ":symlen %d" (circ_symlen c)]
+    header = [ printf ":symlen %d" (circ_symlen c)
+             , printf ":base %d" (circ_base c)
+             ]
 
     inputs = mapM gateStr (circ_inputs c)
     consts = mapM gateStr (M.keys (circ_secret_refs c))
@@ -98,7 +100,7 @@ showCirc c = unlines (header ++ gateLines)
         return $ printf "%d %s %d %d" ref' gateTy x' y'
 
 showTest :: TestCase -> String
-showTest (inp, out) = printf ":test %s %s" (showBits' (reverse inp)) (showBits' (reverse out))
+showTest (inp, out) = printf ":test %s %s" (showInts (reverse inp)) (showInts (reverse out))
 
 genTestStr :: Circuit -> IO String
 genTestStr = fmap showTest . genTest
@@ -115,7 +117,7 @@ parseCirc s = case runParser (circParser >> getState) emptySt "" s of
     Right st -> (st_circ st, reverse (st_tests st))
   where
     circParser = preamble >> lines >> end >> eof
-    preamble = many $ (char ':' >> (parseTest <|> parseSymlen <|> skipParam))
+    preamble = many $ (char ':' >> (parseTest <|> parseSymlen <|> parseBase <|> skipParam))
     lines    = many parseRefLine
     end      = parseOutputs >> optional parseSecrets
 
@@ -131,9 +133,17 @@ parseTest = do
     inps <- many digit
     spaces
     outs <- many digit
-    let inp = readBits' inps
-        res = readBits' outs
+    let inp = readInts inps
+        res = readInts outs
     addTest (reverse inp, reverse res)
+    endLine
+
+parseBase :: ParseCirc ()
+parseBase = do
+    string "base"
+    spaces
+    n <- Prelude.read <$> many digit
+    setBase n
     endLine
 
 parseSymlen :: ParseCirc ()
