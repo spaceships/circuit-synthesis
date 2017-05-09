@@ -9,6 +9,7 @@ import Control.Monad
 make :: IO [(Maybe String, Circuit)]
 make = return [ (Just "comparison.dsl.acirc", comparison 9 22) ]
 
+-- TODO: this is not comparison- fix it using comparison.cry
 -- 10^12 input size
 -- racheled as 22 vectors of length 4
 -- second input is expected to come in special form

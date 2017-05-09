@@ -1,0 +1,20 @@
+import Cryptol::Extras
+
+leq : {a} (fin a) => [a*8] -> [a*8] -> Bit
+leq x y = res.0 || res.1
+  where
+    res = foldl f (True, False) (bs x y)
+
+    f (acc_eq, acc_lt) (z_eq, z_lt) = (eq, lt)
+      where
+        eq = acc_eq && z_eq
+        lt = acc_lt || acc_eq && z_lt
+
+bs : {a} (fin a) => [a*8] -> [a*8] -> [a](Bit,Bit)
+bs x y = zip eqs lts
+  where
+    eqs = zipWith ((==) : [8] -> [8] -> Bit) (split x) (split y)
+    lts = zipWith ((<)  : [8] -> [8] -> Bit) (split x) (split y)
+
+comparison_algorithm : [128] -> [128] -> Bit
+property comparison_algorithm x y = leq x y == x <= y
