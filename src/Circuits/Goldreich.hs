@@ -55,20 +55,29 @@ makeGGM = sequence
 
 makeGGMSigma :: IO [(Maybe String, Circuit)]
 makeGGMSigma = sequence
-    [ (Just "ggm_sigma_1_32.dsl.acirc"  ,) <$> ggmSigma 16  32 16
-    , (Just "ggm_sigma_2_32.dsl.acirc"  ,) <$> ggmSigma 32  32 16
-    , (Just "ggm_sigma_3_32.dsl.acirc"  ,) <$> ggmSigma 48  32 16
-    , (Just "ggm_sigma_4_32.dsl.acirc"  ,) <$> ggmSigma 64  32 16
-    , (Just "ggm_sigma_1_64.dsl.acirc"  ,) <$> ggmSigma 16  64 16
-    , (Just "ggm_sigma_2_64.dsl.acirc"  ,) <$> ggmSigma 32  64 16
-    , (Just "ggm_sigma_3_64.dsl.acirc"  ,) <$> ggmSigma 48  64 16
-    , (Just "ggm_sigma_4_64.dsl.acirc"  ,) <$> ggmSigma 64  64 16
-    , (Just "ggm_sigma_1_128.dsl.acirc" ,) <$> ggmSigma 16 128 16
-    , (Just "ggm_sigma_2_128.dsl.acirc" ,) <$> ggmSigma 32 128 16
-    , (Just "ggm_sigma_3_128.dsl.acirc" ,) <$> ggmSigma 48 128 16
-    , (Just "ggm_sigma_4_128.dsl.acirc" ,) <$> ggmSigma 64 128 16
+    [ (Just "ggm_sigma_1_32.dsl.acirc"  ,) <$> ggmSigma' 1  32 16
+    , (Just "ggm_sigma_2_32.dsl.acirc"  ,) <$> ggmSigma' 2  32 16
+    , (Just "ggm_sigma_3_32.dsl.acirc"  ,) <$> ggmSigma' 3  32 16
+    , (Just "ggm_sigma_4_32.dsl.acirc"  ,) <$> ggmSigma' 4  32 16
+    , (Just "ggm_sigma_1_64.dsl.acirc"  ,) <$> ggmSigma' 1  64 16
+    , (Just "ggm_sigma_2_64.dsl.acirc"  ,) <$> ggmSigma' 2  64 16
+    , (Just "ggm_sigma_3_64.dsl.acirc"  ,) <$> ggmSigma' 3  64 16
+    , (Just "ggm_sigma_4_64.dsl.acirc"  ,) <$> ggmSigma' 4  64 16
+    , (Just "ggm_sigma_1_128.dsl.acirc" ,) <$> ggmSigma' 1 128 16
+    , (Just "ggm_sigma_2_128.dsl.acirc" ,) <$> ggmSigma' 2 128 16
+    , (Just "ggm_sigma_3_128.dsl.acirc" ,) <$> ggmSigma' 3 128 16
+    , (Just "ggm_sigma_4_128.dsl.acirc" ,) <$> ggmSigma' 4 128 16
     ]
 
+makeGGMSigma256 :: IO [(Maybe String, Circuit)]
+makeGGMSigma256 = sequence
+    [ (Just "ggm_sigma_2_256.dsl.acirc"  ,) <$> ggmSigma' 2 128  256
+    ]
+
+makeGGMSigma1024 :: IO [(Maybe String, Circuit)]
+makeGGMSigma1024 = sequence
+    [ (Just "ggm_sigma_2_1024.dsl.acirc" ,) <$> ggmSigma' 2 128 1024
+    ]
 
 makeGGMNoPrg :: IO [(Maybe String, Circuit)]
 makeGGMNoPrg = sequence
@@ -354,6 +363,9 @@ ggmSigma inputLength keyLength stretch = do
         when ((length xs `mod` stretch) /= 0) $ error "[ggmSigma] wrong input length"
         res  <- foldM (ggmStepR g) seed (chunksOf stretch xs)
         outputs res
+
+ggmSigma' :: Int -> Int -> Int -> IO Circuit
+ggmSigma' num_prg keylen stretch = ggmSigma (num_prg * stretch) keylen stretch
 
 ggmSigmaNoPrg :: Int -> Int -> Int -> IO Circuit
 ggmSigmaNoPrg inputLength keyLength stretch = do

@@ -111,8 +111,10 @@ main = runCommand $ \opts args -> do
         Just "tribes"        -> mapM_ (circuitMain opts []) =<< Tribes.make
         Just "point"         -> mapM_ (circuitMain opts []) =<< Point.make
         Just "comparison"    -> mapM_ (circuitMain opts []) =<< Comparison.make
+        Just "ggmSigma256"   -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMSigma256
+        Just "ggmSigma1024"  -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMSigma1024
         Just _ -> do
-            putStrLn "[error] known circuit generation modes: aes, goldreich, ggm, ggmSigma, ggmNoPrg, ggmNoPrgSigma, applebaum, tribes, gf28Mult, point, comparison"
+            putStrLn "[error] known circuit generation modes: aes, goldreich, ggm, ggmSigma, ggmSigma256, ggmSigma1024, ggmNoPrg, ggmNoPrgSigma, applebaum, tribes, gf28Mult, point, comparison"
             exitFailure
 
         Nothing -> do
