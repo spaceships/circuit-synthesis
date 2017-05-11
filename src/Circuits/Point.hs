@@ -11,8 +11,12 @@ import Rand
 
 make :: IO [(Maybe String, Circuit)]
 make = sequence
-    [ (Just "point.dsl.acirc",) <$> point 27 8
-    , (Just "point_base8.dsl.acirc",) <$> pointBaseN 27 8
+    [ (Just "point.dsl.acirc",) <$> point 25 10
+    , (Just "point_base10.dsl.acirc",) <$> pointBaseN 25 10
+    , (Just "point_base11.dsl.acirc",) <$> pointBaseN 24 11
+    , (Just "point_base12.dsl.acirc",) <$> pointBaseN 23 12
+    , (Just "point_base13.dsl.acirc",) <$> pointBaseN 22 13
+    , (Just "point_base15.dsl.acirc",) <$> pointBaseN 21 15
     ]
 
 point :: Int -> Int -> IO Circuit

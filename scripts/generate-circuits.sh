@@ -94,7 +94,7 @@ for ty in C2A C2V; do
         generate_circuit $ty "$cryptoldir"/AES.cry $f
     done
 done
-$circsynth -C aes # requires linearParts
+$circsynth -C aes
 
 #
 # Generate Goldreich PRG circuits
@@ -154,19 +154,19 @@ if [[ $opt == y ]]; then
     for c in ./*.dsl.acirc; do
         _c=$(basename "$c")
         # run -O1 on everything
-        $circsynth -O1 "$c" -o "${c/dsl/opt-1}"
+        $circsynth -O1 "$c" -o "${c/dsl/o1}"
         # for -O2, skip ones that take forever
         if [[ $_c =~ ^f \
            || $_c =~ ^ggm_(1|2|3|4) \
            || $_c =~ ^ggm_sigma_(1|2|3|4) ]]; then
             continue
         fi
-        $circsynth -O2 "$c" -o "${c/dsl/opt-2}"
-        # for -O3, skip all but the ones that'll actually finish
-        if [[ $_c =~ ^aes1r_(2|4|8|16|32) \
-           || $_c == "sbox" ]]; then
-            $circsynth -O3 "$c" -o "${c/dsl/opt-3}"
-        fi
+        # $circsynth -O2 "$c" -o "${c/dsl/o2}"
+        # # for -O3, skip all but the ones that'll actually finish
+        # if [[ $_c =~ ^aes1r_(2|4|8|16|32) \
+        #    || $_c == "sbox" ]]; then
+        #     $circsynth -O3 "$c" -o "${c/dsl/o3}"
+        # fi
     done
 fi
 
