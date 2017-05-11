@@ -32,6 +32,11 @@ getCirc = gets bs_circ
 modifyCirc :: (Circuit -> Circuit) -> Builder ()
 modifyCirc f = modify (\st -> st { bs_circ = f (bs_circ st) })
 
+exportParams :: Circuit -> Builder ()
+exportParams c = do
+    setSymlen (circ_symlen c)
+    setBase (circ_base c)
+
 setSymlen :: Int -> Builder ()
 setSymlen n = modifyCirc (\c -> c { circ_symlen = n })
 

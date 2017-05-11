@@ -37,6 +37,7 @@ flatten c = merge <$> mapM (callSage (ninputs c)) (circToSage c)
 -- merge circuits to use the same inputs, consts, and intermediate gates
 merge :: [Circuit] -> Circuit
 merge cs = B.buildCircuit $ do
+    B.exportParams (head cs)
     xs   <- B.inputs (ninputs (head cs))
     outs <- concat <$> mapM (flip B.subcircuit xs) cs
     B.outputs outs
@@ -148,6 +149,7 @@ findFirstHSVD maxDepth minDeg c = execWriter (foldCircM eval c)
 -- get a subcircuit using an intermediate ref as an output ref
 slice :: Ref -> Circuit -> Circuit
 slice ref c = B.buildCircuit $ do
+    B.exportParams c
     out <- foldCircRefM eval c ref
     B.output out
   where
@@ -170,6 +172,7 @@ patch :: Ref -> Circuit -> Circuit -> Circuit
 patch loc c1 c2
   | noutputs c2 /= 1 = error "[patch] expected c2 to have only one output"
   | otherwise = B.buildCircuit $ do
+    B.exportParams c1
     xs <- B.inputs (ninputs c1)
     ys <- B.exportSecrets c1
 
@@ -192,6 +195,7 @@ foldConsts :: Circuit -> Circuit
 foldConsts c = B.buildCircuit $ do
     _ <- B.inputs (ninputs c)
     _ <- B.exportSecrets c
+    B.exportParams c
     zs <- foldCircM eval c
     B.outputs (map fst zs)
 

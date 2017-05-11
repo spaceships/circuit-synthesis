@@ -102,6 +102,7 @@ main :: IO ()
 main = runCommand $ \opts args -> do
     case opt_gencirc opts of
         Just "aes"           -> mapM_ (circuitMain opts []) =<< Aes.make
+        Just "aes1r"         -> mapM_ (circuitMain opts []) =<< Aes.makeAes1r
         Just "goldreich"     -> mapM_ (circuitMain opts []) =<< Goldreich.makePRG
         Just "ggm"           -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGM
         Just "ggmSigma"      -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMSigma
@@ -114,7 +115,7 @@ main = runCommand $ \opts args -> do
         Just "ggmSigma256"   -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMSigma256
         Just "ggmSigma1024"  -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMSigma1024
         Just _ -> do
-            putStrLn "[error] known circuit generation modes: aes, goldreich, ggm, ggmSigma, ggmSigma256, ggmSigma1024, ggmNoPrg, ggmNoPrgSigma, applebaum, tribes, gf28Mult, point, comparison"
+            putStrLn "[error] known circuit generation modes: aes, aes1r, goldreich, ggm, ggmSigma, ggmSigma256, ggmSigma1024, ggmNoPrg, ggmNoPrgSigma, applebaum, tribes, gf28Mult, point, comparison"
             exitFailure
 
         Nothing -> do

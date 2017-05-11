@@ -30,6 +30,10 @@ make = sequence
     , return (Just "sbox.dsl.acirc", subByte)
     ]
 
+makeAes1r :: IO [(Maybe String, Circuit)]
+makeAes1r = sequence
+    [ (Just "aes1r.dsl.acirc"      ,) <$> buildAesRound 128 ]
+
 sbox :: V.Vector (V.Vector Bool)-- {{{
 sbox =
     [ [False, True,  True,  False, False, False, True,  True]
