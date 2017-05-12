@@ -117,8 +117,8 @@ printCircInfo c = do
     --         (ngates c) (depth c) (sum ds) (circDegree c)
     printf "ngates=%d depth=%d circ-degree=%d\n"
             (ngates c) (depth c) (circDegree c)
-    printf "number of additions with disjoint indices: %d\n"
-            (numDisjointAdditions c)
+    -- printf "number of additions with disjoint indices: %d\n"
+            -- (numDisjointAdditions c)
 
 printCircInfoLatex :: Circuit -> IO ()
 printCircInfoLatex c = do

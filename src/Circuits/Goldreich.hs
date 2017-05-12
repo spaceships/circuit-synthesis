@@ -55,49 +55,49 @@ makeGGM = sequence
 
 makeGGMSigma :: IO [(Maybe String, Circuit)]
 makeGGMSigma = sequence
-    [ (Just "ggm_sigma_1_16_32.dsl.acirc"  ,) <$> ggmSigma' 1  32 16
-    , (Just "ggm_sigma_2_16_32.dsl.acirc"  ,) <$> ggmSigma' 2  32 16
-    , (Just "ggm_sigma_3_16_32.dsl.acirc"  ,) <$> ggmSigma' 3  32 16
-    , (Just "ggm_sigma_4_16_32.dsl.acirc"  ,) <$> ggmSigma' 4  32 16
-    , (Just "ggm_sigma_1_16_64.dsl.acirc"  ,) <$> ggmSigma' 1  64 16
-    , (Just "ggm_sigma_2_16_64.dsl.acirc"  ,) <$> ggmSigma' 2  64 16
-    , (Just "ggm_sigma_3_16_64.dsl.acirc"  ,) <$> ggmSigma' 3  64 16
-    , (Just "ggm_sigma_4_16_64.dsl.acirc"  ,) <$> ggmSigma' 4  64 16
-    , (Just "ggm_sigma_1_16_128.dsl.acirc" ,) <$> ggmSigma' 1 128 16
-    , (Just "ggm_sigma_2_16_128.dsl.acirc" ,) <$> ggmSigma' 2 128 16
-    , (Just "ggm_sigma_3_16_128.dsl.acirc" ,) <$> ggmSigma' 3 128 16
-    , (Just "ggm_sigma_4_16_128.dsl.acirc" ,) <$> ggmSigma' 4 128 16
+    [ (Just "ggm_sigma_1_16_32.dsl.acirc"  ,) <$> ggmSigma 1  32 16
+    , (Just "ggm_sigma_2_16_32.dsl.acirc"  ,) <$> ggmSigma 2  32 16
+    , (Just "ggm_sigma_3_16_32.dsl.acirc"  ,) <$> ggmSigma 3  32 16
+    , (Just "ggm_sigma_4_16_32.dsl.acirc"  ,) <$> ggmSigma 4  32 16
+    , (Just "ggm_sigma_1_16_64.dsl.acirc"  ,) <$> ggmSigma 1  64 16
+    , (Just "ggm_sigma_2_16_64.dsl.acirc"  ,) <$> ggmSigma 2  64 16
+    , (Just "ggm_sigma_3_16_64.dsl.acirc"  ,) <$> ggmSigma 3  64 16
+    , (Just "ggm_sigma_4_16_64.dsl.acirc"  ,) <$> ggmSigma 4  64 16
+    , (Just "ggm_sigma_1_16_128.dsl.acirc" ,) <$> ggmSigma 1 128 16
+    , (Just "ggm_sigma_2_16_128.dsl.acirc" ,) <$> ggmSigma 2 128 16
+    , (Just "ggm_sigma_3_16_128.dsl.acirc" ,) <$> ggmSigma 3 128 16
+    , (Just "ggm_sigma_4_16_128.dsl.acirc" ,) <$> ggmSigma 4 128 16
 
-    , (Just "ggm_sigma_1_32_32.dsl.acirc"  ,) <$> ggmSigma' 1  32 32
-    , (Just "ggm_sigma_1_32_64.dsl.acirc"  ,) <$> ggmSigma' 1  64 32
-    , (Just "ggm_sigma_1_32_128.dsl.acirc" ,) <$> ggmSigma' 1 128 32
-    , (Just "ggm_sigma_2_32_32.dsl.acirc"  ,) <$> ggmSigma' 2  32 32
-    , (Just "ggm_sigma_2_32_64.dsl.acirc"  ,) <$> ggmSigma' 2  64 32
-    , (Just "ggm_sigma_2_32_128.dsl.acirc" ,) <$> ggmSigma' 2 128 32
+    , (Just "ggm_sigma_1_32_32.dsl.acirc"  ,) <$> ggmSigma 1  32 32
+    , (Just "ggm_sigma_1_32_64.dsl.acirc"  ,) <$> ggmSigma 1  64 32
+    , (Just "ggm_sigma_1_32_128.dsl.acirc" ,) <$> ggmSigma 1 128 32
+    , (Just "ggm_sigma_2_32_32.dsl.acirc"  ,) <$> ggmSigma 2  32 32
+    , (Just "ggm_sigma_2_32_64.dsl.acirc"  ,) <$> ggmSigma 2  64 32
+    , (Just "ggm_sigma_2_32_128.dsl.acirc" ,) <$> ggmSigma 2 128 32
 
-    , (Just "ggm_sigma_1_64_32.dsl.acirc"  ,) <$> ggmSigma' 1  32 64
-    , (Just "ggm_sigma_1_64_64.dsl.acirc"  ,) <$> ggmSigma' 1  64 64
-    , (Just "ggm_sigma_1_64_128.dsl.acirc" ,) <$> ggmSigma' 1 128 64
-    , (Just "ggm_sigma_2_64_32.dsl.acirc"  ,) <$> ggmSigma' 2  32 64
-    , (Just "ggm_sigma_2_64_64.dsl.acirc"  ,) <$> ggmSigma' 2  64 64
-    , (Just "ggm_sigma_2_64_128.dsl.acirc" ,) <$> ggmSigma' 2 128 64
+    , (Just "ggm_sigma_1_64_32.dsl.acirc"  ,) <$> ggmSigma 1  32 64
+    , (Just "ggm_sigma_1_64_64.dsl.acirc"  ,) <$> ggmSigma 1  64 64
+    , (Just "ggm_sigma_1_64_128.dsl.acirc" ,) <$> ggmSigma 1 128 64
+    , (Just "ggm_sigma_2_64_32.dsl.acirc"  ,) <$> ggmSigma 2  32 64
+    , (Just "ggm_sigma_2_64_64.dsl.acirc"  ,) <$> ggmSigma 2  64 64
+    , (Just "ggm_sigma_2_64_128.dsl.acirc" ,) <$> ggmSigma 2 128 64
     ]
 
 makeGGMSigma256 :: IO [(Maybe String, Circuit)]
 makeGGMSigma256 = sequence
-    [ (Just "ggm_sigma_1_256_32.dsl.acirc"  ,) <$> ggmSigma'  1  32 256
-    , (Just "ggm_sigma_1_256_64.dsl.acirc"  ,) <$> ggmSigma'  1  64 256
-    , (Just "ggm_sigma_1_256_128.dsl.acirc"  ,) <$> ggmSigma' 1 128 256
-    , (Just "ggm_sigma_2_256_32.dsl.acirc"  ,) <$> ggmSigma'  2  32 256
-    , (Just "ggm_sigma_2_256_64.dsl.acirc"  ,) <$> ggmSigma'  2  64 256
-    , (Just "ggm_sigma_2_256_128.dsl.acirc"  ,) <$> ggmSigma' 2 128 256
+    [ (Just "ggm_sigma_1_256_32.dsl.acirc"  ,) <$> ggmSigma 1  32 256
+    , (Just "ggm_sigma_1_256_64.dsl.acirc"  ,) <$> ggmSigma 1  64 256
+    , (Just "ggm_sigma_1_256_128.dsl.acirc" ,) <$> ggmSigma 1 128 256
+    , (Just "ggm_sigma_2_256_32.dsl.acirc"  ,) <$> ggmSigma 2  32 256
+    , (Just "ggm_sigma_2_256_64.dsl.acirc"  ,) <$> ggmSigma 2  64 256
+    , (Just "ggm_sigma_2_256_128.dsl.acirc" ,) <$> ggmSigma 2 128 256
     ]
 
 makeGGMSigma1024 :: IO [(Maybe String, Circuit)]
 makeGGMSigma1024 = sequence
-    [ (Just "ggm_sigma_2_1024_32.dsl.acirc" ,) <$> ggmSigma'  2  32 1024
-    , (Just "ggm_sigma_2_1024_64.dsl.acirc" ,) <$> ggmSigma'  2  64 1024
-    , (Just "ggm_sigma_2_1024_128.dsl.acirc" ,) <$> ggmSigma' 2 128 1024
+    [ (Just "ggm_sigma_2_1024_32.dsl.acirc"  ,) <$> ggmSigma 2  32 1024
+    , (Just "ggm_sigma_2_1024_64.dsl.acirc"  ,) <$> ggmSigma 2  64 1024
+    , (Just "ggm_sigma_2_1024_128.dsl.acirc" ,) <$> ggmSigma 2 128 1024
     ]
 
 makeGGMNoPrg :: IO [(Maybe String, Circuit)]
@@ -373,20 +373,18 @@ ggmStepR prg seed choice = do
     ws <- zipWithM (\b x -> mapM (circMul b) x) choice xs
     mapM circSum (transpose ws)
 
+-- set noutputs= logBase 2 symlen * num_prg
 ggmSigma :: Int -> Int -> Int -> IO Circuit
-ggmSigma inputLength keyLength stretch = do
-    g <- prg' keyLength (stretch * keyLength) 5 xorAnd
+ggmSigma num_prg keyLength symlen = do
+    let outputLength = numBits symlen * num_prg
+    g <- prg' keyLength (keyLength * symlen) 5 xorAnd
     keyBits <- randKeyIO keyLength
     return $ buildCircuit $ do
-        setSymlen stretch
-        xs   <- inputs inputLength
+        setSymlen symlen
+        xs   <- replicateM num_prg (inputs symlen)
         seed <- secrets keyBits
-        when ((length xs `mod` stretch) /= 0) $ error "[ggmSigma] wrong input length"
-        res  <- foldM (ggmStepR g) seed (chunksOf stretch xs)
-        outputs res
-
-ggmSigma' :: Int -> Int -> Int -> IO Circuit
-ggmSigma' num_prg keylen stretch = ggmSigma (num_prg * stretch) keylen stretch
+        res  <- foldM (ggmStepR g) seed xs
+        outputs (take outputLength res)
 
 ggmSigmaNoPrg :: Int -> Int -> Int -> IO Circuit
 ggmSigmaNoPrg inputLength keyLength stretch = do
@@ -400,4 +398,3 @@ ggmSigmaNoPrg inputLength keyLength stretch = do
         when ((length xs `mod` stretch) /= 0) $ error "[ggmSigmaNoPrg] wrong input length"
         res  <- foldM (ggmStepR g) seed (chunksOf stretch xs)
         outputs res
-
