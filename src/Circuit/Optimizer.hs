@@ -175,10 +175,11 @@ patch loc c1 c2
     B.exportParams c1
     xs <- B.inputs (ninputs c1)
     ys <- B.exportSecrets c1
+    zs <- B.exportSecrets c2
 
     -- when we get to loc, eval c2 as subcircuit and return that output
     let catch ref other = if ref == loc
-                             then head <$> B.subcircuit' c2 xs ys
+                             then head <$> B.subcircuit' c2 xs (ys ++ zs)
                              else other
 
     let eval (OpAdd _ _) ref [x,y] = catch ref $ B.circAdd x y
