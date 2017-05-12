@@ -137,9 +137,9 @@ makeApplebaum = sequence
     [ (Just "f1_16.dsl.acirc"    ,) <$> f1 16 1
     , (Just "f1_32.dsl.acirc"    ,) <$> f1 32 1
     , (Just "f1_64.dsl.acirc"    ,) <$> f1 64 1
-    , (Just "f1_128.dsl.acirc"   ,) <$> f1 128 1
+    , (Just "f1_128_1.dsl.acirc" ,) <$> f1 128 1
     , (Just "f1_128_2.dsl.acirc" ,) <$> f1 128 2
-    , (Just "f3_4.dsl.acirc"     ,) <$> f3 4 1
+    -- , (Just "f3_4.dsl.acirc"     ,) <$> f3 4 1
     ]
 
 --------------------------------------------------------------------------------
