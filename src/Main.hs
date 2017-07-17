@@ -103,6 +103,7 @@ main = runCommand $ \opts args -> do
     case opt_gencirc opts of
         Just "aes"           -> mapM_ (circuitMain opts []) =<< Aes.make
         Just "aes1r"         -> mapM_ (circuitMain opts []) =<< Aes.makeAes1r
+        Just "aes10r"        -> mapM_ (circuitMain opts []) =<< Aes.makeAes10r
         Just "goldreich"     -> mapM_ (circuitMain opts []) =<< Goldreich.makePRG
         Just "ggm"           -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGM
         Just "ggmSigma"      -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMSigma

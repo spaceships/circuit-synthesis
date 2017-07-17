@@ -32,7 +32,11 @@ make = sequence
 
 makeAes1r :: IO [(Maybe String, Circuit)]
 makeAes1r = sequence
-    [ (Just "aes1r.dsl.acirc"      ,) <$> buildAesRound 128 ]
+    [ (Just "aes1r.dsl.acirc",) <$> buildAesRound 128 ]
+
+makeAes10r :: IO [(Maybe String, Circuit)]
+makeAes10r = sequence
+    [ (Just "aes.dsl.acirc",) <$> buildAes 10 128 ]
 
 sbox :: V.Vector (V.Vector Bool)-- {{{
 sbox =
