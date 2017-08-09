@@ -20,7 +20,7 @@ import Control.DeepSeq (NFData)
 import Control.Monad.IfElse (whenM)
 import Control.Monad.State.Strict
 import Data.Map.Strict ((!))
-import Data.List (groupBy, sortBy)
+import Data.List (sortBy)
 import Text.Printf
 import qualified Control.Monad.Par as IVar
 import qualified Data.Map.Strict as M
@@ -319,6 +319,11 @@ foldCirc f c = runIdentity (foldCircM f' c)
   where
     f' op _ xs = return (f op xs)
 
+foldCircRef :: (Op -> Ref -> [a] -> a) -> Circuit -> [a]
+foldCircRef f c = runIdentity (foldCircM f' c)
+  where
+    f' op ref xs = return (f op ref xs)
+
 foldCircM :: Monad m => (Op -> Ref -> [a] -> m a) -> Circuit -> m [a]
 foldCircM f c = evalStateT (mapM eval (circ_outputs c)) M.empty
   where
@@ -380,14 +385,12 @@ topologicalOrder c = reverse $ execState (foldCircM eval c) []
     eval _ ref _ = modify (ref:)
 
 topoLevels :: Circuit -> [[Ref]]
-topoLevels c = map snd $ M.toAscList $ execState (foldCircM eval c) M.empty
+topoLevels c = snd <$> M.toAscList $ M.unionsWith (++) $ foldCircRef eval c
   where
-    eval :: Op -> Ref -> [Int] -> State (M.Map Int [Ref]) Int
-    eval _ ref [] = modify (M.insertWith (++) 0 [ref]) >> return 0
-    eval _ ref ds = do
-        let d = 1 + maximum ds
-        modify (M.insertWith (++) d [ref])
-        return d
+    eval :: Op -> Ref -> [M.Map Int [Ref]] -> M.Map Int [Ref]
+    eval _ ref [] = M.singleton 0 [ref]
+    eval _ ref ds = let d = 1 + (maximum.maximum) (M.keys <$> ds)
+                    in M.unionsWith (++) (M.singleton d [ref] : ds)
 
 sortGates :: Circuit -> [Ref]
 sortGates c = concatMap (sortBy refDist) (topoLevels c)
