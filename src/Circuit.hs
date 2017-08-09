@@ -389,7 +389,7 @@ topoLevels c = snd <$> M.toAscList $ M.unionsWith (++) $ foldCircRef eval c
   where
     eval :: Op -> Ref -> [M.Map Int [Ref]] -> M.Map Int [Ref]
     eval _ ref [] = M.singleton 0 [ref]
-    eval _ ref ds = let d = 1 + (maximum.maximum) (M.keys <$> ds)
+    eval _ ref ds = let d = 1 + (maximum . map maximum) (M.keys <$> ds)
                     in M.unionsWith (++) (M.singleton d [ref] : ds)
 
 sortGates :: Circuit -> [Ref]
