@@ -50,7 +50,7 @@ pr s = do
     putStrLn s
     hFlush stdout
 
-num2Base :: Int -> Int -> Integer -> [Int]
+num2Base :: Int -> Int -> Integer -> [Integer]
 num2Base base ndigits x = map fromIntegral $ reverse (map snd (take ndigits (tail ds)))
   where
     ds = (x, 0) : [ (div y (fromIntegral base), mod y (fromIntegral base)) | (y, _) <- ds ]
@@ -63,13 +63,13 @@ num2Bits ndigits x = reverse bs
 bits2Num :: Integral a => [Bool] -> a
 bits2Num bs = fromIntegral $ sum [ if b then shift 1 i :: Integer else 0 | b <- reverse bs | i <- [0..] ]
 
-showInts :: [Int] -> String
+showInts :: [Integer] -> String
 showInts = map toAlpha
   where
     alphas = ['0'..'9'] ++ ['a'..'z'] ++ ['A'..'Z']
-    toAlpha n = alphas !! n
+    toAlpha n = alphas !! fromIntegral n
 
-readInts :: String -> [Int]
+readInts :: String -> [Integer]
 readInts = map fromAlpha
   where
     alphas = zip (['0'..'9'] ++ ['a'..'z'] ++ ['A'..'Z']) [0..]

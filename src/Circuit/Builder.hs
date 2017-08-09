@@ -56,7 +56,7 @@ insertSecret ref id = do
     modifyCirc (\c -> c { circ_secret_refs = M.insert ref id (circ_secret_refs c) })
     insertOp ref (OpSecret id)
 
-insertSecretVal :: Id -> Int -> Builder ()
+insertSecretVal :: Id -> Integer -> Builder ()
 insertSecretVal id val = do
     ys <- circ_secrets <$> getCirc
     let ys' = safeInsert ("reassignment of y" ++ show id) id val ys
@@ -99,7 +99,7 @@ nextSecretId = do
 markOutput :: Ref -> Builder ()
 markOutput ref = modifyCirc (\c -> c { circ_outputs = circ_outputs c ++ [ref] })
 
-markConst :: Int -> Ref -> Id -> Builder ()
+markConst :: Integer -> Ref -> Id -> Builder ()
 markConst val ref id = modifyCirc (\c -> c { circ_consts    = B.insert val ref (circ_consts c)
                                            , circ_const_ids = S.insert id (circ_const_ids c)
                                            })
@@ -140,7 +140,7 @@ input_n n = do
 inputs :: Int -> Builder [Ref]
 inputs n = replicateM n input
 
-secret :: Int -> Builder Ref
+secret :: Integer -> Builder Ref
 secret val = do
     id  <- nextSecretId
     ref <- nextRef
@@ -158,10 +158,10 @@ secret_n n = do
             cur <- gets bs_next_secret
             last <$> replicateM (getId n - getId cur + 1) (secret 0)
 
-secrets :: [Int] -> Builder [Ref]
+secrets :: [Integer] -> Builder [Ref]
 secrets = mapM secret
 
-constant :: Int -> Builder Ref
+constant :: Integer -> Builder Ref
 constant val = do
     c <- getCirc
     if B.member val (circ_consts c) then do
@@ -174,7 +174,7 @@ constant val = do
         markConst val ref id
         return ref
 
-constants :: [Int] -> Builder [Ref]
+constants :: [Integer] -> Builder [Ref]
 constants = mapM constant
 
 circAdd :: Ref -> Ref -> Builder Ref

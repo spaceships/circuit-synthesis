@@ -48,7 +48,7 @@ insertSecret ref id = do
     modifyCirc (\c -> c { circ_secret_refs = M.insert ref id (circ_secret_refs c) })
     insertOp ref (OpSecret id)
 
-insertSecretVal :: Id -> Int -> ParseCirc ()
+insertSecretVal :: Id -> Integer -> ParseCirc ()
 insertSecretVal id val = do
     ys <- circ_secrets <$> getCirc
     let ys' = safeInsert ("reassignment of y" ++ show id) id val ys

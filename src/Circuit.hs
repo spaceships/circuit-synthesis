@@ -12,7 +12,7 @@ import Util
 import Rand
 
 import Control.Monad.Identity
-import Control.Monad.Par (IVar, Par, fork, runPar)
+import Control.Monad.Par (IVar, Par, runPar)
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Concurrent.ParallelIO
@@ -20,6 +20,7 @@ import Control.DeepSeq (NFData)
 import Control.Monad.IfElse (whenM)
 import Control.Monad.State.Strict
 import Data.Map.Strict ((!))
+import Data.List (groupBy, sortBy)
 import Text.Printf
 import qualified Control.Monad.Par as IVar
 import qualified Data.Map.Strict as M
@@ -41,16 +42,16 @@ data Op = OpAdd Ref Ref
 data Circuit = Circuit {
       circ_outputs     :: [Ref]
     , circ_inputs      :: [Ref]
-    , circ_secrets     :: M.Map Id Int
+    , circ_secrets     :: M.Map Id Integer
     , circ_secret_refs :: M.Map Ref Id
     , circ_refmap      :: M.Map Ref Op
-    , circ_consts      :: B.Bimap Int Ref
+    , circ_consts      :: B.Bimap Integer Ref
     , circ_const_ids   :: S.Set Id -- which OpSecrets are public
     , circ_symlen      :: Int
     , circ_base        :: Int -- the expected base of the inputs
     } deriving (Show)
 
-type TestCase = ([Int], [Int])
+type TestCase = ([Integer], [Integer])
 
 --------------------------------------------------------------------------------
 -- instances and such
@@ -64,7 +65,7 @@ instance Show Ref where
 instance Show Id where
     show id = show (getId id)
 
-getSecret :: Circuit -> Id -> Int
+getSecret :: Circuit -> Id -> Integer
 getSecret c id = case M.lookup id (circ_secrets c) of
     Just x  -> x
     Nothing -> error ("[getSecret] no secret known for y" ++ show id)
@@ -139,9 +140,9 @@ printTruthTable c = forM_ inputs $ \inp -> do
 
   where
     n = ninputs c `div` symlen c
-    sym x = [ if i == x then 1 else 0 | i <- [ 0 .. symlen c - 1 ] ]
+    sym x = [ if i == x then (1 :: Integer) else 0 | i <- [ 0 .. symlen c - 1 ] ]
     inputs = case symlen c of
-        1 -> sequence (replicate (ninputs c) [0..circ_base c - 1])
+        1 -> sequence (replicate (ninputs c) [(0::Integer)..fromIntegral (circ_base c - 1)])
         _ -> map concat $ sequence (replicate n (map sym [0..symlen c - 1]))
 
 circEq :: Circuit -> Circuit -> IO Bool
@@ -238,17 +239,17 @@ evalMod c inps q = foldCirc eval c
     eval (OpSecret i) [] = fromIntegral (getSecret c i)
     eval op args  = error ("[evalMod] weird input: " ++ show op ++ " " ++ show args)
 
-zeroTest :: Int -> Int
+zeroTest :: Integer -> Integer
 zeroTest 0 = 0
 zeroTest _ = 1
 
-plainEval :: Circuit -> [Int] -> [Int]
+plainEval :: Circuit -> [Integer] -> [Integer]
 plainEval c inps
     | ninputs c /= length inps =
         error (printf "[plainEval] incorrect number of inputs: expected %d, got %s" (ninputs c) (show inps))
     | otherwise = map zeroTest $ foldCirc eval c
   where
-    eval :: Op -> [Int] -> Int
+    eval :: Op -> [Integer] -> Integer
     eval (OpAdd _ _) [x,y] = x + y
     eval (OpSub _ _) [x,y] = x - y
     eval (OpMul _ _) [x,y] = x * y
@@ -256,10 +257,10 @@ plainEval c inps
     eval (OpSecret i) [] = getSecret c i
     eval op args = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
 
-parEval :: Circuit -> [Int] -> [Int]
+parEval :: Circuit -> [Integer] -> [Integer]
 parEval c inps = map zeroTest $ runPar $ mapM IVar.get =<< foldCircM eval c
   where
-    eval :: Op -> Ref -> [IVar Int] -> Par (IVar Int)
+    eval :: Op -> Ref -> [IVar Integer] -> Par (IVar Integer)
     eval (OpAdd _ _) _ [x,y] = liftBin (+) x y
     eval (OpSub _ _) _ [x,y] = liftBin (-) x y
     eval (OpMul _ _) _ [x,y] = liftBin (*) x y
@@ -267,15 +268,12 @@ parEval c inps = map zeroTest $ runPar $ mapM IVar.get =<< foldCircM eval c
     eval (OpSecret i) _ [] = IVar.newFull (getSecret c i)
     eval op _ args = error ("[parEval] weird input: " ++ show op ++ " with " ++ show (length args) ++ " arguments")
 
-    liftBin f x y = do
-        result <- IVar.new
-        fork (liftM2 f (IVar.get x) (IVar.get y) >>= IVar.put result)
-        return result
+    liftBin f x y = IVar.spawn (liftM2 f (IVar.get x) (IVar.get y))
 
-plainEvalIO :: Circuit -> [Int] -> IO [Int]
+plainEvalIO :: Circuit -> [Integer] -> IO [Integer]
 plainEvalIO c xs = map zeroTest <$> foldCircIO eval c
   where
-    eval :: Op -> [Int] -> Int
+    eval :: Op -> [Integer] -> Integer
     eval (OpAdd _ _) [x,y] = x + y
     eval (OpSub _ _) [x,y] = x - y
     eval (OpMul _ _) [x,y] = x * y
@@ -284,7 +282,7 @@ plainEvalIO c xs = map zeroTest <$> foldCircIO eval c
     eval op args = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
 
 ensure :: Bool -> Circuit -> [TestCase] -> IO Bool
-ensure verbose c ts = and <$> mapM ensure' (zip [(0::Int)..] ts)
+ensure verbose c ts = and <$> mapM ensure' (zip [(0::Integer)..] ts)
   where
     ensure' (i, (inps, outs)) = do
         let res = plainEval c inps
@@ -300,8 +298,8 @@ ensure verbose c ts = and <$> mapM ensure' (zip [(0::Int)..] ts)
             return False
 
 
-ensureIO :: Bool -> (Circuit -> [Int] -> IO [Int]) -> Circuit -> [TestCase] -> IO Bool
-ensureIO verbose eval c ts = and <$> mapM ensureIO' (zip [(0::Int)..] ts)
+ensureIO :: Bool -> (Circuit -> [Integer] -> IO [Integer]) -> Circuit -> [TestCase] -> IO Bool
+ensureIO verbose eval c ts = and <$> mapM ensureIO' (zip [(0::Integer)..] ts)
   where
     ensureIO' (i, (inps, outs)) = do
         res <- eval c inps
@@ -382,28 +380,30 @@ topologicalOrder c = reverse $ execState (foldCircM eval c) []
     eval _ ref _ = modify (ref:)
 
 topoLevels :: Circuit -> [[Ref]]
-topoLevels c = map S.toAscList lvls
+topoLevels c = map snd $ M.toAscList $ execState (foldCircM eval c) M.empty
   where
-    topo = topologicalOrder c
-    lvls = execState (mapM_ eval topo) []
+    eval :: Op -> Ref -> [Int] -> State (M.Map Int [Ref]) Int
+    eval _ ref [] = modify (M.insertWith (++) 0 [ref]) >> return 0
+    eval _ ref ds = do
+        let d = 1 + maximum ds
+        modify (M.insertWith (++) d [ref])
+        return d
 
-    eval :: Ref -> State [S.Set Ref] ()
-    eval ref = modify (putRef ref)
-
-    putRef :: Ref -> [S.Set Ref] -> [S.Set Ref]
-    putRef ref []     = [S.singleton ref]
-    putRef ref (x:xs) = if not (any (`S.member` x) (dependencies ref))
-                            then S.insert ref x : xs
-                            else x : putRef ref xs
-
-    dependencies :: Ref -> [Ref]
-    dependencies ref = case circ_refmap c ! ref of
-        OpInput  _ -> []
-        OpSecret _ -> []
-        op -> opArgs op ++ concatMap dependencies (opArgs op)
+sortGates :: Circuit -> [Ref]
+sortGates c = concatMap (sortBy refDist) (topoLevels c)
+  where
+    refDist xref yref = let xargs = opArgs (getGate c xref)
+                            yargs = opArgs (getGate c yref)
+                        in compare xargs yargs
 
 nonInputGates :: Circuit -> [Ref]
 nonInputGates c = filter notInput (topologicalOrder c)
+  where
+    notInput ref = notElem ref (circ_inputs c) &&
+                   M.notMember ref (circ_secret_refs c)
+
+sortedNonInputGates :: Circuit -> [Ref]
+sortedNonInputGates c = filter notInput (sortGates c)
   where
     notInput ref = notElem ref (circ_inputs c) &&
                    M.notMember ref (circ_secret_refs c)

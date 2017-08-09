@@ -5,6 +5,7 @@ module Circuit.Format.Acirc
   , writeAcirc
   , parseCirc
   , showCirc
+  , showSortedCirc
   , showTest
   , genTestStr
   , addTestsToFile
@@ -47,6 +48,37 @@ showCircWithTests :: Int -> Circuit -> IO String
 showCircWithTests ntests c = do
     ts <- replicateM ntests (genTestStr c)
     return (unlines ts ++ showCirc c)
+
+showSortedCirc :: Circuit -> String
+showSortedCirc c = unlines (header ++ gateLines ++ output)
+  where
+    header = [ printf ":symlen %d" (circ_symlen c)
+             , printf ":base %d" (circ_base c)
+             ]
+
+    inputs = map gateStr (circ_inputs c)
+    consts = map gateStr (M.keys (circ_secret_refs c))
+    gates  = map gateStr (sortedNonInputGates c)
+    gateLines = concat [inputs, consts, gates]
+    output = let outs = map show (circ_outputs c)
+                 secs = map show (secretRefs c)
+             in [ printf ":outputs %s" (unwords outs)
+                , printf ":secrets %s" (unwords secs)
+                ]
+
+    gateStr :: Ref -> String
+    gateStr ref = do
+        case M.lookup ref (circ_refmap c) of
+            Nothing -> error (printf "[gateStr] unknown ref %s" (show ref))
+            Just (OpInput  id) -> printf "%d input %d" (getRef ref) (getId id)
+            Just (OpSecret id) ->
+                let secret = case M.lookup id (circ_secrets c) of
+                                Nothing -> ""
+                                Just y  -> show y
+                in printf "%d const %s" (getRef ref) secret
+            Just (OpAdd x y) -> printf "%d ADD %d %d" (getRef ref) (getRef x) (getRef y)
+            Just (OpSub x y) -> printf "%d SUB %d %d" (getRef ref) (getRef x) (getRef y)
+            Just (OpMul x y) -> printf "%d MUL %d %d" (getRef ref) (getRef x) (getRef y)
 
 showCirc :: Circuit -> String
 showCirc c = unlines (header ++ gateLines)

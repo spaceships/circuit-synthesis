@@ -28,6 +28,7 @@ data MainOptions = MainOptions { opt_info       :: Bool
                                , opt_write_to_file      :: Maybe String
                                , opt_optimize           :: Maybe Int
                                , opt_graphviz           :: Bool
+                               , opt_sort               :: Bool
                                }
 
 instance Options MainOptions where
@@ -95,6 +96,12 @@ instance Options MainOptions where
             (\o -> o { optionShortFlags  = "d"
                      , optionLongFlags   = ["dot"]
                      , optionDescription = "Output the circuit in Graphviz dot format"
+                     })
+
+        <*> defineOption optionType_bool
+            (\o -> o { optionShortFlags  = "s"
+                     , optionLongFlags   = ["sort"]
+                     , optionDescription = "Sort the topological levels by distance."
                      })
 
 
@@ -168,7 +175,9 @@ circuitMain opts ts (outputName, c) = do
 
     s <- if opt_graphviz opts
             then return $ Graphviz.showCircuit c
-            else Acirc.showCircWithTests 10 c
+            else if opt_sort opts
+                    then return $ Acirc.showSortedCirc c
+                    else Acirc.showCircWithTests 10 c
 
     case outputName of
         Just fn -> do

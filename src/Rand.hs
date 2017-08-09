@@ -69,7 +69,7 @@ randBits n = num2Bits n <$> randInteger n
 randBitsIO :: Int -> IO [Bool]
 randBitsIO n = randIO (randBits n)
 
-randKeyIO :: Int -> IO [Int]
+randKeyIO :: Int -> IO [Integer]
 randKeyIO n = map b2i <$> randBitsIO n
 
 randIntegerMod :: Integer -> Rand Integer
