@@ -101,7 +101,7 @@ instance Options MainOptions where
         <*> defineOption optionType_bool
             (\o -> o { optionShortFlags  = "s"
                      , optionLongFlags   = ["sort"]
-                     , optionDescription = "Sort the topological levels by distance."
+                     , optionDescription = "Output an evaluation order that is sorted based on distance."
                      })
 
 
@@ -176,14 +176,14 @@ circuitMain opts ts (outputName, c) = do
     s <- if opt_graphviz opts
             then return $ Graphviz.showCircuit c
             else if opt_sort opts
-                    then return $ Acirc.showSortedCirc c
+                    then return $ unwords (map show (sortGates c))
                     else Acirc.showCircWithTests 10 c
 
     case outputName of
         Just fn -> do
             printf "writing %s\n" fn
             writeFile fn s
-        Nothing -> return ()
+        Nothing -> putStr s
 
 evalTests :: MainOptions -> Circuit -> [TestCase] -> IO ()
 evalTests opts c ts = do

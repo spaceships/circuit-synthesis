@@ -384,13 +384,25 @@ topologicalOrder c = reverse $ execState (foldCircM eval c) []
     eval :: Op -> Ref -> [a] -> State [Ref] ()
     eval _ ref _ = modify (ref:)
 
+-- Ugly and fast!
 topoLevels :: Circuit -> [[Ref]]
-topoLevels c = snd <$> M.toAscList $ M.unionsWith (++) $ foldCircRef eval c
+topoLevels c = map snd $ M.toAscList $ execState (foldCircM eval c) M.empty
   where
-    eval :: Op -> Ref -> [M.Map Int [Ref]] -> M.Map Int [Ref]
-    eval _ ref [] = M.singleton 0 [ref]
-    eval _ ref ds = let d = 1 + (maximum . map maximum) (M.keys <$> ds)
-                    in M.unionsWith (++) (M.singleton d [ref] : ds)
+    eval :: Op -> Ref -> [Int] -> State (M.Map Int [Ref]) Int
+    eval _ ref [] = modify (M.insertWith (++) 0 [ref]) >> return 0
+    eval _ ref ds = do
+        let d = 1 + maximum ds
+        modify (M.insertWith (++) d [ref])
+        return d
+
+-- XXX: this is clean but slow!
+-- topoLevels :: Circuit -> [[Ref]]
+-- topoLevels c = map snd $ M.toAscList $ M.unionsWith (++) $ foldCircRef eval c
+--   where
+--     eval :: Op -> Ref -> [M.Map Int [Ref]] -> M.Map Int [Ref]
+--     eval _ ref [] = M.singleton 0 [ref]
+--     eval _ ref ds = let d = 1 + (maximum . map maximum) (M.keys <$> ds)
+--                     in M.unionsWith (++) (M.singleton d [ref] : ds)
 
 sortGates :: Circuit -> [Ref]
 sortGates c = concatMap (sortBy refDist) (topoLevels c)
