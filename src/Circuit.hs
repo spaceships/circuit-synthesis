@@ -20,7 +20,7 @@ import Control.DeepSeq (NFData)
 import Control.Monad.IfElse (whenM)
 import Control.Monad.State.Strict
 import Data.Map.Strict ((!))
-import Data.List (sortBy)
+import Data.List (nub, sortBy)
 import Text.Printf
 import qualified Control.Monad.Par as IVar
 import qualified Data.Map.Strict as M
@@ -386,7 +386,7 @@ topologicalOrder c = reverse $ execState (foldCircM eval c) []
 
 -- Ugly and fast!
 topoLevels :: Circuit -> [[Ref]]
-topoLevels c = map snd $ M.toAscList $ execState (foldCircM eval c) M.empty
+topoLevels c = nub $ map snd $ M.toAscList $ execState (foldCircM eval c) M.empty
   where
     eval :: Op -> Ref -> [Int] -> State (M.Map Int [Ref]) Int
     eval _ ref [] = modify (M.insertWith (++) 0 [ref]) >> return 0
@@ -409,7 +409,12 @@ sortGates c = concatMap (sortBy refDist) (topoLevels c)
   where
     refDist xref yref = let xargs = opArgs (getGate c xref)
                             yargs = opArgs (getGate c yref)
-                        in compare xargs yargs
+                        in case (xargs, yargs) of
+                            ([], []) -> EQ
+                            (_,  []) -> GT
+                            ([], _ ) -> LT
+                            (xs, ys) -> let cs = zipWith compare xs ys
+                                        in if any (== EQ) cs then EQ else maximum cs
 
 nonInputGates :: Circuit -> [Ref]
 nonInputGates c = filter notInput (topologicalOrder c)

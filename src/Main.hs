@@ -183,7 +183,7 @@ circuitMain opts ts (outputName, c) = do
         Just fn -> do
             printf "writing %s\n" fn
             writeFile fn s
-        Nothing -> putStr s
+        Nothing -> return ()
 
 evalTests :: MainOptions -> Circuit -> [TestCase] -> IO ()
 evalTests opts c ts = do
