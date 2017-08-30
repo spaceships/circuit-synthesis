@@ -1,5 +1,6 @@
 name:                circuit-synthesis
 version:             0.1.0.0
+license:             MIT
 license-file:        LICENSE
 author:              Brent Carmer
 maintainer:          bcarmer@gmail.com
