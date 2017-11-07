@@ -5,11 +5,39 @@
 
 set -e
 
+scriptdir=$(dirname $(readlink -f "${BASH_SOURCE[0]}"))
+liberty_file=$scriptdir/../liberties/aig.lib
+opt_binary=""
+
 usage () {
     echo "C2V: Cryptol to acirc through Verilog"
-    echo "Usage: $0 <cryptol-file> <function>"
+    echo "Usage: $0 [options] <cryptol-file> <function>"
+    echo "  -b              output binary netlist instead of acirc"
+    echo "  -l LIBERTY      use liberty file LIBERTY"
     exit $1
 }
+
+POSITIONAL=()
+while [[ $# -gt 0 ]]; do
+    key="$1"
+    case $key in
+        -b)
+            opt_binary=1
+            shift
+            ;;
+        -l)
+            liberty_file="$scriptdir/../$2"
+            shift
+            shift
+            ;;
+        *)
+            POSITIONAL+=("$1")
+            shift
+    esac
+done
+set -- "${POSITIONAL[@]}"
+
+echo "opt_binary=$opt_binary liberty_file=$liberty_file \$1=$1 \$2=$2"
 
 if [ x$1 = x ] || [ x$2 = x ]; then
     usage 1
@@ -17,9 +45,6 @@ fi
 
 cryptolfile=$(realpath $1)
 func=$2
-
-scriptdir=$(dirname $(readlink -f "${BASH_SOURCE[0]}"))
-libertyfile=$scriptdir/../liberties/aig.lib
 
 tmp=$(mktemp -d)
 cd $tmp
@@ -39,8 +64,8 @@ cat > yosys.ys <<- EOM
 read_verilog "${func}.in.v"
 synth -run fine
 techmap; opt -fast
-dfflibmap -liberty ${libertyfile}
-abc -liberty ${libertyfile}
+dfflibmap -liberty ${liberty_file}
+abc -liberty ${liberty_file}
 write_verilog ${func}.out.v
 EOM
 
@@ -54,4 +79,8 @@ saw sawcmds.saw > /dev/null
 abc -f abccmds.abc > /dev/null
 yosys yosys.ys > /dev/null
 
-python $scriptdir/verilog2acirc.py $func.out.v $inputsize $keysize
+if [ "$opt_binary" ]; then
+    cat $func.out.v
+else
+    python $scriptdir/verilog2acirc.py $func.out.v $inputsize $keysize
+fi
