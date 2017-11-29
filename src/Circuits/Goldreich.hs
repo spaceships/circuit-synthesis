@@ -174,9 +174,30 @@ select xs ix = do
 selects :: [Ref] -> [[Ref]] -> Builder [Ref]
 selects xs ixs = mapM (select xs) ixs
 
+-- f1 :: Int -> Int -> IO Circuit
+-- f1 n m = do
+--     keyBits <- randKeyIO n
+--     return $ buildCircuit $ do
+--         let l = ceiling (logBase 2 (fromIntegral n) :: Double)
+--             d = l
+--         key <- secrets keyBits
+--         zs  <- replicateM m $ do
+--             xs <- replicateM d (inputs l)
+--             bs <- selects key xs
+--             xorMaj bs
+--         outputs zs
+
+perfectSquare :: Int -> Bool
+perfectSquare x = whole (sqrt (fromIntegral x :: Float))
+  where
+    whole :: Float -> Bool
+    whole x = x - (fromIntegral (floor x :: Int) :: Float) == 0.0
+
 f1 :: Int -> Int -> IO Circuit
-f1 ninputs noutputs = do
-    let l = ceiling (sqrt (fromIntegral ninputs :: Float))
+f1 ninputs noutputs
+    | not (perfectSquare ninputs) = error "ninputs should be a perfect square"
+    | otherwise = do
+    let l = ceiling (sqrt (fromIntegral ninputs / fromIntegral noutputs :: Float))
     keyBits <- randKeyIO (2^l)
     return $ buildCircuit $ do
         key <- secrets keyBits
@@ -407,7 +428,7 @@ garblerTest = do
     let ninputs = 20
         prfSize = 32
     g <- prg ninputs (prfSize * 2)
-    f <- f1 prfSize prfSize
+    f <- f1 prfSize (prfSize `div` 2)
     return $ buildCircuit $ do
         xs      <- inputs ninputs
         [y1,y2] <- chunksOf prfSize <$> subcircuit g xs
