@@ -397,3 +397,21 @@ ggmSigmaNoPrg inputLength keyLength stretch = do
         when ((length xs `mod` stretch) /= 0) $ error "[ggmSigmaNoPrg] wrong input length"
         res  <- foldM (ggmStepR g) seed (chunksOf stretch xs)
         outputs res
+
+
+--------------------------------------------------------------------------------
+-- test
+
+garblerTest :: IO Circuit
+garblerTest = do
+    let ninputs = 20
+        prfSize = 32
+    g <- prg ninputs (prfSize * 2)
+    f <- f1 prfSize prfSize
+    return $ buildCircuit $ do
+        xs      <- inputs ninputs
+        [y1,y2] <- chunksOf prfSize <$> subcircuit g xs
+        z1 <- subcircuit f y1
+        z2 <- subcircuit f y2
+        ws <- zipWithM circXor z1 z2
+        outputs ws
