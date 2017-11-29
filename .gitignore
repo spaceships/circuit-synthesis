@@ -4,3 +4,5 @@ Setup.hs
 dist
 work
 poly-sage.sage.py
+dist-newstyle
+cxs

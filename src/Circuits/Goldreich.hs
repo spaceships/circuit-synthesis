@@ -175,14 +175,13 @@ selects :: [Ref] -> [[Ref]] -> Builder [Ref]
 selects xs ixs = mapM (select xs) ixs
 
 f1 :: Int -> Int -> IO Circuit
-f1 n m = do
-    keyBits <- randKeyIO n
+f1 ninputs noutputs = do
+    let l = ceiling (sqrt (fromIntegral ninputs :: Float))
+    keyBits <- randKeyIO (2^l)
     return $ buildCircuit $ do
-        let l = ceiling (logBase 2 (fromIntegral n) :: Double)
-            d = l
         key <- secrets keyBits
-        zs  <- replicateM m $ do
-            xs <- replicateM d (inputs l)
+        zs  <- replicateM noutputs $ do
+            xs <- replicateM l (inputs l)
             bs <- selects key xs
             xorMaj bs
         outputs zs
