@@ -14,9 +14,11 @@ module Circuit.Format.Acirc
 
 import Circuit
 import Circuit.Parser
+import qualified Circuit.Builder as B
 import Util
 
 import Control.Monad
+import Control.Monad.Trans (lift)
 import qualified Control.Monad.State as S
 import Text.Parsec hiding (spaces, parseTest)
 import Text.Printf
@@ -144,9 +146,7 @@ readAcirc :: FilePath -> IO (Circuit, [TestCase])
 readAcirc fp = parseCirc <$> readFile fp
 
 parseCirc :: String -> (Circuit, [TestCase])
-parseCirc s = case runParser (circParser >> getState) emptySt "" s of
-    Left err -> error (show err)
-    Right st -> (st_circ st, reverse (st_tests st))
+parseCirc s = runCircParser circParser s
   where
     circParser = preamble >> lines >> end >> eof
     preamble = many $ (char ':' >> (parseTest <|> parseSymlen <|> parseBase <|> skipParam))
@@ -175,7 +175,7 @@ parseBase = do
     string "base"
     spaces
     n <- Prelude.read <$> many digit
-    setBase n
+    lift (B.setBase n)
     endLine
 
 parseSymlen :: ParseCirc ()
@@ -183,7 +183,7 @@ parseSymlen = do
     string "symlen"
     spaces
     n <- Prelude.read <$> many digit
-    setSymlen n
+    lift $ B.setSymlen n
     endLine
 
 parseOutputs :: ParseCirc ()
@@ -191,7 +191,7 @@ parseOutputs = do
     string ":outputs"
     spaces
     refs <- many (do ref <- parseRef; spaces; return ref)
-    mapM_ markOutput refs
+    lift $ mapM_ B.markOutput refs
     endLine
 
 parseSecrets :: ParseCirc ()
@@ -199,7 +199,7 @@ parseSecrets = do
     string ":secrets"
     spaces
     secs <- many (do ref <- parseRef; spaces; return ref)
-    ys   <- (M.keys . circ_secret_refs) <$> getCirc
+    ys   <- (M.keys . circ_secret_refs) <$> lift B.getCirc
     forM_ ys $ \y -> do
         when (y `notElem` secs) $ do
             markPublicConst y
@@ -220,16 +220,16 @@ parseInput ref = do
     string "input"
     spaces
     id <- Id <$> Prelude.read <$> many1 digit
-    insertInput ref id
+    lift $ B.insertInput ref id
 
 parseConst :: Ref -> ParseCirc ()
 parseConst ref = do
     string "const"
     spaces
     val <- Prelude.read <$> many1 digit
-    id  <- nextConstId
-    insertSecret ref id
-    insertSecretVal id val
+    id  <- lift B.nextSecretId
+    lift $ B.insertSecret ref id
+    lift $ B.insertSecretVal id val
 
 parseGate :: Ref -> ParseCirc ()
 parseGate ref = do
@@ -246,4 +246,4 @@ parseGate ref = do
             "MUL" -> OpMul xref yref
             "SUB" -> OpSub xref yref
             g     -> error ("[parser] unkonwn gate type " ++ g)
-    insertOp ref op
+    lift $ B.insertOp ref op

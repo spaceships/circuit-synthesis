@@ -119,8 +119,13 @@ foldTreeM f xs  = do
 --------------------------------------------------------------------------------
 -- smart constructors
 
-buildCircuitT :: Monad m => BuilderT m a -> m Circuit
-buildCircuitT b = bs_circ <$> execStateT b emptyBuild
+runCircuitT :: Monad m => BuilderT m a -> m (Circuit, a)
+runCircuitT b = do
+    (a, st) <- runStateT b emptyBuild
+    return (bs_circ st, a)
+
+runCircuit :: Builder a -> (Circuit, a)
+runCircuit b = runIdentity (runCircuitT b)
 
 buildCircuit :: Builder a -> Circuit
 buildCircuit = bs_circ . flip execState emptyBuild
