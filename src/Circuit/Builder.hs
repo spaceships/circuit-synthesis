@@ -6,13 +6,15 @@ import Circuit
 import Util
 
 import Control.Monad.State
+import Control.Monad.Identity
 import Data.List.Split (chunksOf)
 import Text.Printf
 import qualified Data.Map as M
 import qualified Data.Bimap as B
 import qualified Data.Set as S
 
-type Builder = State BuildSt
+type BuilderT = StateT BuildSt
+type Builder = BuilderT Identity
 
 data BuildSt = BuildSt {
       bs_circ        :: Circuit
@@ -26,24 +28,24 @@ data BuildSt = BuildSt {
 emptyBuild :: BuildSt
 emptyBuild = BuildSt emptyCirc 0 0 0 M.empty M.empty
 
-getCirc :: Builder Circuit
+getCirc :: Monad m => BuilderT m Circuit
 getCirc = gets bs_circ
 
-modifyCirc :: (Circuit -> Circuit) -> Builder ()
+modifyCirc :: Monad m => (Circuit -> Circuit) -> BuilderT m ()
 modifyCirc f = modify (\st -> st { bs_circ = f (bs_circ st) })
 
-exportParams :: Circuit -> Builder ()
+exportParams :: Monad m => Circuit -> BuilderT m ()
 exportParams c = do
     setSymlen (circ_symlen c)
     setBase (circ_base c)
 
-setSymlen :: Int -> Builder ()
+setSymlen :: Monad m => Int -> BuilderT m ()
 setSymlen n = modifyCirc (\c -> c { circ_symlen = n })
 
-setBase :: Int -> Builder ()
+setBase :: Monad m => Int -> BuilderT m ()
 setBase n = modifyCirc (\c -> c { circ_base = n })
 
-insertOp :: Ref -> Op -> Builder ()
+insertOp :: Monad m => Ref -> Op -> BuilderT m ()
 insertOp ref op = do
     refs <- circ_refmap <$> getCirc
     when (M.member ref refs) $
@@ -51,23 +53,23 @@ insertOp ref op = do
     modifyCirc (\c -> c { circ_refmap = M.insert ref op refs })
     modify (\st -> st { bs_dedup = M.insert op ref (bs_dedup st)})
 
-insertSecret :: Ref -> Id -> Builder ()
+insertSecret :: Monad m => Ref -> Id -> BuilderT m ()
 insertSecret ref id = do
     modifyCirc (\c -> c { circ_secret_refs = M.insert ref id (circ_secret_refs c) })
     insertOp ref (OpSecret id)
 
-insertSecretVal :: Id -> Integer -> Builder ()
+insertSecretVal :: Monad m => Id -> Integer -> BuilderT m ()
 insertSecretVal id val = do
     ys <- circ_secrets <$> getCirc
     let ys' = safeInsert ("reassignment of y" ++ show id) id val ys
     modifyCirc (\c -> c { circ_secrets = ys' })
 
-insertInput :: Ref -> Id -> Builder ()
+insertInput :: Monad m => Ref -> Id -> BuilderT m ()
 insertInput ref id = do
     modifyCirc (\c -> c { circ_inputs = circ_inputs c ++ [ref] })
     insertOp ref (OpInput id)
 
-newOp :: Op -> Builder Ref
+newOp :: Monad m => Op -> BuilderT m Ref
 newOp op = do
     dedup <- gets bs_dedup
     case M.lookup op dedup of
@@ -78,28 +80,28 @@ newOp op = do
         Just ref -> do
             return ref
 
-nextRef :: Builder Ref
+nextRef :: Monad m => BuilderT m Ref
 nextRef = do
     ref <- gets bs_next_ref
     modify (\st -> st { bs_next_ref = ref + 1 })
     return ref
 
-nextInputId :: Builder Id
+nextInputId :: Monad m => BuilderT m Id
 nextInputId = do
     id <- gets bs_next_inp
     modify (\st -> st { bs_next_inp = id + 1 })
     return id
 
-nextSecretId :: Builder Id
+nextSecretId :: Monad m => BuilderT m Id
 nextSecretId = do
     id <- gets bs_next_secret
     modify (\st -> st { bs_next_secret = id + 1 })
     return id
 
-markOutput :: Ref -> Builder ()
+markOutput :: Monad m => Ref -> BuilderT m ()
 markOutput ref = modifyCirc (\c -> c { circ_outputs = circ_outputs c ++ [ref] })
 
-markConst :: Integer -> Ref -> Id -> Builder ()
+markConst :: Monad m => Integer -> Ref -> Id -> BuilderT m ()
 markConst val ref id = modifyCirc (\c -> c { circ_consts    = B.insert val ref (circ_consts c)
                                            , circ_const_ids = S.insert id (circ_const_ids c)
                                            })
@@ -117,10 +119,13 @@ foldTreeM f xs  = do
 --------------------------------------------------------------------------------
 -- smart constructors
 
+buildCircuitT :: Monad m => BuilderT m a -> m Circuit
+buildCircuitT b = bs_circ <$> execStateT b emptyBuild
+
 buildCircuit :: Builder a -> Circuit
 buildCircuit = bs_circ . flip execState emptyBuild
 
-input :: Builder Ref
+input :: Monad m => BuilderT m Ref
 input = do
     id   <- nextInputId
     ref  <- nextRef
@@ -128,7 +133,7 @@ input = do
     return ref
 
 -- get the ref of a particular input, even if it does not exist already.
-input_n :: Id -> Builder Ref
+input_n :: Monad m => Id -> BuilderT m Ref
 input_n n = do
     dedup <- gets bs_dedup
     case M.lookup (OpInput n) dedup of
@@ -137,10 +142,10 @@ input_n n = do
             cur <- gets bs_next_inp
             last <$> replicateM (getId n - getId cur + 1) input
 
-inputs :: Int -> Builder [Ref]
+inputs :: Monad m => Int -> BuilderT m [Ref]
 inputs n = replicateM n input
 
-secret :: Integer -> Builder Ref
+secret :: Monad m => Integer -> BuilderT m Ref
 secret val = do
     id  <- nextSecretId
     ref <- nextRef
@@ -149,7 +154,7 @@ secret val = do
     return ref
 
 -- get the ref of a particular secret, even if it does not exist already.
-secret_n :: Id -> Builder Ref
+secret_n :: Monad m => Id -> BuilderT m Ref
 secret_n n = do
     dedup <- gets bs_dedup
     case M.lookup (OpSecret n) dedup of
@@ -158,10 +163,10 @@ secret_n n = do
             cur <- gets bs_next_secret
             last <$> replicateM (getId n - getId cur + 1) (secret 0)
 
-secrets :: [Integer] -> Builder [Ref]
+secrets :: Monad m => [Integer] -> BuilderT m [Ref]
 secrets = mapM secret
 
-constant :: Integer -> Builder Ref
+constant :: Monad m => Integer -> BuilderT m Ref
 constant val = do
     c <- getCirc
     if B.member val (circ_consts c) then do
@@ -174,57 +179,57 @@ constant val = do
         markConst val ref id
         return ref
 
-constants :: [Integer] -> Builder [Ref]
+constants :: Monad m => [Integer] -> BuilderT m [Ref]
 constants = mapM constant
 
-circAdd :: Ref -> Ref -> Builder Ref
+circAdd :: Monad m => Ref -> Ref -> BuilderT m Ref
 circAdd x y = newOp (OpAdd x y)
 
-circSub :: Ref -> Ref -> Builder Ref
+circSub :: Monad m => Ref -> Ref -> BuilderT m Ref
 circSub x y = newOp (OpSub x y)
 
-circMul :: Ref -> Ref -> Builder Ref
+circMul :: Monad m => Ref -> Ref -> BuilderT m Ref
 circMul x y = newOp (OpMul x y)
 
-circProd :: [Ref] -> Builder Ref
+circProd :: Monad m => [Ref] -> BuilderT m Ref
 circProd = foldTreeM circMul
 
-circSum :: [Ref] -> Builder Ref
+circSum :: Monad m => [Ref] -> BuilderT m Ref
 circSum = foldTreeM circAdd
 
-circXor :: Ref -> Ref -> Builder Ref
+circXor :: Monad m => Ref -> Ref -> BuilderT m Ref
 circXor x y = do
     z  <- circAdd x y
     c  <- circMul x y
     c' <- circAdd c c
     circSub z c'
 
-circXors :: [Ref] -> Builder Ref
+circXors :: Monad m => [Ref] -> BuilderT m Ref
 circXors = foldTreeM circXor
 
-circOr :: Ref -> Ref -> Builder Ref
+circOr :: Monad m => Ref -> Ref -> BuilderT m Ref
 circOr x y = do
     z <- circAdd x y
     c <- circMul x y
     circSub z c
 
-circOrs :: [Ref] -> Builder Ref
+circOrs :: Monad m => [Ref] -> BuilderT m Ref
 circOrs = foldTreeM circOr
 
-circNot :: Ref -> Builder Ref
+circNot :: Monad m => Ref -> BuilderT m Ref
 circNot x = do
     one <- constant 1
     circSub one x
 
-outputs :: [Ref] -> Builder ()
+outputs :: Monad m => [Ref] -> BuilderT m ()
 outputs = mapM_ markOutput
 
-output :: Ref -> Builder ()
+output :: Monad m => Ref -> BuilderT m ()
 output = markOutput
 
 -- NOTE: unconnected secrets from the subcircuit will be secrets in the
 -- resulting composite circuit.
-subcircuit' :: Circuit -> [Ref] -> [Ref] -> Builder [Ref]
+subcircuit' :: Monad m => Circuit -> [Ref] -> [Ref] -> BuilderT m [Ref]
 subcircuit' c xs ys
     | length xs < ninputs c = error (printf "[subcircuit'] not enough inputs got %d, need %d"
                                             (length xs) (ninputs c))
@@ -241,12 +246,12 @@ subcircuit' c xs ys
         error ("[subcircuit'] weird input: " ++ show op ++ " " ++ show args)
 
 -- lift the subcircuit's constants and secrets into the circuit above
-subcircuit :: Circuit -> [Ref] -> Builder [Ref]
+subcircuit :: Monad m => Circuit -> [Ref] -> BuilderT m [Ref]
 subcircuit c xs = do
     ys <- exportSecrets c
     subcircuit' c xs ys
 
-exportSecrets :: Circuit -> Builder [Ref]
+exportSecrets :: Monad m => Circuit -> BuilderT m [Ref]
 exportSecrets c = do
     forM (M.toAscList (circ_secret_refs c)) $ \(_, sid) -> do
         let x = getSecret c sid
@@ -258,7 +263,7 @@ exportSecrets c = do
 --------------------------------------------------------------------------------
 -- extras!
 
-selectPT :: [Ref] -> [Bool] -> Builder [Ref]
+selectPT :: Monad m => [Ref] -> [Bool] -> BuilderT m [Ref]
 selectPT xs bs = do
     one <- constant 1
     when (length xs /= length bs) $ error "[select] unequal length inputs"
@@ -266,37 +271,37 @@ selectPT xs bs = do
         set one (x, False) = circSub one x
     mapM (set one) (zip xs bs)
 
-bitsSet :: [Ref] -> [Bool] -> Builder Ref
+bitsSet :: Monad m => [Ref] -> [Bool] -> BuilderT m Ref
 bitsSet xs bs = circProd =<< selectPT xs bs
 
 -- transforms an input x into a vector [ 0 .. 1 .. 0 ] with a 1 in the xth place
-selectionVector :: [Ref] -> Builder [Ref]
+selectionVector :: Monad m => [Ref] -> BuilderT m [Ref]
 selectionVector xs = mapM (bitsSet xs) (permutations (length xs) [False, True])
 
-lookupTable :: ([Bool] -> Bool) -> [Ref] -> Builder Ref
+lookupTable :: Monad m => ([Bool] -> Bool) -> [Ref] -> BuilderT m Ref
 lookupTable f xs = do
     sel <- selectionVector xs
     let tt   = f <$> booleanPermutations (length xs)
         vars = snd <$> filter (\(i,_) -> tt !! i) (zip [0..] sel)
     circSum vars
 
-lookupTableMultibit :: ([Bool] -> [Bool]) -> [Ref] -> Builder [Ref]
+lookupTableMultibit :: Monad m => ([Bool] -> [Bool]) -> [Ref] -> BuilderT m [Ref]
 lookupTableMultibit f xs =
     mapM (flip lookupTable xs) [ (\x -> f x !! i) | i <- [0..noutputs - 1] ]
   where
     noutputs = length (f (replicate (length xs) False))
 
-matrixTimesVect :: [[Ref]] -> [Ref] -> Builder [Ref]
+matrixTimesVect :: Monad m => [[Ref]] -> [Ref] -> BuilderT m [Ref]
 matrixTimesVect rows vect
   | not $ all ((== length vect) . length) rows = error "[matrixTimesVect] bad dimensions"
   | otherwise = mapM (circXors <=< zipWithM circMul vect) rows
 
-matrixTimesVectPT :: [[Bool]] -> [Ref] -> Builder [Ref]
+matrixTimesVectPT :: Monad m => [[Bool]] -> [Ref] -> BuilderT m [Ref]
 matrixTimesVectPT rows vect
   | not $ all ((== length vect) . length) rows = error "[matrixTimesVectPT] bad dimensions"
   | otherwise = mapM (circXors <=< selectPT vect) rows
 
-matrixMul :: [[Ref]] -> [[Ref]] -> Builder [[Ref]]
+matrixMul :: Monad m => [[Ref]] -> [[Ref]] -> BuilderT m [[Ref]]
 matrixMul a b = mapM (matrixTimesVect a) b
 
 xor :: Bool -> Bool -> Bool
