@@ -10,6 +10,8 @@ module Examples.Tribes where
 import Circuit
 import Circuit.Builder
 import Rand
+
+import Control.Monad.Trans (lift)
 import Data.List.Split
 
 make :: IO [(Maybe String, Circuit)]
@@ -21,18 +23,17 @@ make = sequence
     , (Just "fa_128.dsl.acirc" ,) <$> fa 128 4
     ]
 
-tribes :: Int -> [Ref] -> Ref -> Builder Ref
+tribes :: Monad m => Int -> [Ref] -> Ref -> BuilderT m Ref
 tribes k y z = circXor z =<< circOrs =<< mapM circProd (chunksOf k y)
 
 fa :: Int -> Int -> IO Circuit
-fa n k = do
-    keyBits <- randKeyIO ((n+1)^(2 :: Int))
-    return $ buildCircuit $ do
-        a <- chunksOf (n+1) <$> secrets keyBits
-        x <- inputs (n+1)
-        w <- matrixTimesVect a x
-        z <- tribes k (init w) (last w)
-        output z
+fa n k = buildCircuitT $ do
+    keyBits <- lift $ randKeyIO ((n+1)^(2 :: Int))
+    a <- chunksOf (n+1) <$> secrets keyBits
+    x <- inputs (n+1)
+    w <- matrixTimesVect a x
+    z <- tribes k (init w) (last w)
+    output z
 
 fa_8 :: IO Circuit
 fa_8 = fa 8 4

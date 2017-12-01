@@ -9,10 +9,9 @@ import Control.Monad
 make :: IO [(Maybe String, Circuit)]
 make = return [ (Just "comparison.dsl.acirc", comparison 9 22) ]
 
--- TODO: this is not comparison- fix it using comparison.cry
--- 10^12 input size
--- racheled as 22 vectors of length 4
--- second input is expected to come in special form
+-- returns less-than-or-equals
+-- first input comes in unary form for instance 0 -> [1,0,0,0] or 3 -> [0,0,0,1]
+-- second input is expected to come in special negated unary form: 0 -> [1,0,0,0], 3 -> [1,1,1,1]
 comparison :: Int -> Int -> Circuit
 comparison nsyms symlen = buildCircuit $ do
     setSymlen symlen
