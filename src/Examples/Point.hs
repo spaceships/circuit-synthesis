@@ -1,6 +1,6 @@
 {-# LANGUAGE TupleSections #-}
 
-module Circuits.Point where
+module Examples.Point where
 
 import Circuit
 import Circuit.Builder

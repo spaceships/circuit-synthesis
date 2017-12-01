@@ -2,7 +2,7 @@
 {-# LANGUAGE ParallelListComp #-}
 {-# LANGUAGE TupleSections #-}
 
-module Circuits.Aes where
+module Examples.Aes where
 
 import Circuit
 import Circuit.Builder
@@ -11,11 +11,9 @@ import Util
 import Rand
 
 import Control.Monad
+import Control.Monad.Trans (lift)
 import Data.List.Split
 import qualified Data.Vector as V
--- import Control.Monad.IfElse (whenM)
--- import System.Directory (doesFileExist)
--- import System.Process
 
 make :: IO [(Maybe String, Circuit)]
 make = sequence
@@ -322,9 +320,8 @@ subByte = buildCircuit $ do
     outputs ys
 
 buildAesRound :: Int -> IO Circuit
-buildAesRound n = do
-    linearParts <- buildLinearParts
-    return $ buildCircuit $ do
+buildAesRound n = buildCircuitT $ do
+        linearParts <- lift buildLinearParts
         inp  <- inputs n
         one  <- constant 1
         zero <- constant 0
@@ -337,25 +334,23 @@ buildAesRound n = do
         outputs xs''
 
 buildAes :: Int -> Int -> IO Circuit
-buildAes nrounds ninputs = do
-    aesRound <- Acirc.read "optimized_circuits/aes1r.o2.acirc"
-    return $ buildCircuit $ do
-        inp     <- inputs ninputs
-        fixed   <- replicateM (128 - ninputs) (constant 0)
-        k0      <- replicateM 128 (secret 0)
-        -- round 1
-        xs <- zipWithM circXor (inp ++ fixed) k0
-        if nrounds > 1 then do
-            -- round 2+
-            zs <- foldM (\x _ -> subcircuit aesRound x) xs ([2..nrounds] :: [Int])
-            outputs zs
-        else do
-            outputs xs
+buildAes nrounds ninputs = buildCircuitT $ do
+    aesRound <- lift $ Acirc.read "optimized_circuits/aes1r.o2.acirc"
+    inp      <- inputs ninputs
+    fixed    <- replicateM (128 - ninputs) (constant 0)
+    k0       <- replicateM 128 (secret 0)
+    -- round 1
+    xs <- zipWithM circXor (inp ++ fixed) k0
+    if nrounds > 1 then do
+        -- round 2+
+        zs <- foldM (\x _ -> subcircuit aesRound x) xs ([2..nrounds] :: [Int])
+        outputs zs
+    else do
+        outputs xs
 
 aes1Bit :: Int -> IO Circuit
-aes1Bit n = do
-    aes <- buildAesRound n
-    return $ buildCircuit $ do
+aes1Bit n = buildCircuitT $ do
+        aes <- lift $ buildAesRound n
         inp <- inputs n
         zs <- subcircuit aes inp
         output (head zs)
@@ -367,9 +362,8 @@ sbox0 = buildCircuit $ do
     output (head ys)
 
 sboxsum :: IO Circuit
-sboxsum = do
-    ks <- randKeyIO 8
-    return $ buildCircuit $ do
+sboxsum = buildCircuitT $ do
+        ks <- lift $ randKeyIO 8
         xs <- inputs 8
         ys <- subcircuit subByte xs
         zs <- zipWithM circXor ys =<< secrets ks
@@ -389,7 +383,7 @@ fromState :: [[[Ref]]] -> [Ref]
 fromState = concat . concat . transpose
 
 -- assume inputs come in chunks of 8
-gf28DotProduct :: Circuit -> Circuit -> [Int] -> [[Ref]] -> Builder [Ref]
+gf28DotProduct :: Monad m => Circuit -> Circuit -> [Int] -> [[Ref]] -> BuilderT m [Ref]
 gf28DotProduct double triple xs ys = do
     when (length xs /= length ys) $ error "[gf28DotProduct] unequal length vectors"
     let mult (1,x) = return x
@@ -399,23 +393,22 @@ gf28DotProduct double triple xs ys = do
     ws <- mapM mult (zip xs ys)
     mapM circXors (transpose ws)
 
-gf28VectorMult :: Circuit -> Circuit -> [Int] -> [[[Ref]]] -> Builder [[Ref]]
+gf28VectorMult :: Monad m => Circuit -> Circuit -> [Int] -> [[[Ref]]] -> BuilderT m [[Ref]]
 gf28VectorMult double triple v ms = mapM (gf28DotProduct double triple v) ms
 
-gf28MatrixMult :: Circuit -> Circuit -> [[Int]] -> [[[Ref]]] -> Builder [[[Ref]]]
+gf28MatrixMult :: Monad m => Circuit -> Circuit -> [[Int]] -> [[[Ref]]] -> BuilderT m [[[Ref]]]
 gf28MatrixMult double triple xs ys = mapM (\x -> gf28VectorMult double triple x (transpose ys)) xs
 
 rotate :: Int -> [a] -> [a]
 rotate n xs = drop n xs ++ take n xs
 
 buildLinearParts :: IO Circuit
-buildLinearParts = do
-    double <- Acirc.read "optimized_circuits/gf28Double.o3.acirc"
-    triple <- Acirc.read "optimized_circuits/gf28Triple.o3.acirc"
-    return $ buildCircuit $ do
-        xs <- shiftRows <$> toState <$> inputs 128
-        ys <- gf28MatrixMult double triple m xs
-        outputs (fromState ys)
+buildLinearParts = buildCircuitT $ do
+    double <- lift $ Acirc.read "optimized_circuits/gf28Double.o3.acirc"
+    triple <- lift $ Acirc.read "optimized_circuits/gf28Triple.o3.acirc"
+    xs <- shiftRows <$> toState <$> inputs 128
+    ys <- gf28MatrixMult double triple m xs
+    outputs (fromState ys)
   where
     m = [[2, 3, 1, 1],
          [1, 2, 3, 1],

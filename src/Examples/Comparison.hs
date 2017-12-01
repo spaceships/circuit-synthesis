@@ -1,6 +1,6 @@
 {-# LANGUAGE TupleSections #-}
 
-module Circuits.Comparison where
+module Examples.Comparison where
 
 import Circuit
 import Circuit.Builder

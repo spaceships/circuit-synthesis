@@ -15,7 +15,7 @@ type ParseCirc = ParsecT String [TestCase] B.Builder
 addTest :: TestCase -> ParseCirc ()
 addTest t = modifyState (t:)
 
-runCircParser :: ParseCirc () -> String -> (Circuit, [TestCase])
+runCircParser :: ParseCirc a -> String -> (Circuit, [TestCase])
 runCircParser p s =
     let (c, maybeTests) = B.runCircuit $ runParserT (p >> getState) [] "" s
     in case maybeTests of

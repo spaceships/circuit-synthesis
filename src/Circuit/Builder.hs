@@ -124,6 +124,9 @@ runCircuitT b = do
     (a, st) <- runStateT b emptyBuild
     return (bs_circ st, a)
 
+buildCircuitT :: Monad m => BuilderT m a -> m Circuit
+buildCircuitT b = bs_circ <$> execStateT b emptyBuild
+
 runCircuit :: Builder a -> (Circuit, a)
 runCircuit b = runIdentity (runCircuitT b)
 

@@ -5,7 +5,7 @@
 {-# LANGUAGE Strict #-}
 #endif
 
-module Circuits.Tribes where
+module Examples.Tribes where
 
 import Circuit
 import Circuit.Builder

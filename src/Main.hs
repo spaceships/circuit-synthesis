@@ -6,11 +6,11 @@ import Circuit.Optimizer (flatten, flattenRec, foldConsts)
 import qualified Circuit.Format.Acirc   as Acirc
 import qualified Circuit.Graphviz       as Graphviz
 
-import qualified Circuits.Aes as Aes
-import qualified Circuits.Goldreich as Goldreich
-import qualified Circuits.Tribes as Tribes
-import qualified Circuits.Point as Point
-import qualified Circuits.Comparison as Comparison
+import qualified Examples.Aes        as Aes
+import qualified Examples.Goldreich  as Goldreich
+import qualified Examples.Tribes     as Tribes
+import qualified Examples.Point      as Point
+import qualified Examples.Comparison as Comparison
 
 import Control.Monad
 import Options

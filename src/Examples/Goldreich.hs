@@ -5,7 +5,7 @@
 {-# LANGUAGE Strict #-}
 #endif
 
-module Circuits.Goldreich where
+module Examples.Goldreich where
 
 import Circuit
 import Circuit.Builder

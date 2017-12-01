@@ -1,4 +1,4 @@
-module Circuits.BBKK where
+module Exampls.BBKK where
 
 import Circuit
 import Circuit.Builder
