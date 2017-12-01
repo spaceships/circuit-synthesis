@@ -10,13 +10,16 @@ This project contains three different arithmetic circuit compilers.
 cxs
 ---
 
-`cxs` is good for producing very low degree circuits.
+`cxs` is our name for the Haskell DSL in this repo. 
+It is very good at producing low multiplicative degree circuits.
 It has optimizers for reducing the degree, and tools for building, translating, composing circuits.
 The main tool is the [Builder monad](tree/master/src/Circuit/Builder.hs).
 See [src/Circuit/Examples](/tree/master/src/Examples) for example circuits.
 
-Building: `build.sh` compiles `cxs` in the current directory. This requires a recent version of
-`cabal` and `ghc`.
+Building: `build.sh` compiles a binary named `cxs` in the current directory. 
+This requires a recent version of `cabal` and `ghc`.
+`cxs` is good for getting information about large circuits, producing the circuits from `Examples`,
+optimizing existing cirucits, and so on.
 
 [scripts/c2v](/blob/master/scripts/c2v)
 ---------------------------------------
