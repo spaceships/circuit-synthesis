@@ -50,7 +50,6 @@ we keep it.
 
 Dependencies:
 * [saw-script](https://github.com/GaloisInc/saw-script)
-* [yosys](http://www.clifford.at/yosys/)
 * [abc](http://people.eecs.berkeley.edu/~alanmi/abc/)
 
 Usage:
