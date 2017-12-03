@@ -17,15 +17,17 @@ circuit-synthesis
 `cxs` is the name of it in executable form (see [app/Main.hs](app/Main.hs)).
 It is very good at producing low multiplicative degree circuits.
 It has optimizers for reducing the degree, and tools for building, translating, composing circuits.
-The main tool is the [Builder monad](src/Circuit/Builder.hs).
-See [src/Examples](src/Examples) for example circuits.
+The main tool is the 
+[Builder monad](https://github.com/spaceships/circuit-synthesis/blob/master/src/Circuit/Builder.hs).
+See [src/Examples](https://github.com/spaceships/circuit-synthesis/blob/master/src/Examples) 
+for example (-ish, see below) circuits.
 
 Building: `build.sh` compiles a binary named `cxs` in the current directory. 
 This requires a recent version of `cabal` and `ghc`.
 `cxs` is good for getting information about large circuits, producing the circuits from `Examples`,
 optimizing existing cirucits, and so on.
 
-[scripts/c2v](scripts/c2v)
+[scripts/c2v](https://github.com/spaceships/circuit-synthesis/blob/master/scripts/c2v)
 ---------------------------------------
 `c2v` and `c2a` are very similar programs, which have slightly different pipelines.
 Both generate arithmetic circuits from [Cryptol](https://cryptol.net/) programs.
@@ -47,7 +49,7 @@ an arithmetic circuit to `stdout`. For example, to create a circuit for one roun
 is useful for garbled circuits.
 See `ctv -h` for details.
 
-[scripts/c2a](scripts/c2a)
+[scripts/c2a](https://github.com/spaceships/circuit-synthesis/blob/master/scripts/c2a)
 ---------------------------------------
 `c2a` is the cousin of `c2v`. It is generally worse, but sometimes surprisingly better, which is why
 we keep it.
