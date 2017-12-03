@@ -1,11 +1,14 @@
 circuit-synthesis
 =================
-
-This project contains three different arithmetic circuit compilers.
+This repo contains three different arithmetic circuit compilers, which are used to compile low
+multiplicative degree arithmetic circuits for use in [5Gen-C](https://eprint.iacr.org/2017/826). 
+These tools can also be used to generate circuits for garbled circuits.
+Anyone who needs to muck about with arithmetic circuits in Haskell might find these tools useful as
+well.
 
 * `cxs`: a Haskell DSL for constructing and optimizing arithmetic circuits.
-* `scripts/c2v`: a shell script that transforms Cryptol into arithemtic circuits using `yosys`.
-* `scripts/c2a`: a shell script that transforms Cryptol into arithemtic circuits using `abc`.
+* `scripts/c2v`: a shell script that transforms Cryptol into arithmetic circuits using `yosys`.
+* `scripts/c2a`: a shell script that transforms Cryptol into arithmetic circuits using `abc`.
 
 cxs
 ---
@@ -39,7 +42,7 @@ an arithmetic circuit to `stdout`. For example, to create a circuit for one roun
     % ./scripts/c2v cryptol/AES.cry aes1r > aes1r.c2v.acirc
 ```
 
-`c2v` can use liberty files to produce circuits with minimial numbers of AND gates, which
+`c2v` can use liberty files to produce circuits with minimal numbers of AND gates, which
 is useful for garbled circuits.
 See `ctv -h` for details.
 
@@ -56,3 +59,17 @@ Usage:
 ```
     % ./scripts/c2a cryptol/AES.cry aes1r > aes1r.c2a.acirc
 ```
+
+Disclaimer
+==========
+This is research code. I'd love to document it someday (maybe today). 
+So expect mysterious stuff, especially in the examples. 
+They're not really good teaching examples, 
+They are from us trying to get low multiplicative degree PRFs for 5Gen-C.
+
+That said, I'm pretty excited about how useful this library has been for people besides me.
+If you need help, or have constructive suggestions to improve it, I'd be happy to talk. 
+
+License
+=======
+MIT
