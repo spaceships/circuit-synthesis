@@ -2,16 +2,18 @@
 module Circuit.Optimizer where
 
 import Circuit
-import qualified Circuit.Format.Sexp as Sexp
-import Text.Printf
-import System.Process
-import Control.Monad.State
+import qualified Circuit.Builder as B
+import qualified Circuit.Builder.Internals as B
+
 import Control.Monad.Identity
+import Control.Monad.State
 import Control.Monad.Writer
 import Data.Maybe (isJust, catMaybes, listToMaybe)
 import Debug.Trace
+import System.Process
+import Text.Printf
+import qualified Circuit.Format.Sexp as Sexp
 import qualified Data.Map as M
-import qualified Circuit.Builder as B
 
 circToSage :: Circuit -> [String]
 circToSage c = foldCirc eval c

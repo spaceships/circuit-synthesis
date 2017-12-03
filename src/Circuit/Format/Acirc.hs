@@ -14,15 +14,15 @@ module Circuit.Format.Acirc
 
 import Circuit
 import Circuit.Parser
-import qualified Circuit.Builder as B
 import Util
+import qualified Circuit.Builder.Internals as B
 
 import Control.Monad
 import Control.Monad.Trans (lift)
-import qualified Control.Monad.State as S
 import Text.Parsec hiding (spaces, parseTest)
 import Text.Printf
 import qualified Data.Map as M
+import qualified Control.Monad.State as S
 
 --------------------------------------------------------------------------------
 -- printer

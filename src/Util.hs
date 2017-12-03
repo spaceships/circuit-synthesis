@@ -3,11 +3,12 @@
 
 module Util where
 
-import Data.Bits ((.&.), shift)
-import System.IO
 import Control.DeepSeq (deepseq)
 import Control.Parallel.Strategies
+import Data.Bits ((.&.), shift)
+import Data.List.Split (chunksOf)
 import GHC.Types
+import System.IO
 import qualified GHC.Integer.GMP.Internals as GMP
 import qualified Data.Map as M
 
@@ -126,3 +127,19 @@ transpose xs | null (head xs) = []
 
 numBits :: (Integral a, Integral b) => a -> b
 numBits n = ceiling (logBase 2 (fromIntegral n) :: Double)
+
+foldTreeM :: Monad m => (a -> a -> m a) -> [a] -> m a
+foldTreeM _ [ ] = error "[foldTreeM] empty list"
+foldTreeM _ [x] = return x
+foldTreeM f xs  = do
+    let g ys = if length ys == 1
+                  then return (head ys)
+                  else f (ys!!0) (ys!!1)
+    zs <- mapM g (chunksOf 2 xs)
+    foldTreeM f zs
+
+xor :: Bool -> Bool -> Bool
+xor False False = False
+xor False True  = True
+xor True  False = True
+xor True  True  = True
