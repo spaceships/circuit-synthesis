@@ -6,25 +6,26 @@ These tools can also be used to generate circuits for garbled circuits.
 Anyone who needs to muck about with arithmetic circuits in Haskell might find these tools useful as
 well.
 
-* `cxs`: a Haskell DSL for constructing and optimizing arithmetic circuits.
+* `circuit-synthesis`: a Haskell DSL for constructing and optimizing arithmetic circuits.
 * `scripts/c2v`: a shell script that transforms Cryptol into arithmetic circuits using `yosys`.
 * `scripts/c2a`: a shell script that transforms Cryptol into arithmetic circuits using `abc`.
 
-cxs
----
+circuit-synthesis
+-----------------
 
-`cxs` is our name for the Haskell DSL in this repo. 
+`circuit-synthesis` is our name for the Haskell DSL in this repo. 
+`cxs` is the name of it in executable form (see [app/Main.hs](app/Main.hs)).
 It is very good at producing low multiplicative degree circuits.
 It has optimizers for reducing the degree, and tools for building, translating, composing circuits.
-The main tool is the [Builder monad](tree/master/src/Circuit/Builder.hs).
-See [src/Circuit/Examples](/tree/master/src/Examples) for example circuits.
+The main tool is the [Builder monad](src/Circuit/Builder.hs).
+See [src/Examples](src/Examples) for example circuits.
 
 Building: `build.sh` compiles a binary named `cxs` in the current directory. 
 This requires a recent version of `cabal` and `ghc`.
 `cxs` is good for getting information about large circuits, producing the circuits from `Examples`,
 optimizing existing cirucits, and so on.
 
-[scripts/c2v](/blob/master/scripts/c2v)
+[scripts/c2v](scripts/c2v)
 ---------------------------------------
 `c2v` and `c2a` are very similar programs, which have slightly different pipelines.
 Both generate arithmetic circuits from [Cryptol](https://cryptol.net/) programs.
@@ -46,7 +47,7 @@ an arithmetic circuit to `stdout`. For example, to create a circuit for one roun
 is useful for garbled circuits.
 See `ctv -h` for details.
 
-[scripts/c2a](/blob/master/scripts/c2a)
+[scripts/c2a](scripts/c2a)
 ---------------------------------------
 `c2a` is the cousin of `c2v`. It is generally worse, but sometimes surprisingly better, which is why
 we keep it.
