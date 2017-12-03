@@ -14,7 +14,7 @@ module Circuit.Format.Acirc
 
 import Circuit
 import Circuit.Parser
-import Util
+import Circuit.Utils
 import qualified Circuit.Builder.Internals as B
 
 import Control.Monad

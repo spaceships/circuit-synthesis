@@ -1,7 +1,7 @@
 module Circuit.Builder.Internals where
 
 import Circuit
-import Util
+import Circuit.Utils
 
 import Control.Monad.State
 import Control.Monad.Identity

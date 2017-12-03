@@ -1,8 +1,8 @@
-module Exampls.BBKK where
+module Examples.BBKK where
 
 import Circuit
 import Circuit.Builder
-import Rand
+import Circuit.Utils
 
 import Control.Monad
 import Control.Monad.Trans (lift)

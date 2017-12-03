@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Circuit.Graphviz
+module Circuit.Format.Graphviz
   ( pprCircuit
   , showCircuitT
   , showCircuit

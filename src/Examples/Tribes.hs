@@ -9,7 +9,7 @@ module Examples.Tribes where
 
 import Circuit
 import Circuit.Builder
-import Rand
+import Circuit.Utils
 
 import Control.Monad.Trans (lift)
 import Data.List.Split

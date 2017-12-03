@@ -4,12 +4,11 @@ module Examples.Point where
 
 import Circuit
 import Circuit.Builder
+import Circuit.Utils
 
 import Data.List.Split (chunksOf)
 import Control.Monad
 import Control.Monad.Trans (lift)
-import Util
-import Rand
 
 make :: IO [(Maybe String, Circuit)]
 make = sequence

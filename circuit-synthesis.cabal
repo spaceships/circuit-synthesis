@@ -9,37 +9,56 @@ build-type:          Simple
 extra-source-files:  Readme.md
 cabal-version:       >=1.10
 
-executable circuit-synthesis
-  main-is:             Main.hs
-  GHC-options: -fwarn-incomplete-patterns -fno-warn-name-shadowing -fno-warn-unused-do-bind
-  build-depends:       base
-                     , DRBG
-                     , IfElse
-                     , bimap
-                     , bytestring
-                     , containers
-                     , crypto-api
-                     , deepseq
-                     , ghc-prim
-                     , integer-gmp
-                     , monad-par
-                     , monad-parallel
-                     , mtl
-                     , options
-                     , parallel
-                     , parallel-io
-                     , parsec
-                     , process
-                     , split
-                     , stm
-                     , vector
-                     , wl-pprint-text
-                     , text
-                     , directory
-                     , IfElse
+library
+    default-language: Haskell2010
+    hs-source-dirs: src
+    exposed-modules:      Circuit
+                        , Circuit.Builder
+                        , Circuit.Builder.Internals
+                        , Circuit.Optimizer
+                        , Circuit.Parser
+                        , Circuit.Utils
+                        , Circuit.Format.Acirc
+                        , Circuit.Format.Graphviz
+                        , Circuit.Format.Sexp
+                        , Examples.Aes
+                        , Examples.BBKK
+                        , Examples.Comparison
+                        , Examples.Goldreich
+                        , Examples.Point
+                        , Examples.Tribes
 
-  hs-source-dirs:      src
-  default-language:    Haskell2010
+    build-depends:        base
+                        , DRBG
+                        , IfElse
+                        , bimap
+                        , bytestring
+                        , containers
+                        , crypto-api
+                        , deepseq
+                        , ghc-prim
+                        , integer-gmp
+                        , monad-par
+                        , monad-parallel
+                        , mtl
+                        , parallel
+                        , parallel-io
+                        , parsec
+                        , process
+                        , split
+                        , stm
+                        , vector
+                        , wl-pprint-text
+                        , text
+                        , directory
+                        , IfElse
 
-  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-unused-do-bind -fno-warn-orphans
-  ghc-prof-options: -O2 -fprof-auto-top
+    default-extensions: DoAndIfThenElse
+
+executable cxs
+    default-language: Haskell2010
+    hs-source-dirs: app
+    main-is: Main.hs
+    build-depends:        base
+                        , circuit-synthesis
+                        , options

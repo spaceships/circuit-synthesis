@@ -1,10 +1,10 @@
 module Main where
 
 import Circuit
-import Util
+import Circuit.Utils
 import Circuit.Optimizer (flatten, flattenRec, foldConsts)
-import qualified Circuit.Format.Acirc   as Acirc
-import qualified Circuit.Graphviz       as Graphviz
+import qualified Circuit.Format.Acirc    as Acirc
+import qualified Circuit.Format.Graphviz as Graphviz
 
 import qualified Examples.Aes        as Aes
 import qualified Examples.Goldreich  as Goldreich

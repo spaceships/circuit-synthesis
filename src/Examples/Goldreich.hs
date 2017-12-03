@@ -9,9 +9,8 @@ module Examples.Goldreich where
 
 import Circuit
 import Circuit.Builder
+import Circuit.Utils
 import qualified Circuit.Format.Acirc as Acirc
-import Util
-import Rand
 
 import Control.Monad
 import Control.Monad.Trans (lift)

@@ -1,3 +1,5 @@
+{-# LANGUAGE DoAndIfThenElse #-}
+
 module Circuit.Builder
   ( Builder
   , BuilderT
@@ -10,7 +12,7 @@ module Circuit.Builder
 
 import Circuit
 import Circuit.Builder.Internals
-import Util
+import Circuit.Utils
 
 import Control.Monad.State
 import Text.Printf

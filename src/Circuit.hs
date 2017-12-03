@@ -8,8 +8,7 @@
 
 module Circuit where
 
-import Util
-import Rand
+import Circuit.Utils
 
 import Control.Monad.Identity
 import Control.Monad.Par (IVar, Par, runPar)
