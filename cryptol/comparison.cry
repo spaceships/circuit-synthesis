@@ -1,4 +1,12 @@
-import Cryptol::Extras
+foldl : {a, b, n} (fin n) => (a -> b -> a) -> a -> [n]b -> a
+foldl f acc xs = ys ! 0
+  where ys = [acc] # [f a x | a <- ys | x <- xs]
+
+zip : {a,b,n} [n]a -> [n]b -> [n](a,b)
+zip xs ys = [(x,y) | x <- xs | y <- ys]
+
+zipWith : {a,b,c,n} (a -> b -> c) -> [n]a -> [n]b -> [n]c
+zipWith f xs ys = [f x y | x <- xs | y <- ys]
 
 leq : {a} (fin a) => [a*8] -> [a*8] -> Bit
 leq x y = res.0 || res.1
@@ -18,3 +26,8 @@ bs x y = zip eqs lts
 
 comparison_algorithm : [128] -> [128] -> Bit
 property comparison_algorithm x y = leq x y == x <= y
+
+classifier : [80] -> Bit
+classifier inp = foldl (&&) True (zipWith (<=) xs ys)
+  where
+    [xs,ys] = split (split inp) : [2][5][8]
