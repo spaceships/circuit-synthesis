@@ -15,6 +15,7 @@ import Circuit.Builder.Internals
 import Circuit.Utils
 
 import Control.Monad.State
+import Data.List.Split (chunksOf)
 import Text.Printf
 import qualified Data.Map as M
 import qualified Data.Bimap as B
@@ -197,3 +198,22 @@ matrixTimesVectPT rows vect
 
 matrixMul :: Monad m => [[Ref]] -> [[Ref]] -> BuilderT m [[Ref]]
 matrixMul a b = mapM (matrixTimesVect a) b
+
+-- swap elements based on a bit in the circuit
+swap :: Monad m => Ref -> [Ref] -> [Ref] -> BuilderT m [[Ref]]
+swap b xs ys
+ | length xs /= length ys = error "[swap] unequal length inputs!"
+ | otherwise = do
+    not_b <- circNot b
+    let n = length xs
+        sel = replicate n b
+        not_sel = replicate n not_b
+    w0 <- zipWithM circMul not_sel xs
+    w1 <- zipWithM circMul sel ys
+    w2 <- zipWithM circAdd w0 w1
+
+    z0 <- zipWithM circMul not_sel ys
+    z1 <- zipWithM circMul sel xs
+    z2 <- zipWithM circAdd z0 z1
+
+    return [w2,z2]

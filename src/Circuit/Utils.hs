@@ -6,23 +6,22 @@
 module Circuit.Utils where
 
 import Control.DeepSeq (deepseq)
+import Control.Monad
+import Control.Monad.Parallel
+import Control.Monad.State.Strict
+import Control.Parallel
 import Control.Parallel.Strategies
+import Crypto.Random
+import Crypto.Random.DRBG
+import Crypto.Util (bs2i)
+import Data.Bits ((.&.))
 import Data.Bits ((.&.), shift)
 import Data.List.Split (chunksOf)
 import GHC.Types
 import System.IO
-import qualified GHC.Integer.GMP.Internals as GMP
-import qualified Data.Map as M
-
-import Crypto.Random
-import Crypto.Random.DRBG
-import Crypto.Util (bs2i)
-
-import Control.Monad.State.Strict
-import Control.Monad.Parallel
-import Control.Parallel
-import Data.Bits ((.&.))
 import qualified Data.ByteString as BS
+import qualified Data.Map as M
+import qualified GHC.Integer.GMP.Internals as GMP
 import qualified GHC.Integer.GMP.Internals as GMP
 
 import Prelude hiding (truncate)
@@ -265,3 +264,6 @@ splitRand n = do
             put g0
             rest <- splitRand (n-1)
             return (g1:rest)
+
+foldM1 :: Monad m => (a -> a -> m a) -> [a] -> m a
+foldM1 f (x:xs) = foldM f x xs
