@@ -5,6 +5,7 @@ import Circuit.Utils
 import Circuit.Optimizer (flatten, flattenRec, foldConsts)
 import qualified Circuit.Format.Acirc    as Acirc
 import qualified Circuit.Format.Graphviz as Graphviz
+import qualified Circuit.Format.Nigel    as Nigel
 
 import qualified Examples.Aes        as Aes
 import qualified Examples.Goldreich  as Goldreich
@@ -16,6 +17,7 @@ import Control.Monad
 import Options
 import Text.Printf
 import System.Exit
+import System.FilePath.Posix (takeExtension)
 
 data MainOptions = MainOptions { opt_info       :: Bool
                                , opt_latex_info :: Bool
@@ -137,7 +139,10 @@ main = runCommand $ \opts args -> do
                 Acirc.addTestsToFile inputFile
                 printf "added tests to file %s. quitting..." inputFile
 
-            (c,ts) <- Acirc.readAcirc inputFile
+            (c,ts) <- case takeExtension inputFile of
+                ".acirc" -> Acirc.readAcirc inputFile
+                ".nigel" -> Nigel.readNigel inputFile
+                s -> error (printf "[main] unkown extension: %s!" s)
 
             circuitMain opts ts (opt_write_to_file opts, c)
 

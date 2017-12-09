@@ -6,24 +6,29 @@ import qualified Circuit.Builder.Internals as B
 
 import Control.Monad
 import Control.Monad.Trans (lift)
+import Control.Monad.Identity
 import Text.Parsec hiding (spaces, parseTest)
 import qualified Data.Map as Map
 import qualified Data.Bimap as Bimap
 import qualified Data.Set as Set
 
+type ParseCircT m = ParsecT String [TestCase] (B.BuilderT m)
 type ParseCirc = ParsecT String [TestCase] B.Builder
 
-addTest :: TestCase -> ParseCirc ()
+addTest :: Monad m => TestCase -> ParseCircT m ()
 addTest t = modifyState (t:)
 
 runCircParser :: ParseCirc a -> String -> (Circuit, [TestCase])
-runCircParser p s =
-    let (c, maybeTests) = B.runCircuit $ runParserT (p >> getState) [] "" s
-    in case maybeTests of
-        Left err -> error (show err)
-        Right ts -> (c, reverse ts)
+runCircParser p s = runIdentity $ runCircParserT p s
 
-markPublicConst :: Ref -> ParseCirc ()
+runCircParserT :: Monad m => ParseCircT m a -> String -> m (Circuit, [TestCase])
+runCircParserT p s = do
+    (c, maybeTests) <- B.runCircuitT $ runParserT (p >> getState) [] "" s
+    case maybeTests of
+        Left err -> error (show err)
+        Right ts -> return (c, reverse ts)
+
+markPublicConst :: Monad m => Ref -> ParseCircT m ()
 markPublicConst ref = do
     c <- lift B.getCirc
     case Map.lookup ref (circ_secret_refs c) of
@@ -35,14 +40,17 @@ markPublicConst ref = do
 --------------------------------------------------------------------------------
 -- custom parsers
 
-oneOfStr :: [String] -> ParseCirc String
+oneOfStr :: Monad m => [String] -> ParseCircT m String
 oneOfStr = foldr (\s m -> string s <|> m) (fail "no strings")
 
-spaces :: ParseCirc ()
+spaces :: Monad m => ParseCircT m ()
 spaces = skipMany (oneOf " \t")
 
-endLine :: ParseCirc ()
+endLine :: Monad m => ParseCircT m ()
 endLine = do
     skipMany (char ' ')
     eof <|> void endOfLine
     return ()
+
+int :: Monad m => ParseCircT m Int
+int = read <$> many1 digit

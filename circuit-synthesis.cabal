@@ -20,6 +20,7 @@ library
                         , Circuit.Utils
                         , Circuit.Format.Acirc
                         , Circuit.Format.Graphviz
+                        , Circuit.Format.Nigel
                         , Circuit.Format.Sexp
                         , Examples.Aes
                         , Examples.BBKK
@@ -62,3 +63,4 @@ executable cxs
     build-depends:        base
                         , circuit-synthesis
                         , options
+                        , filepath
