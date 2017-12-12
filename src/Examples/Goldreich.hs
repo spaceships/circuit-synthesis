@@ -324,6 +324,12 @@ xorAnd (x0:x1:xs) = do
     circXors (y : xs)
 xorAnd _ = error "[xorAnd] need at least three inputs!!!!!!!"
 
+addAnd :: Monad m => [Ref] -> BuilderT m Ref
+addAnd (x0:x1:xs) = do
+    y <- circMul x0 x1
+    circSum (y : xs)
+addAnd _ = error "[addAnd] need at least three inputs!!!!!!!"
+
 linearPredicate :: Monad m => [Ref] -> BuilderT m Ref
 linearPredicate = circXors
 
@@ -426,9 +432,9 @@ garblerTest = buildCircuitT $ do
 
     s <- inputs n -- the seed to the prgs
 
-    g1 <- lift $ prg n (6*n) -- prg for generating wires
-    g2 <- lift $ prg n n     -- prg for encrypting table entries
-    g3 <- lift $ prg n 2     -- prg for generating permute bits
+    g1 <- lift $ prg' n (6*n) (numBits n) addAnd -- prg for generating wires
+    g2 <- lift $ prg' n n     (numBits n) addAnd -- prg for encrypting table entries
+    g3 <- lift $ prg' n 2     (numBits n) addAnd -- prg for generating permute bits
 
     -- generate wirelabels: inputs and output wires
     [x0,x1,y0,y1,z0,z1] <- chunksOf n <$> subcircuit g1 s

@@ -93,11 +93,14 @@ circSum :: Monad m => [Ref] -> BuilderT m Ref
 circSum = foldTreeM circAdd
 
 circXor :: Monad m => Ref -> Ref -> BuilderT m Ref
-circXor x y = do
-    z  <- circAdd x y
-    c  <- circMul x y
-    c' <- circAdd c c
-    circSub z c'
+circXor = circAdd
+
+-- circXor :: Monad m => Ref -> Ref -> BuilderT m Ref
+-- circXor x y = do
+--     z  <- circAdd x y
+--     c  <- circMul x y
+--     c' <- circAdd c c
+--     circSub z c'
 
 circXors :: Monad m => [Ref] -> BuilderT m Ref
 circXors = foldTreeM circXor
