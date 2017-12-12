@@ -1,4 +1,5 @@
 {-# LANGUAGE DoAndIfThenElse #-}
+{-# LANGUAGE CPP #-}
 
 module Circuit.Builder
   ( Builder
@@ -93,14 +94,15 @@ circSum :: Monad m => [Ref] -> BuilderT m Ref
 circSum = foldTreeM circAdd
 
 circXor :: Monad m => Ref -> Ref -> BuilderT m Ref
+#ifdef ADDITION_IS_XOR
 circXor = circAdd
-
--- circXor :: Monad m => Ref -> Ref -> BuilderT m Ref
--- circXor x y = do
---     z  <- circAdd x y
---     c  <- circMul x y
---     c' <- circAdd c c
---     circSub z c'
+#else
+circXor x y = do
+    z  <- circAdd x y
+    c  <- circMul x y
+    c' <- circAdd c c
+    circSub z c'
+#endif
 
 circXors :: Monad m => [Ref] -> BuilderT m Ref
 circXors = foldTreeM circXor
