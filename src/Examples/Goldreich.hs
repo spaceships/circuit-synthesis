@@ -13,7 +13,7 @@ import Circuit.Utils
 import qualified Circuit.Format.Acirc as Acirc
 
 import Control.Monad
-import Control.Monad.Trans (lift)
+import Control.Monad.Trans
 import Data.List.Split
 
 import Debug.Trace
@@ -307,28 +307,26 @@ selectsPt :: Monad m => [Int] -> [Ref] -> BuilderT m [Ref]
 selectsPt sels xs = return (map (xs!!) sels)
 
 prg :: Int -> Int -> IO Circuit
-prg n m = prg' n m (numBits n) xorMaj
+prg n m = prg' n m (numBits n) xorAnd
 
 prg' :: Int -> Int -> Int -> ([Ref] -> BuilderT IO Ref) -> IO Circuit
 prg' n m d predicate = buildCircuitT $ do
-    selections <- lift $ replicateM m $ replicateM d (randIO (randIntMod n))
     xs <- inputs n
-    zs <- forM selections $ \s -> do
+    zs <- prg_builder n m d predicate xs
+    outputs zs
+
+prg_builder :: MonadIO m => Int -> Int -> Int -> ([Ref] -> BuilderT m Ref) -> [Ref] -> BuilderT m [Ref]
+prg_builder n m d predicate xs = do
+    selections <- liftIO $ replicateM m $ replicateM (numBits n) (randIO (randIntMod n))
+    forM selections $ \s -> do
         sel <- selectsPt s xs
         predicate sel
-    outputs zs
 
 xorAnd :: Monad m => [Ref] -> BuilderT m Ref
 xorAnd (x0:x1:xs) = do
     y <- circMul x0 x1
     circXors (y : xs)
 xorAnd _ = error "[xorAnd] need at least three inputs!!!!!!!"
-
-addAnd :: Monad m => [Ref] -> BuilderT m Ref
-addAnd (x0:x1:xs) = do
-    y <- circMul x0 x1
-    circSum (y : xs)
-addAnd _ = error "[addAnd] need at least three inputs!!!!!!!"
 
 linearPredicate :: Monad m => [Ref] -> BuilderT m Ref
 linearPredicate = circXors
@@ -413,50 +411,3 @@ ggmSigmaNoPrg inputLength keyLength stretch = buildCircuitT $ do
     when ((length xs `mod` stretch) /= 0) $ error "[ggmSigmaNoPrg] wrong input length"
     res  <- foldM (ggmStepR g) seed (chunksOf stretch xs)
     outputs res
-
-
---------------------------------------------------------------------------------
--- experimenting with writing a circuit for a garbled circuit scheme
-
-testSwap :: Circuit
-testSwap = buildCircuit $ do
-    x <- inputs 2
-    y <- inputs 2
-    b <- constant 1
-    [w,z] <- swap b x y
-    outputs w
-
-garblerTest :: IO Circuit
-garblerTest = buildCircuitT $ do
-    let n = 80
-
-    s <- inputs n -- the seed to the prgs
-
-    g1 <- lift $ prg' n (6*n) (numBits n) addAnd -- prg for generating wires
-    g2 <- lift $ prg' n n     (numBits n) addAnd -- prg for encrypting table entries
-    g3 <- lift $ prg' n 2     (numBits n) addAnd -- prg for generating permute bits
-
-    -- generate wirelabels: inputs and output wires
-    [x0,x1,y0,y1,z0,z1] <- chunksOf n <$> subcircuit g1 s
-    let x = [x0,x1]
-        y = [y0,y1]
-        z = [z0,z1]
-
-    unpermuted_gate <- forM (replicateM 2 [0,1] :: [[Int]]) $ \[i,j] -> do
-        gate_x <- subcircuit g2 (x!!i)
-        gate_y <- subcircuit g2 (y!!j)
-        foldM1 (zipWithM circXor) [gate_x, gate_y, z !! b2i (i2b i && i2b j)]
-
-    -- generate permute bits
-    [b0,b1] <- subcircuit g3 s
-
-    -- swap the ys based on b1
-    p0 <- swap b1 (unpermuted_gate !! 0) (unpermuted_gate !! 1)
-    p1 <- swap b1 (unpermuted_gate !! 2) (unpermuted_gate !! 3)
-    let partially_permuted_gate = p0 ++ p1
-
-    -- swap the xs based on b0
-    p3 <- swap b0 (concat (take 2 partially_permuted_gate)) (concat (drop 2 partially_permuted_gate))
-    let permuted_gate = concatMap (chunksOf n) p3
-
-    outputs (concat permuted_gate)
