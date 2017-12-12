@@ -12,7 +12,7 @@ import Control.Monad.State
 
 import Data.List (sort, group, partition)
 import qualified Data.Set as S
-import Data.Map.Strict ((!))
+import Data.IntMap.Strict ((!))
 
 import Text.PrettyPrint.Leijen.Text hiding (group)
 import Data.Text.Lazy (Text, unpack)
@@ -118,6 +118,6 @@ pprRef r@(Ref i) = do
   case b of
     False -> do
       c <- ask
-      let op = circ_refmap c ! r
+      let op = circ_refmap c ! getRef r
       pprOp i op
     True -> return empty

@@ -9,8 +9,7 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Identity
 import Text.Parsec hiding (spaces, parseTest)
 import qualified Data.Map as Map
-import qualified Data.Bimap as Bimap
-import qualified Data.Set as Set
+import qualified Data.IntSet as IntSet
 
 type ParseCircT m = ParsecT String [TestCase] (B.BuilderT m)
 type ParseCirc = ParsecT String [TestCase] B.Builder
@@ -33,8 +32,8 @@ markPublicConst ref = do
     c <- lift B.getCirc
     case Map.lookup ref (circ_secret_refs c) of
         Nothing -> error ("no const with ref " ++ show ref)
-        Just id -> lift $ B.modifyCirc (\c -> c { circ_consts    = Bimap.insert (getSecret c id) ref (circ_consts c)
-                                                , circ_const_ids = Set.insert id (circ_const_ids c)
+        Just id -> lift $ B.modifyCirc (\c -> c { circ_consts    = Map.insert (getSecret c id) ref (circ_consts c)
+                                                , circ_const_ids = IntSet.insert (getId id) (circ_const_ids c)
                                                 })
 
 --------------------------------------------------------------------------------

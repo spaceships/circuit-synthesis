@@ -16,10 +16,10 @@ import Circuit.Builder.Internals
 import Circuit.Utils
 
 import Control.Monad.State
+import Data.Bits (testBit)
 import Data.List.Split (chunksOf)
 import Text.Printf
-import qualified Data.Map as M
-import qualified Data.Bimap as B
+import qualified Data.Map.Strict as M
 
 input :: Monad m => BuilderT m Ref
 input = do
@@ -65,8 +65,8 @@ secrets = mapM secret
 constant :: Monad m => Integer -> BuilderT m Ref
 constant val = do
     c <- getCirc
-    if B.member val (circ_consts c) then do
-        return (circ_consts c B.! val)
+    if M.member val (circ_consts c) then do
+        return (circ_consts c M.! val)
     else do
         id  <- nextSecretId
         ref <- nextRef

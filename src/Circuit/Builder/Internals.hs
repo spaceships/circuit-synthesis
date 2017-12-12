@@ -1,28 +1,29 @@
+{-# LANGUAGE BangPatterns #-}
+
 module Circuit.Builder.Internals where
 
 import Circuit
 import Circuit.Utils
 
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Control.Monad.Identity
-import qualified Data.Map as M
-import qualified Data.Bimap as B
-import qualified Data.Set as S
+import qualified Data.Map.Strict as M
+import qualified Data.IntMap.Strict as IM
+import qualified Data.IntSet as S
 
 type BuilderT = StateT BuildSt
 type Builder = BuilderT Identity
 
 data BuildSt = BuildSt {
-      bs_circ        :: Circuit
-    , bs_next_ref    :: Ref
-    , bs_next_inp    :: Id
-    , bs_next_secret :: Id
-    , bs_refmap      :: M.Map String Ref
-    , bs_dedup       :: M.Map Op Ref
+      bs_circ        :: !Circuit
+    , bs_next_ref    :: !Ref
+    , bs_next_inp    :: !Id
+    , bs_next_secret :: !Id
+    , bs_dedup       :: !(M.Map Op Ref)
     }
 
 emptyBuild :: BuildSt
-emptyBuild = BuildSt emptyCirc 0 0 0 M.empty M.empty
+emptyBuild = BuildSt emptyCirc 0 0 0 M.empty
 
 runCircuitT :: Monad m => BuilderT m a -> m (Circuit, a)
 runCircuitT b = do
@@ -45,7 +46,7 @@ getCirc :: Monad m => BuilderT m Circuit
 getCirc = gets bs_circ
 
 modifyCirc :: Monad m => (Circuit -> Circuit) -> BuilderT m ()
-modifyCirc f = modify (\st -> st { bs_circ = f (bs_circ st) })
+modifyCirc f = modify' (\st -> st { bs_circ = f (bs_circ st) })
 
 exportParams :: Monad m => Circuit -> BuilderT m ()
 exportParams c = do
@@ -59,15 +60,15 @@ setBase :: Monad m => Int -> BuilderT m ()
 setBase n = modifyCirc (\c -> c { circ_base = n })
 
 insertOp :: Monad m => Ref -> Op -> BuilderT m ()
-insertOp ref op = do
+insertOp !ref !op = do
     refs <- circ_refmap <$> getCirc
-    when (M.member ref refs) $
+    when (IM.member (getRef ref) refs) $
         error ("redefinition of ref " ++ show ref)
-    modifyCirc (\c -> c { circ_refmap = M.insert ref op refs })
-    modify (\st -> st { bs_dedup = M.insert op ref (bs_dedup st)})
+    modifyCirc (\c -> c { circ_refmap = IM.insert (getRef ref) op refs })
+    modify' (\st -> st { bs_dedup = M.insert op ref (bs_dedup st)})
 
 insertSecret :: Monad m => Ref -> Id -> BuilderT m ()
-insertSecret ref id = do
+insertSecret !ref !id = do
     modifyCirc (\c -> c { circ_secret_refs = M.insert ref id (circ_secret_refs c) })
     insertOp ref (OpSecret id)
 
@@ -96,25 +97,25 @@ newOp op = do
 nextRef :: Monad m => BuilderT m Ref
 nextRef = do
     ref <- gets bs_next_ref
-    modify (\st -> st { bs_next_ref = ref + 1 })
+    modify' (\st -> st { bs_next_ref = ref + 1 })
     return ref
 
 nextInputId :: Monad m => BuilderT m Id
 nextInputId = do
     id <- gets bs_next_inp
-    modify (\st -> st { bs_next_inp = id + 1 })
+    modify' (\st -> st { bs_next_inp = id + 1 })
     return id
 
 nextSecretId :: Monad m => BuilderT m Id
 nextSecretId = do
     id <- gets bs_next_secret
-    modify (\st -> st { bs_next_secret = id + 1 })
+    modify' (\st -> st { bs_next_secret = id + 1 })
     return id
 
 markOutput :: Monad m => Ref -> BuilderT m ()
 markOutput ref = modifyCirc (\c -> c { circ_outputs = circ_outputs c ++ [ref] })
 
 markConst :: Monad m => Integer -> Ref -> Id -> BuilderT m ()
-markConst val ref id = modifyCirc (\c -> c { circ_consts    = B.insert val ref (circ_consts c)
-                                           , circ_const_ids = S.insert id (circ_const_ids c)
+markConst val ref id = modifyCirc (\c -> c { circ_consts    = M.insert val ref (circ_consts c)
+                                           , circ_const_ids = S.insert (getId id) (circ_const_ids c)
                                            })

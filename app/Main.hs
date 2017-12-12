@@ -8,10 +8,11 @@ import qualified Circuit.Format.Graphviz as Graphviz
 import qualified Circuit.Format.Nigel    as Nigel
 
 import qualified Examples.Aes        as Aes
-import qualified Examples.Goldreich  as Goldreich
-import qualified Examples.Tribes     as Tribes
-import qualified Examples.Point      as Point
 import qualified Examples.Comparison as Comparison
+import qualified Examples.Garbler    as Garbler
+import qualified Examples.Goldreich  as Goldreich
+import qualified Examples.Point      as Point
+import qualified Examples.Tribes     as Tribes
 
 import Control.Monad
 import Options
@@ -124,8 +125,11 @@ main = runCommand $ \opts args -> do
         Just "comparison"    -> mapM_ (circuitMain opts []) =<< Comparison.make
         Just "ggmSigma256"   -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMSigma256
         Just "ggmSigma1024"  -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMSigma1024
+        Just "sizeTest"      -> mapM_ (circuitMain opts []) =<< Garbler.makeSizeTest
         Just _ -> do
-            putStrLn "[error] known circuit generation modes: aes, aes1r, goldreich, ggm, ggmSigma, ggmSigma256, ggmSigma1024, ggmNoPrg, ggmNoPrgSigma, applebaum, tribes, gf28Mult, point, comparison"
+            putStrLn "[error] known circuit generation modes: aes, aes1r, goldreich, ggm,\
+                     \ ggmSigma, ggmSigma256, ggmSigma1024, ggmNoPrg, ggmNoPrgSigma, applebaum,\
+                     \ tribes, gf28Mult, point, comparison, sizeTest"
             exitFailure
 
         Nothing -> do

@@ -23,31 +23,31 @@ import Data.List (nub, sortBy)
 import Text.Printf
 import qualified Control.Monad.Par as IVar
 import qualified Data.Map.Strict as M
-import qualified Data.Set as S
-import qualified Data.Bimap as B
+import qualified Data.IntMap.Strict as IM
+import qualified Data.IntSet as IS
 
 import Debug.Trace
 
 newtype Ref = Ref { getRef :: Int } deriving (Eq, Ord, NFData, Num)
 newtype Id  = Id  { getId  :: Int } deriving (Eq, Ord, NFData, Num)
 
-data Op = OpAdd Ref Ref
-        | OpSub Ref Ref
-        | OpMul Ref Ref
-        | OpInput Id
-        | OpSecret Id
+data Op = OpAdd !Ref !Ref
+        | OpSub !Ref !Ref
+        | OpMul !Ref !Ref
+        | OpInput !Id
+        | OpSecret !Id
         deriving (Eq, Ord, Show)
 
 data Circuit = Circuit {
-      circ_outputs     :: [Ref]
-    , circ_inputs      :: [Ref]
-    , circ_secrets     :: M.Map Id Integer
-    , circ_secret_refs :: M.Map Ref Id
-    , circ_refmap      :: M.Map Ref Op
-    , circ_consts      :: B.Bimap Integer Ref
-    , circ_const_ids   :: S.Set Id -- which OpSecrets are public
-    , circ_symlen      :: Int
-    , circ_base        :: Int -- the expected base of the inputs
+      circ_outputs     :: ![Ref]
+    , circ_inputs      :: ![Ref]
+    , circ_secrets     :: !(M.Map Id Integer)
+    , circ_secret_refs :: !(M.Map Ref Id)
+    , circ_refmap      :: !(IM.IntMap Op)
+    , circ_consts      :: !(M.Map Integer Ref)
+    , circ_const_ids   :: !IS.IntSet -- which OpSecrets are public
+    , circ_symlen      :: !Int
+    , circ_base        :: !Int -- the expected base of the inputs
     } deriving (Show)
 
 type TestCase = ([Integer], [Integer])
@@ -56,7 +56,7 @@ type TestCase = ([Integer], [Integer])
 -- instances and such
 
 emptyCirc :: Circuit
-emptyCirc = Circuit [] [] M.empty M.empty M.empty B.empty S.empty 1 2
+emptyCirc = Circuit [] [] M.empty M.empty IM.empty M.empty IS.empty 1 2
 
 instance Show Ref where
     show ref = show (getRef ref)
@@ -70,14 +70,14 @@ getSecret c id = case M.lookup id (circ_secrets c) of
     Nothing -> error ("[getSecret] no secret known for y" ++ show id)
 
 publicConst :: Circuit -> Id -> Bool
-publicConst c id = S.member id (circ_const_ids c)
+publicConst c id = IS.member (getId id) (circ_const_ids c)
 
 -- refs of all non-public consts
 secretRefs :: Circuit -> [Ref]
 secretRefs c = map fst $ filter (not . publicConst c . snd) $ M.toList (circ_secret_refs c)
 
 getGate :: Circuit -> Ref -> Op
-getGate c ref = case M.lookup ref (circ_refmap c) of
+getGate c ref = case IM.lookup (getRef ref) (circ_refmap c) of
     Nothing -> error (printf "[getGate] no ref %d!" (getRef ref))
     Just op -> op
 
@@ -164,7 +164,7 @@ opArgs (OpSecret _) = []
 opArgs (OpInput  _) = []
 
 ngates :: Circuit -> Int
-ngates = M.size . circ_refmap
+ngates = IM.size . circ_refmap
 
 ninputs :: Circuit -> Int
 ninputs = length . circ_inputs
@@ -329,9 +329,9 @@ foldCircM f c = evalStateT (mapM eval (circ_outputs c)) M.empty
     eval ref = gets (M.lookup ref) >>= \case
         Just val -> return val
         Nothing  -> do
-            when (M.notMember ref (circ_refmap c))
+            when (IM.notMember (getRef ref) (circ_refmap c))
                 (traceM (printf "unknown ref \"%s\"" (show ref)))
-            let op = circ_refmap c ! ref
+            let op = circ_refmap c IM.! getRef ref
             argVals <- mapM eval (opArgs op)
             val     <- lift (f op ref argVals)
             modify (M.insert ref val)
@@ -344,9 +344,9 @@ foldCircRefM f c ref = evalStateT (eval ref) M.empty
     eval ref = gets (M.lookup ref) >>= \case
         Just val -> return val
         Nothing  -> do
-            when (M.notMember ref (circ_refmap c))
+            when (IM.notMember (getRef ref) (circ_refmap c))
                 (traceM (printf "unknown ref \"%s\"" (show ref)))
-            let op = circ_refmap c ! ref
+            let op = circ_refmap c IM.! getRef ref
             argVals <- mapM eval (opArgs op)
             val     <- lift (f op ref argVals)
             modify (M.insert ref val)
@@ -355,11 +355,11 @@ foldCircRefM f c ref = evalStateT (eval ref) M.empty
 -- evaluate the circuit in parallel
 foldCircIO :: NFData a => (Op -> [a] -> a) -> Circuit -> IO [a]
 foldCircIO f c = do
-    let refs = M.keys (circ_refmap c)
+    let refs = map Ref $ IM.keys (circ_refmap c)
     mem <- (M.fromList . zip refs) <$> replicateM (length refs) newEmptyTMVarIO
     let eval :: Ref -> IO ()
         eval ref = do
-            let op      = circ_refmap c ! ref
+            let op      = circ_refmap c IM.! getRef ref
                 argRefs = map (mem!) (opArgs op)
             -- this condition should never be hit since we parallelize over the topological levels
             whenM (or <$> mapM (atomically . isEmptyTMVar) argRefs) $ do

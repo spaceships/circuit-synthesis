@@ -22,6 +22,7 @@ import Control.Monad.Trans (lift)
 import Text.Parsec hiding (spaces, parseTest)
 import Text.Printf
 import qualified Data.Map as M
+import qualified Data.IntMap as IM
 import qualified Control.Monad.State as S
 
 --------------------------------------------------------------------------------
@@ -70,7 +71,7 @@ showSortedCirc c = unlines (header ++ gateLines ++ output)
 
     gateStr :: Ref -> String
     gateStr ref = do
-        case M.lookup ref (circ_refmap c) of
+        case IM.lookup (getRef ref) (circ_refmap c) of
             Nothing -> error (printf "[gateStr] unknown ref %s" (show ref))
             Just (OpInput  id) -> printf "%d input %d" (getRef ref) (getId id)
             Just (OpSecret id) ->
@@ -115,7 +116,7 @@ showCirc c = unlines (header ++ gateLines)
     gateStr :: Ref -> S.State (M.Map Ref Int, Int) String
     gateStr ref = do
         ref' <- tr ref
-        case M.lookup ref (circ_refmap c) of
+        case IM.lookup (getRef ref) (circ_refmap c) of
             Nothing -> error (printf "[gateStr] unknown ref %s" (show ref))
             Just (OpInput  id) -> return $ printf "%d input %d" ref' (getId id)
             Just (OpSecret id) -> do

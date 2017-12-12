@@ -18,6 +18,10 @@ import Data.List.Split
 
 import Debug.Trace
 
+makeSizeTest :: IO [(Maybe String, Circuit)]
+makeSizeTest = sequence
+    [ (Just "size_test.acirc",) <$> sizeTest ]
+
 --------------------------------------------------------------------------------
 -- experimenting with writing a circuit for a garbled circuit scheme
 
@@ -31,16 +35,16 @@ testSwap = buildCircuit $ do
 
 garblerTest :: IO Circuit
 garblerTest = buildCircuitT $ do
-    let n = 80
+    let k = 80 -- security parameter
 
-    s <- inputs n -- the seed to the prgs
+    s <- inputs k
 
-    g1 <- lift $ prg' n (6*n) (numBits n) xorAnd -- prg for generating wires
-    g2 <- lift $ prg' n n     (numBits n) xorAnd -- prg for encrypting table entries
-    g3 <- lift $ prg' n 2     (numBits n) xorAnd -- prg for generating permute bits
+    g1 <- lift $ prg' k (6*k) (numBits k) xorAnd -- prg for generating wires
+    g2 <- lift $ prg' k k     (numBits k) xorAnd -- prg for encrypting table entries
+    g3 <- lift $ prg' k 2     (numBits k) xorAnd -- prg for generating permute bits
 
     -- generate wirelabels: inputs and output wires
-    [x0,x1,y0,y1,z0,z1] <- chunksOf n <$> subcircuit g1 s
+    [x0,x1,y0,y1,z0,z1] <- chunksOf k <$> subcircuit g1 s
     let x = [x0,x1]
         y = [y0,y1]
         z = [z0,z1]
@@ -60,7 +64,7 @@ garblerTest = buildCircuitT $ do
 
     -- swap the xs based on b0
     p3 <- swap b0 (concat (take 2 partially_permuted_gate)) (concat (drop 2 partially_permuted_gate))
-    let permuted_gate = concatMap (chunksOf n) p3
+    let permuted_gate = concatMap (chunksOf k) p3
 
     outputs (concat permuted_gate)
 
@@ -69,7 +73,11 @@ sizeTest :: IO Circuit
 sizeTest = buildCircuitT $ do
     let n = 80
     xs <- inputs n
-    let g1 = prg_builder n (1000*n) (numBits n) xorAnd -- prg for generating wires
-    ys <- chunksOf 80 <$> g1 xs
-    zs <- foldM1 (zipWithM circXor) ys
+    let g1 = prg_builder n (1000*n) (numBits n) xorAnd
+    let g2 = prg_builder n n (numBits n) xorAnd
+    ys <- chunksOf n <$> g1 xs
+    z0 <- mapM g2 ys
+    z1 <- zipWithM (zipWithM circMul) z0 ys
+    z2 <- zipWithM (zipWithM circMul) z1 ys
+    zs <- foldM1 (zipWithM circXor) z2
     outputs zs
