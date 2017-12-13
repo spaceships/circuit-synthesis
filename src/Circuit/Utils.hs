@@ -267,3 +267,8 @@ splitRand n = do
 
 foldM1 :: Monad m => (a -> a -> m a) -> [a] -> m a
 foldM1 f (x:xs) = foldM f x xs
+
+pairsOf :: [a] -> [(a,a)]
+pairsOf [] = []
+pairsOf (x:y:xs) = (x,y) : pairsOf xs
+

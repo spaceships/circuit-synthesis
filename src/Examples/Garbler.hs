@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE TupleSections #-}
 #if __GLASGOW_HASKELL__ >= 800
 {-# LANGUAGE Strict #-}
@@ -15,66 +14,83 @@ import Examples.Goldreich
 import Control.Monad
 import Control.Monad.Trans (lift)
 import Data.List.Split
-
-import Debug.Trace
+import qualified Data.IntMap as IntMap
 
 makeSizeTest :: IO [(Maybe String, Circuit)]
 makeSizeTest = sequence
     [ (Just "size_test.acirc",) <$> sizeTest ]
 
 --------------------------------------------------------------------------------
--- experimenting with writing a circuit for a garbled circuit scheme
+-- a circuit for the garbler of a garbled circuit scheme
 
-testSwap :: Circuit
-testSwap = buildCircuit $ do
-    x <- inputs 2
-    y <- inputs 2
-    b <- constant 1
-    [w,z] <- swap b x y
-    outputs w
-
-garblerTest :: IO Circuit
-garblerTest = buildCircuitT $ do
+garbler :: Circuit -> IO Circuit
+garbler c = buildCircuitT $ do
     let k = 80 -- security parameter
 
-    s <- inputs k
+    s <- inputs k -- the seed to the PRGs
 
-    g1 <- lift $ prg' k (6*k) (numBits k) xorAnd -- prg for generating wires
-    g2 <- lift $ prg' k k     (numBits k) xorAnd -- prg for encrypting table entries
-    g3 <- lift $ prg' k 2     (numBits k) xorAnd -- prg for generating permute bits
+    let g1 = fmap (chunksOf k) . prgBuilder k (2 * ngates c * k) 5 xorAnd -- prg for generating wires
+    -- let g2 = fmap (chunksOf k) . prgBuilder k (2*k) 5 xorAnd -- prg for encrypting table entries
 
-    -- generate wirelabels: inputs and output wires
-    [x0,x1,y0,y1,z0,z1] <- chunksOf k <$> subcircuit g1 s
-    let x = [x0,x1]
-        y = [y0,y1]
-        z = [z0,z1]
+    -- generate pairs of wirelabels for every wire in c
+    rawWires  <- pairsOf <$> g1 s
+    withPbits <- forM rawWires $ \(xs,ys) -> do
+        -- set the permute bit of X1 according to the lsb of X0
+        z <- circNot (last xs)
+        return (xs, init ys ++ [z])
+    let wires = IntMap.fromList (zip [0..] withPbits) -- indexed by the refs of c
 
-    unpermuted_gate <- forM (replicateM 2 [0,1] :: [[Int]]) $ \[i,j] -> do
-        gate_x <- subcircuit g2 (x!!i)
-        gate_y <- subcircuit g2 (y!!j)
-        foldM1 (zipWithM circXor) [gate_x, gate_y, z !! b2i (i2b i && i2b j)]
+    -- generate garbled tables for every gate in c
+    tabs <- forM (gates c) $ \(zref, op) -> do
+        let [xref, yref] = opArgs op
+            x = wires IntMap.! getRef xref
+            y = wires IntMap.! getRef yref
+            z = wires IntMap.! getRef zref
 
-    -- generate permute bits
-    [b0,b1] <- subcircuit g3 s
+        let g = case op of { (OpMul _ _) -> (&&); _ -> xor }
 
-    -- swap the ys based on b1
-    p0 <- swap b1 (unpermuted_gate !! 0) (unpermuted_gate !! 1)
-    p1 <- swap b1 (unpermuted_gate !! 2) (unpermuted_gate !! 3)
-    let partially_permuted_gate = p0 ++ p1
+            -- gx <- g2 (x!!i)
+            -- gy <- g2 (y!!j)
 
-    -- swap the xs based on b0
-    p3 <- swap b0 (concat (take 2 partially_permuted_gate)) (concat (drop 2 partially_permuted_gate))
-    let permuted_gate = concatMap (chunksOf k) p3
+            -- unpermuted_gate <- forM (replicateM 2 [0,1] :: [[Int]]) $ \[i,j] -> do
+            -- foldM1 (zipWithM circXor) [gate_x, gate_y, z !! b2i (i2b i && i2b j)]
+        undefined
 
-    outputs (concat permuted_gate)
 
+
+    -- let x = [x0,x1]
+    --     y = [y0,y1]
+    --     z = [z0,z1]
+
+    -- unpermuted_gate <- forM (replicateM 2 [0,1] :: [[Int]]) $ \[i,j] -> do
+    --     gate_x <- g2 (x!!i)
+    --     gate_y <- g2 (y!!j)
+    --     foldM1 (zipWithM circXor) [gate_x, gate_y, z !! b2i (i2b i && i2b j)]
+
+    -- -- generate permute bits
+    -- [b0,b1] <- g3 s
+
+    -- -- swap the ys based on b1
+    -- p0 <- swap b1 (unpermuted_gate !! 0) (unpermuted_gate !! 1)
+    -- p1 <- swap b1 (unpermuted_gate !! 2) (unpermuted_gate !! 3)
+    -- let partially_permuted_gate = p0 ++ p1
+
+    -- -- swap the xs based on b0
+    -- p3 <- swap b0 (concat (take 2 partially_permuted_gate)) (concat (drop 2 partially_permuted_gate))
+    -- let permuted_gate = concatMap (chunksOf k) p3
+
+    -- outputs (concat permuted_gate)
+    undefined
+
+--------------------------------------------------------------------------------
+-- test to see how well we can evaluate extra large circuits
 
 sizeTest :: IO Circuit
 sizeTest = buildCircuitT $ do
     let n = 80
     xs <- inputs n
-    let g1 = prg_builder n (1000*n) (numBits n) xorAnd
-    let g2 = prg_builder n n (numBits n) xorAnd
+    let g1 = prgBuilder n (1000*n) (numBits n) xorAnd
+    let g2 = prgBuilder n n (numBits n) xorAnd
     ys <- chunksOf n <$> g1 xs
     z0 <- mapM g2 ys
     z1 <- zipWithM (zipWithM circMul) z0 ys

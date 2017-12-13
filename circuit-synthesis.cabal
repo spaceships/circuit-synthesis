@@ -33,7 +33,6 @@ library
     build-depends:        base
                         , DRBG
                         , IfElse
-                        , bimap
                         , bytestring
                         , containers
                         , crypto-api

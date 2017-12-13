@@ -394,15 +394,6 @@ topoLevels c = nub $ map snd $ M.toAscList $ execState (foldCircM eval c) M.empt
         modify (M.insertWith (++) d [ref])
         return d
 
--- XXX: this is clean but slow!
--- topoLevels :: Circuit -> [[Ref]]
--- topoLevels c = map snd $ M.toAscList $ M.unionsWith (++) $ foldCircRef eval c
---   where
---     eval :: Op -> Ref -> [M.Map Int [Ref]] -> M.Map Int [Ref]
---     eval _ ref [] = M.singleton 0 [ref]
---     eval _ ref ds = let d = 1 + (maximum . map maximum) (M.keys <$> ds)
---                     in M.unionsWith (++) (M.singleton d [ref] : ds)
-
 sortGates :: Circuit -> [Ref]
 sortGates c = concatMap (sortBy refDist) (topoLevels c)
   where
@@ -415,11 +406,15 @@ sortGates c = concatMap (sortBy refDist) (topoLevels c)
                             (xs, ys) -> let cs = zipWith compare xs ys
                                         in if any (== EQ) cs then EQ else maximum cs
 
-nonInputGates :: Circuit -> [Ref]
-nonInputGates c = filter notInput (topologicalOrder c)
+gates :: Circuit -> [(Ref, Op)]
+gates c = filter (gate.snd) $ map (\ref -> (ref, getGate c ref)) (topologicalOrder c)
   where
-    notInput ref = notElem ref (circ_inputs c) &&
-                   M.notMember ref (circ_secret_refs c)
+    gate (OpInput _) = False
+    gate (OpSecret _) = False
+    gate _ = True
+
+gateRefs :: Circuit -> [Ref]
+gateRefs = map fst . gates
 
 sortedNonInputGates :: Circuit -> [Ref]
 sortedNonInputGates c = filter notInput (sortGates c)
@@ -453,4 +448,3 @@ numDisjointAdditions c = execState (foldCircM eval c) 0
                                    then return M.empty
                                    else return (M.singleton op 1)
     eval _ _ _ = undefined
-

@@ -312,12 +312,12 @@ prg n m = prg' n m (numBits n) xorAnd
 prg' :: Int -> Int -> Int -> ([Ref] -> BuilderT IO Ref) -> IO Circuit
 prg' n m d predicate = buildCircuitT $ do
     xs <- inputs n
-    zs <- prg_builder n m d predicate xs
+    zs <- prgBuilder n m d predicate xs
     outputs zs
 
-prg_builder :: MonadIO m => Int -> Int -> Int -> ([Ref] -> BuilderT m Ref) -> [Ref] -> BuilderT m [Ref]
-prg_builder n m d predicate xs = do
-    selections <- liftIO $ replicateM m $ replicateM (numBits n) (randIO (randIntMod n))
+prgBuilder :: MonadIO m => Int -> Int -> Int -> ([Ref] -> BuilderT m Ref) -> [Ref] -> BuilderT m [Ref]
+prgBuilder ninputs noutputs locality predicate xs = do
+    selections <- liftIO $ replicateM noutputs $ replicateM locality (randIO (randIntMod ninputs))
     forM selections $ \s -> do
         sel <- selectsPt s xs
         predicate sel

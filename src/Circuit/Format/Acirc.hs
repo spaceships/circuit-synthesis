@@ -92,7 +92,7 @@ showCirc c = unlines (header ++ gateLines)
 
     inputs = mapM gateStr (circ_inputs c)
     consts = mapM gateStr (M.keys (circ_secret_refs c))
-    gates  = mapM gateStr (nonInputGates c)
+    gates  = mapM gateStr (gateRefs c)
 
     output = do
         outs <- map show <$> mapM tr (circ_outputs c)
