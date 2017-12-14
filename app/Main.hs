@@ -127,7 +127,7 @@ main = runCommand $ \opts args -> do
         Just "ggmSigma1024"  -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMSigma1024
         Just "size_test"     -> mapM_ (circuitMain opts []) =<< Garbler.makeSizeTest
         Just _ -> do
-            putStrLn "[error] known circuit generation modes: aes, aes1r, goldreich, ggm,\
+            putStrLn "[error] known circuit generation modes: aes, aes1r, aes10r, goldreich, ggm,\
                      \ ggmSigma, ggmSigma256, ggmSigma1024, ggmNoPrg, ggmNoPrgSigma, applebaum,\
                      \ tribes, gf28Mult, point, comparison, size_test"
             exitFailure
