@@ -14,47 +14,47 @@ import qualified Data.Map.Strict as M
 import qualified Data.IntMap.Strict as IM
 import qualified Data.IntSet as IS
 
-type BuilderT = StateT BuildSt
-type Builder = BuilderT Identity
+type BuilderT g = StateT (BuildSt g)
+type Builder g = BuilderT g Identity
 
-data BuildSt = BuildSt
-    { _bs_circ        :: !Circuit
+data BuildSt g = BuildSt
+    { _bs_circ        :: !(Circuit g)
     , _bs_next_ref    :: !Ref
     , _bs_next_inp    :: !Id
     , _bs_next_const  :: !Id
-    , _bs_dedup       :: !(M.Map Op Ref)
+    , _bs_dedup       :: !(M.Map g Ref)
     , _bs_constants   :: !(M.Map Integer Ref)
     }
 
 makeLenses ''BuildSt
 
-emptyBuild :: BuildSt
+emptyBuild :: BuildSt g
 emptyBuild = BuildSt emptyCirc 0 0 0 M.empty M.empty
 
-runCircuitT :: Monad m => BuilderT m a -> m (Circuit, a)
+runCircuitT :: Monad m => BuilderT g m a -> m (Circuit g, a)
 runCircuitT b = do
     (a, st) <- runStateT b emptyBuild
     return (st^.bs_circ, a)
 
-buildCircuitT :: Monad m => BuilderT m a -> m Circuit
+buildCircuitT :: Monad m => BuilderT g m a -> m (Circuit g)
 buildCircuitT b = view bs_circ <$> execStateT b emptyBuild
 
-runCircuit :: Builder a -> (Circuit, a)
+runCircuit :: Builder g a -> (Circuit g, a)
 runCircuit b = runIdentity (runCircuitT b)
 
-buildCircuit :: Builder a -> Circuit
+buildCircuit :: Builder g a -> Circuit g
 buildCircuit = view bs_circ . flip execState emptyBuild
 
 --------------------------------------------------------------------------------
 -- operations
 
-setSymlen :: Monad m => Int -> BuilderT m ()
+setSymlen :: Monad m => Int -> BuilderT g m ()
 setSymlen !n = bs_circ . circ_symlen .= n
 
-setBase :: Monad m => Int -> BuilderT m ()
+setBase :: Monad m => Integer -> BuilderT g m ()
 setBase !n = bs_circ . circ_base .= n
 
-insertOp :: Monad m => Ref -> Op -> BuilderT m ()
+insertOp :: (Ord g, Monad m) => Ref -> g -> BuilderT g m ()
 insertOp !ref !op = do
     refs <- use $ bs_circ . circ_refmap
     when (IM.member (getRef ref) refs) $
@@ -62,23 +62,23 @@ insertOp !ref !op = do
     bs_circ . circ_refmap . at (getRef ref) ?= op
     bs_dedup . at op ?= ref
 
-insertConst :: Monad m => Ref -> Id -> BuilderT m ()
+insertConst :: (GateEval g, Monad m) => Ref -> Id -> BuilderT g m ()
 insertConst !ref !id = do
     bs_circ . circ_consts . at ref ?= id
-    insertOp ref (OpConst id)
+    insertOp ref (gateConst id)
 
-insertConstVal :: Monad m => Id -> Integer -> BuilderT m ()
+insertConstVal :: Monad m => Id -> Integer -> BuilderT g m ()
 insertConstVal !id !val = do
     ys <- use $ bs_circ . circ_const_vals
     let ys' = safeInsert ("reassignment of y" ++ show id) id val ys
     bs_circ . circ_const_vals .= ys'
 
-insertInput :: Monad m => Ref -> Id -> BuilderT m ()
+insertInput :: (GateEval g, Monad m) => Ref -> Id -> BuilderT g m ()
 insertInput !ref !id = do
     bs_circ . circ_inputs %= (++[ref])
-    insertOp ref (OpInput id)
+    insertOp ref (gateInput id)
 
-newOp :: Monad m => Op -> BuilderT m Ref
+newOp :: (Ord g, Monad m) => g -> BuilderT g m Ref
 newOp !op = do
     dedup <- use bs_dedup
     case M.lookup op dedup of
@@ -89,28 +89,28 @@ newOp !op = do
         Just ref -> do
             return ref
 
-nextRef :: Monad m => BuilderT m Ref
+nextRef :: Monad m => BuilderT g m Ref
 nextRef = do
     ref <- use bs_next_ref
     bs_next_ref += 1
     return ref
 
-nextInputId :: Monad m => BuilderT m Id
+nextInputId :: Monad m => BuilderT g m Id
 nextInputId = do
     id <- use bs_next_inp
     bs_next_inp += 1
     return id
 
-nextConstId :: Monad m => BuilderT m Id
+nextConstId :: Monad m => BuilderT g m Id
 nextConstId = do
     id <- use bs_next_const
     bs_next_const += 1
     return id
 
-markOutput :: Monad m => Ref -> BuilderT m ()
+markOutput :: Monad m => Ref -> BuilderT g m ()
 markOutput !ref = bs_circ . circ_outputs %= (++[ref])
 
-markSecret :: Monad m => Ref -> BuilderT m ()
+markSecret :: Monad m => Ref -> BuilderT g m ()
 markSecret !ref = do
     id <- use $ bs_circ . circ_consts . at ref
     case id of
@@ -119,8 +119,8 @@ markSecret !ref = do
             bs_circ . circ_secret_ids  %= IS.insert (getId id')
             bs_circ . circ_secret_refs %= IS.insert (getRef ref)
 
-markConstant :: Monad m => Integer -> Ref -> BuilderT m ()
+markConstant :: Monad m => Integer -> Ref -> BuilderT g m ()
 markConstant !x !ref = bs_constants . at x ?= ref
 
-existingConstant :: Monad m => Integer -> BuilderT m (Maybe Ref)
+existingConstant :: Monad m => Integer -> BuilderT g m (Maybe Ref)
 existingConstant !x = gets (M.lookup x . _bs_constants)

@@ -1,11 +1,12 @@
 module Main where
 
 import Circuit
+import Circuit.Conversion
+import Circuit.Optimizer
+import Circuit.Format.Graphviz
 import Circuit.Utils
-import Circuit.Optimizer (flatten, flattenRec, foldConsts)
-import qualified Circuit.Format.Acirc    as Acirc
-import qualified Circuit.Format.Graphviz as Graphviz
-import qualified Circuit.Format.Nigel    as Nigel
+import qualified Circuit.Format.Acirc as Acirc
+import qualified Circuit.Format.Nigel as Nigel
 
 import qualified Examples.Aes        as Aes
 import qualified Examples.Comparison as Comparison
@@ -25,12 +26,11 @@ data MainOptions = MainOptions { opt_info       :: Bool
                                , opt_test       :: Bool
                                , opt_gentests   :: Maybe Int
                                , opt_gencirc    :: Maybe String
-                               , opt_add_acirc_tests    :: Bool
                                , opt_randomize_secrets  :: Bool
                                , opt_write_to_file      :: Maybe String
                                , opt_optimize           :: Maybe Int
                                , opt_graphviz           :: Bool
-                               , opt_sort               :: Bool
+                               , opt_circuit_type       :: String
                                }
 
 instance Options MainOptions where
@@ -48,7 +48,7 @@ instance Options MainOptions where
                      })
 
         <*> defineOption optionType_bool
-            (\o -> o { optionShortFlags  = "t"
+            (\o -> o { optionShortFlags  = "T"
                      , optionLongFlags   = ["test"]
                      , optionDescription = "Run the circuit on tests (random if none exist)."
                      })
@@ -62,12 +62,6 @@ instance Options MainOptions where
             (\o -> o { optionLongFlags   = ["gen-circuit"]
                      , optionShortFlags  = "C"
                      , optionDescription = "Generate a circuit"
-                     })
-
-        <*> defineOption optionType_bool
-            (\o -> o { optionShortFlags  = "A"
-                     , optionLongFlags   = ["add-tests"]
-                     , optionDescription = "Add tests to the acirc file"
                      })
 
         <*> defineOption optionType_bool
@@ -94,12 +88,12 @@ instance Options MainOptions where
                      , optionDescription = "Output the circuit in Graphviz dot format"
                      })
 
-        <*> defineOption optionType_bool
-            (\o -> o { optionShortFlags  = "s"
-                     , optionLongFlags   = ["sort"]
-                     , optionDescription = "Output an evaluation order that is sorted based on distance."
+        <*> defineOption optionType_string
+            (\o -> o { optionLongFlags   = ["type"]
+                     , optionShortFlags  = "t"
+                     , optionDescription = "type of circuit [a,b]"
+                     , optionDefault = "a"
                      })
-
 
 main :: IO ()
 main = runCommand $ \opts args -> do
@@ -132,26 +126,35 @@ main = runCommand $ \opts args -> do
 
             let inputFile = head args
 
-            when (opt_add_acirc_tests opts) $ do
-                Acirc.addTestsToFile inputFile
-                printf "added tests to file %s. quitting..." inputFile
+            case opt_circuit_type opts of
+                "a" -> do
+                    putStrLn "arithmetic circuit mode"
+                    (c,ts) <- case takeExtension inputFile of
+                        ".acirc" -> Acirc.readWithTests inputFile
+                        ".nigel" -> Nigel.readNigel inputFile
+                        s -> error (printf "[main] unkown extension: %s!" s)
+                    circuitMain opts ts (opt_write_to_file opts, c :: Acirc)
 
-            (c,ts) <- case takeExtension inputFile of
-                ".acirc" -> Acirc.readAcirc inputFile
-                ".nigel" -> Nigel.readNigel inputFile
-                s -> error (printf "[main] unkown extension: %s!" s)
+                "b" -> do
+                    putStrLn "binary circuit mode"
+                    (c,ts) <- case takeExtension inputFile of
+                        ".acirc" -> Acirc.readWithTests inputFile
+                        ".nigel" -> Nigel.readNigel inputFile
+                        s -> error (printf "[main] unkown extension: %s!" s)
+                    circuitMain opts ts (opt_write_to_file opts, c :: Circ)
 
-            circuitMain opts ts (opt_write_to_file opts, c)
+                other -> error (printf "[main] unknown circuit type %s!" other)
 
-circuitMain :: MainOptions -> [TestCase] -> (Maybe String, Circuit) -> IO ()
+circuitMain :: (Graphviz g, Optimize g, GateEval g, ToAcirc g)
+            => MainOptions -> [TestCase] -> (Maybe String, Circuit g) -> IO ()
 circuitMain opts ts (outputName, c) = do
     let old_symlen = _circ_symlen c
 
     c' <- case opt_optimize opts of
         Nothing -> return c
-        Just 1  -> return (foldConsts c)
-        Just 2  -> flattenRec (foldConsts c)
-        Just 3  -> flatten (foldConsts c)
+        Just 1  -> optimizeO1 c
+        Just 2  -> optimizeO2 c
+        Just 3  -> optimizeO3 c
         Just x  -> do
             printf "[error] unknown optimization level %d\n" x
             exitFailure
@@ -172,11 +175,9 @@ circuitMain opts ts (outputName, c) = do
     when (opt_test opts) $ do
         evalTests opts c ts
 
-    s <- if opt_graphviz opts
-            then return $ Graphviz.showCircuit c
-            else if opt_sort opts
-                    then return $ unwords (map show (sortGates c))
-                    else Acirc.showCircWithTests 10 c
+    let s = if opt_graphviz opts
+            then showGraphviz c
+            else Acirc.showWithTests c ts
 
     case outputName of
         Just fn -> do
@@ -184,7 +185,7 @@ circuitMain opts ts (outputName, c) = do
             writeFile fn s
         Nothing -> return ()
 
-evalTests :: MainOptions -> Circuit -> [TestCase] -> IO ()
+evalTests :: GateEval g => MainOptions -> Circuit g -> [TestCase] -> IO ()
 evalTests opts c ts = do
     pr "evaluating plaintext circuit tests"
     ok <- ensure (opt_verbose opts) c ts
@@ -192,9 +193,3 @@ evalTests opts c ts = do
 
 dirName :: FilePath -> Int -> FilePath
 dirName fp λ = fp ++ "." ++ show λ
-
-getKappa :: Circuit -> Integer
-getKappa c = δ + 2*n + n*(2*n-1)
-  where
-    n = fromIntegral $ ninputs c
-    δ = sum (degs c)

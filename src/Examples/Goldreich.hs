@@ -18,28 +18,22 @@ import Data.List.Split
 
 import Debug.Trace
 
-makePRG :: IO [(Maybe String, Circuit)]
+makePRG :: IO [(Maybe String, Acirc)]
 makePRG = sequence
-    [ (Just "prg_xor-maj_32_32.dsl.acirc"   ,) <$> prg'  32  32 5 xorMaj
-    , (Just "prg_xor-maj_32_128.dsl.acirc"  ,) <$> prg'  32 128 5 xorMaj
-    , (Just "prg_xor-maj_64_64.dsl.acirc"   ,) <$> prg'  64  64 6 xorMaj
-    , (Just "prg_xor-maj_64_128.dsl.acirc"  ,) <$> prg'  64 128 6 xorMaj
-    , (Just "prg_xor-maj_128_128.dsl.acirc" ,) <$> prg' 128 128 7 xorMaj
+    [ (Just "prg_xormaj_32_32.dsl.acirc"   ,) <$> prg'  32  32 5 xorMaj
+    , (Just "prg_xormaj_32_128.dsl.acirc"  ,) <$> prg'  32 128 5 xorMaj
+    , (Just "prg_xormaj_64_64.dsl.acirc"   ,) <$> prg'  64  64 6 xorMaj
+    , (Just "prg_xormaj_64_128.dsl.acirc"  ,) <$> prg'  64 128 6 xorMaj
+    , (Just "prg_xormaj_128_128.dsl.acirc" ,) <$> prg' 128 128 7 xorMaj
 
-    , (Just "prg_xor-and_32_32.dsl.acirc"   ,) <$> prg'  32  32 5 xorAnd
-    , (Just "prg_xor-and_32_128.dsl.acirc"  ,) <$> prg'  32 128 5 xorAnd
-    , (Just "prg_xor-and_64_64.dsl.acirc"   ,) <$> prg'  64  64 5 xorAnd
-    , (Just "prg_xor-and_64_128.dsl.acirc"  ,) <$> prg'  64 128 5 xorAnd
-    , (Just "prg_xor-and_128_128.dsl.acirc" ,) <$> prg' 128 128 5 xorAnd
-
-    , (Just "prg_linear_32_32.dsl.acirc"   ,) <$> prg'  32  32 5 linearPredicate
-    , (Just "prg_linear_32_128.dsl.acirc"  ,) <$> prg'  32 128 5 linearPredicate
-    , (Just "prg_linear_64_64.dsl.acirc"   ,) <$> prg'  64  64 5 linearPredicate
-    , (Just "prg_linear_64_128.dsl.acirc"  ,) <$> prg'  64 128 5 linearPredicate
-    , (Just "prg_linear_128_128.dsl.acirc" ,) <$> prg' 128 128 5 linearPredicate
+    , (Just "prg_xorand_32_32.dsl.acirc"   ,) <$> prg'  32  32 5 xorAnd
+    , (Just "prg_xorand_32_128.dsl.acirc"  ,) <$> prg'  32 128 5 xorAnd
+    , (Just "prg_xorand_64_64.dsl.acirc"   ,) <$> prg'  64  64 5 xorAnd
+    , (Just "prg_xorand_64_128.dsl.acirc"  ,) <$> prg'  64 128 5 xorAnd
+    , (Just "prg_xorand_128_128.dsl.acirc" ,) <$> prg' 128 128 5 xorAnd
     ]
 
-makeGGM :: IO [(Maybe String, Circuit)]
+makeGGM :: IO [(Maybe String, Acirc)]
 makeGGM = sequence
     [ (Just "ggm_1_32.dsl.acirc"  ,) <$> ggm  4  32 16
     , (Just "ggm_2_32.dsl.acirc"  ,) <$> ggm  8  32 16
@@ -55,7 +49,7 @@ makeGGM = sequence
     , (Just "ggm_4_128.dsl.acirc" ,) <$> ggm 16 128 16
     ]
 
-makeGGMSigma :: IO [(Maybe String, Circuit)]
+makeGGMSigma :: IO [(Maybe String, Acirc)]
 makeGGMSigma = sequence
     [ (Just "ggm_sigma_1_16_32.dsl.acirc"  ,) <$> ggmSigma 1  32 16
     , (Just "ggm_sigma_2_16_32.dsl.acirc"  ,) <$> ggmSigma 2  32 16
@@ -85,7 +79,7 @@ makeGGMSigma = sequence
     , (Just "ggm_sigma_2_64_128.dsl.acirc" ,) <$> ggmSigma 2 128 64
     ]
 
-makeGGMSigma256 :: IO [(Maybe String, Circuit)]
+makeGGMSigma256 :: IO [(Maybe String, Acirc)]
 makeGGMSigma256 = sequence
     [ (Just "ggm_sigma_1_256_32.dsl.acirc"  ,) <$> ggmSigma 1  32 256
     , (Just "ggm_sigma_1_256_64.dsl.acirc"  ,) <$> ggmSigma 1  64 256
@@ -95,14 +89,14 @@ makeGGMSigma256 = sequence
     , (Just "ggm_sigma_2_256_128.dsl.acirc" ,) <$> ggmSigma 2 128 256
     ]
 
-makeGGMSigma1024 :: IO [(Maybe String, Circuit)]
+makeGGMSigma1024 :: IO [(Maybe String, Acirc)]
 makeGGMSigma1024 = sequence
     [ (Just "ggm_sigma_2_1024_32.dsl.acirc"  ,) <$> ggmSigma 2  32 1024
     , (Just "ggm_sigma_2_1024_64.dsl.acirc"  ,) <$> ggmSigma 2  64 1024
     , (Just "ggm_sigma_2_1024_128.dsl.acirc" ,) <$> ggmSigma 2 128 1024
     ]
 
-makeGGMNoPrg :: IO [(Maybe String, Circuit)]
+makeGGMNoPrg :: IO [(Maybe String, Acirc)]
 makeGGMNoPrg = sequence
     [ (Just "ggm_noprg_1_32.dsl.acirc"  ,) <$> ggmNoPrg 4  32 16
     , (Just "ggm_noprg_2_32.dsl.acirc"  ,) <$> ggmNoPrg 8  32 16
@@ -118,7 +112,7 @@ makeGGMNoPrg = sequence
     , (Just "ggm_noprg_4_128.dsl.acirc" ,) <$> ggmNoPrg 16 128 16
     ]
 
-makeGGMNoPrgSigma :: IO [(Maybe String, Circuit)]
+makeGGMNoPrgSigma :: IO [(Maybe String, Acirc)]
 makeGGMNoPrgSigma = sequence
     [ (Just "ggm_sigma_noprg_1_32.dsl.acirc"  ,) <$> ggmSigmaNoPrg 16 32 16
     , (Just "ggm_sigma_noprg_2_32.dsl.acirc"  ,) <$> ggmSigmaNoPrg 32 32 16
@@ -134,7 +128,7 @@ makeGGMNoPrgSigma = sequence
     , (Just "ggm_sigma_noprg_4_128.dsl.acirc" ,) <$> ggmSigmaNoPrg 64 128 16
     ]
 
-makeApplebaum :: IO [(Maybe String, Circuit)]
+makeApplebaum :: IO [(Maybe String, Acirc)]
 makeApplebaum = sequence
     [ (Just "f1_16.dsl.acirc"    ,) <$> f1 16 1
     , (Just "f1_32.dsl.acirc"    ,) <$> f1 32 1
@@ -147,18 +141,18 @@ makeApplebaum = sequence
 --------------------------------------------------------------------------------
 -- f1
 
-majorityNaive :: Monad m => [Ref] -> BuilderT m Ref
+majorityNaive :: Monad m => [Ref] -> BuilderT ArithGate m Ref
 majorityNaive xs = do
     let cs = combinations (length xs `div` 2) xs
     zs <- mapM circProd cs
     circOrs zs
 
-majority :: Monad m => [Ref] -> BuilderT m Ref
+majority :: Monad m => [Ref] -> BuilderT ArithGate m Ref
 majority xs = lookupTable maj xs
   where
     maj xs = sum (map b2i xs) >= (length xs `div` 2)
 
-xorMaj :: Monad m => [Ref] -> BuilderT m Ref
+xorMaj :: Monad m => [Ref] -> BuilderT ArithGate m Ref
 xorMaj xs = do
     let n = length xs `div` 2
     wl <- circXors (take n xs)
@@ -167,13 +161,13 @@ xorMaj xs = do
     circXor wl wr
 
 -- select the ix'th bit from x
-select :: Monad m => [Ref] -> [Ref] -> BuilderT m Ref
+select :: Monad m => [Ref] -> [Ref] -> BuilderT ArithGate m Ref
 select xs ix = do
     sel <- selectionVector ix
     zs  <- zipWithM (circMul) sel xs
     circSum zs
 
-selects :: Monad m => [Ref] -> [[Ref]] -> BuilderT m [Ref]
+selects :: Monad m => [Ref] -> [[Ref]] -> BuilderT ArithGate m [Ref]
 selects xs ixs = mapM (select xs) ixs
 
 -- f1 :: Int -> Int -> IO Circuit
@@ -195,7 +189,7 @@ perfectSquare x = whole (sqrt (fromIntegral x :: Float))
     whole :: Float -> Bool
     whole x = x - (fromIntegral (floor x :: Int) :: Float) == 0.0
 
-f1 :: Int -> Int -> IO Circuit
+f1 :: Int -> Int -> IO Acirc
 f1 ninputs noutputs
     | not (perfectSquare ninputs) = error "ninputs should be a perfect square"
     | otherwise = buildCircuitT $ do
@@ -208,7 +202,7 @@ f1 ninputs noutputs
             xorMaj bs
         outputs zs
 
-f1_rachel :: Int -> Int -> IO Circuit
+f1_rachel :: Int -> Int -> IO Acirc
 f1_rachel n m = buildCircuitT $ do
     keyBits <- lift $ randKeyIO n
     let d = ceiling (logBase 2 (fromIntegral n) :: Double)
@@ -220,22 +214,22 @@ f1_rachel n m = buildCircuitT $ do
         xorMaj zs
     outputs zs
 
-maj8n :: Circuit
+maj8n :: Acirc
 maj8n = buildCircuit (output =<< majorityNaive =<< inputs 8)
 
-maj8 :: Circuit
+maj8 :: Acirc
 maj8 = buildCircuit (output =<< majority =<< inputs 8)
 
-xormaj16 :: Circuit
+xormaj16 :: Acirc
 xormaj16 = buildCircuit (output =<< xorMaj =<< inputs 16)
 
-f1_128 :: IO Circuit
+f1_128 :: IO Acirc
 f1_128 = f1 128 1
 
 --------------------------------------------------------------------------------
 -- f2
 
-f2 :: Int -> Int -> IO Circuit
+f2 :: Int -> Int -> IO Acirc
 f2 n m = buildCircuitT $ do
     keyBits <- lift $ randKeyIO n
     let l = ceiling (logBase 2 (fromIntegral n) :: Double)
@@ -249,7 +243,7 @@ f2 n m = buildCircuitT $ do
     ws <- subcircuit ext zs
     outputs ws
 
-genExt :: Int -> Int -> IO Circuit
+genExt :: Int -> Int -> IO Acirc
 genExt ninputs noutputs = buildCircuitT $ do
     key <- lift $ randKeyIO (ninputs * noutputs)
     x <- inputs ninputs
@@ -260,7 +254,7 @@ genExt ninputs noutputs = buildCircuitT $ do
 --------------------------------------------------------------------------------
 -- f3
 
-f3 :: Int -> Int -> IO Circuit
+f3 :: Int -> Int -> IO Acirc
 f3 n m = buildCircuitT $ do
     -- n is K_f size
     keyBits <- lift $ randKeyIO n
@@ -276,9 +270,9 @@ f3 n m = buildCircuitT $ do
     ws <- subcircuit ext zs
     outputs ws
 
-loadMapper :: Int -> IO Circuit
+loadMapper :: Int -> IO Acirc
 loadMapper n = buildCircuitT $ do
-    (c,_) <- lift $ Acirc.readAcirc ("mappers/mapper_" ++ show n ++ ".c2v.acirc")
+    c  <- lift $ Acirc.read ("mappers/mapper_" ++ show n ++ ".c2v.acirc")
     k1 <- lift $ randKeyIO n
     k2 <- lift $ randKeyIO n
     xs <- inputs n
@@ -286,7 +280,7 @@ loadMapper n = buildCircuitT $ do
     zs <- subcircuit' c xs ks
     outputs zs
 
-genMapper :: Int -> IO Circuit
+genMapper :: Int -> IO Acirc
 genMapper n = buildCircuitT $ do
     k1 <- lift $ randKeyIO n
     k2 <- lift $ randKeyIO n
@@ -303,35 +297,33 @@ polyDiv _ _ = undefined
 --------------------------------------------------------------------------------
 -- prg
 
-selectsPt :: Monad m => [Int] -> [Ref] -> BuilderT m [Ref]
+selectsPt :: Monad m => [Int] -> [Ref] -> BuilderT ArithGate m [Ref]
 selectsPt sels xs = return (map (xs!!) sels)
 
-prg :: Int -> Int -> IO Circuit
+prg :: Int -> Int -> IO Acirc
 prg n m = prg' n m 5 xorAnd
 
-prg' :: Int -> Int -> Int -> ([Ref] -> BuilderT IO Ref) -> IO Circuit
+prg' :: Int -> Int -> Int -> ([Ref] -> BuilderT ArithGate IO Ref) -> IO Acirc
 prg' n m d predicate = buildCircuitT $ do
     xs <- inputs n
     zs <- prgBuilder n m d predicate xs
     outputs zs
 
-prgBuilder :: MonadIO m => Int -> Int -> Int -> ([Ref] -> BuilderT m Ref) -> [Ref] -> BuilderT m [Ref]
+prgBuilder :: MonadIO m => Int -> Int -> Int -> ([Ref] -> BuilderT ArithGate m Ref) -> [Ref]
+           -> BuilderT ArithGate m [Ref]
 prgBuilder ninputs noutputs locality predicate xs = do
     selections <- liftIO $ replicateM noutputs $ replicateM locality (randIO (randIntMod ninputs))
     forM selections $ \s -> do
         sel <- selectsPt s xs
         predicate sel
 
-xorAnd :: Monad m => [Ref] -> BuilderT m Ref
+xorAnd :: Monad m => [Ref] -> BuilderT ArithGate m Ref
 xorAnd (x0:x1:xs) = do
     y <- circMul x0 x1
     circXors (y : xs)
-xorAnd _ = error "[xorAnd] need at least three inputs!!!!!!!"
+xorAnd _ = error "[xorAnd] need at least three inputs!"
 
-linearPredicate :: Monad m => [Ref] -> BuilderT m Ref
-linearPredicate = circXors
-
-prgKey :: Int -> Int -> IO Circuit
+prgKey :: Int -> Int -> IO Acirc
 prgKey n m = buildCircuitT $ do
     let l = numBits n
         d = l
@@ -345,19 +337,19 @@ prgKey n m = buildCircuitT $ do
 -- ggm
 
 -- choose the ith set from xs
-choose :: Monad m => [Ref] -> [[Ref]] -> BuilderT m [Ref]
+choose :: Monad m => [Ref] -> [[Ref]] -> BuilderT ArithGate m [Ref]
 choose ix xs = do
     s  <- selectionVector ix
     ws <- zipWithM (\b x -> mapM (circMul b) x) s xs
     mapM circSum (transpose ws)
 
-ggmStep :: Monad m => Circuit -> [Ref] -> [Ref] -> BuilderT m [Ref]
+ggmStep :: Monad m => Acirc -> [Ref] -> [Ref] -> BuilderT ArithGate m [Ref]
 ggmStep prg seed choice = do
     let n = length seed
     ws <- chunksOf n <$> subcircuit prg seed
     choose choice ws
 
-ggm :: Int -> Int -> Int -> IO Circuit
+ggm :: Int -> Int -> Int -> IO Acirc
 ggm inputLength keyLength stretch = buildCircuitT $ do
     g <- lift $ prg' keyLength (stretch * keyLength) 5 xorAnd
     keyBits <- lift $ randKeyIO keyLength
@@ -366,7 +358,7 @@ ggm inputLength keyLength stretch = buildCircuitT $ do
     res  <- foldM (ggmStep g) seed (chunksOf (numBits stretch) xs)
     outputs res
 
-ggmNoPrg :: Int -> Int -> Int -> IO Circuit
+ggmNoPrg :: Int -> Int -> Int -> IO Acirc
 ggmNoPrg inputLength keyLength stretch = buildCircuitT $ do
     let g = buildCircuit $ do
                 xs <- inputs keyLength
@@ -380,7 +372,7 @@ ggmNoPrg inputLength keyLength stretch = buildCircuitT $ do
 --------------------------------------------------------------------------------
 -- ggm rachel
 
-ggmStepR :: Monad m => Circuit -> [Ref] -> [Ref] -> BuilderT m [Ref]
+ggmStepR :: Monad m => Acirc -> [Ref] -> [Ref] -> BuilderT ArithGate m [Ref]
 ggmStepR prg seed choice = do
     let n = length seed
     xs <- chunksOf n <$> subcircuit prg seed
@@ -389,7 +381,7 @@ ggmStepR prg seed choice = do
     mapM circSum (transpose ws)
 
 -- set noutputs= logBase 2 symlen * num_prg
-ggmSigma :: Int -> Int -> Int -> IO Circuit
+ggmSigma :: Int -> Int -> Int -> IO Acirc
 ggmSigma num_prg keyLength symlen = buildCircuitT $ do
     let outputLength = numBits symlen * num_prg
     g <- lift $ prg' keyLength (keyLength * symlen) 5 xorAnd
@@ -400,7 +392,7 @@ ggmSigma num_prg keyLength symlen = buildCircuitT $ do
     res  <- foldM (ggmStepR g) seed xs
     outputs (take outputLength res)
 
-ggmSigmaNoPrg :: Int -> Int -> Int -> IO Circuit
+ggmSigmaNoPrg :: Int -> Int -> Int -> IO Acirc
 ggmSigmaNoPrg inputLength keyLength stretch = buildCircuitT $ do
     let g = buildCircuit $ do
                 xs <- inputs keyLength

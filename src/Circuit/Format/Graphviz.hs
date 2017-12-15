@@ -1,9 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Circuit.Format.Graphviz
-  ( pprCircuit
-  , showCircuitT
-  , showCircuit
-  ) where
+module Circuit.Format.Graphviz (Graphviz(..)) where
 
 import Circuit
 
@@ -17,20 +13,27 @@ import Data.IntMap.Strict ((!))
 import Text.PrettyPrint.Leijen.Text hiding (group)
 import Data.Text.Lazy (Text, unpack)
 
+class Graphviz g where
+    showGraphviz :: Circuit g -> String
+    showGraphviz = error "graphviz undefined for this circuit type"
+instance Graphviz BoolGate where
+instance Graphviz ArithGate where
+    showGraphviz = showCircuit
+
 -- Toplevel rendering of a circuit with 80 characters width default
-showCircuitT :: Circuit -> Text
+showCircuitT :: Circuit ArithGate -> Text
 showCircuitT = pprCircuit 80
 
 -- Toplevel rendering of a circuit
-pprCircuit :: Int -> Circuit -> Text
+pprCircuit :: Int -> Circuit ArithGate -> Text
 pprCircuit width c = displayT $ renderPretty 1.0 width $ pprCircuit' c
 
 -- Same as showCircuitT but resulting in a String
-showCircuit :: Circuit -> String
+showCircuit :: Circuit ArithGate -> String
 showCircuit = unpack . showCircuitT
 
 -- Pretty print a circuit by following its edges from the set of outputs.
-pprCircuit' :: Circuit -> Doc
+pprCircuit' :: Circuit ArithGate -> Doc
 pprCircuit' c = text "digraph circ {" <> linebreak
                  <> indent 4 douts    <> linebreak
                  <> text "}"          <> linebreak
@@ -41,11 +44,11 @@ pprCircuit' c = text "digraph circ {" <> linebreak
 
 -- Monad for state and environment during pretty printing
 -- We need the state so that we know what we've already rendered
-type PrettyPr a = StateT (S.Set Int) (Reader Circuit) a
+type PrettyPr a = StateT (S.Set Int) (Reader (Circuit ArithGate)) a
 
 -- Run a pretty printing
 -- Output is a list of `Doc`s because it's one for each output
-runPrettyPr :: Circuit -> S.Set Int -> PrettyPr [Doc] -> [Doc]
+runPrettyPr :: Circuit ArithGate -> S.Set Int -> PrettyPr [Doc] -> [Doc]
 runPrettyPr env st = fst . (flip runReader) env . (flip runStateT) st
 
 -- Helper function for determining whether something is in the already-rendered
@@ -96,12 +99,12 @@ infix 7 -->
 (-->) :: Doc -> Doc -> Doc
 a --> b = a <+> text "->" <+> b <> semi
 
-pprOp :: Int -> Op -> PrettyPr Doc
-pprOp i (OpAdd x y)  = pprOp' i [x,y] (text "+")
-pprOp i (OpSub x y)  = pprOp' i [x,y] (text "-")
-pprOp i (OpMul x y)  = pprOp' i [x,y] (text "*")
-pprOp i (OpInput id) = pure $ pprInput  i id
-pprOp i (OpConst id) = pure $ pprSecret i id
+pprOp :: Int -> ArithGate -> PrettyPr Doc
+pprOp i (ArithAdd x y)  = pprOp' i [x,y] (text "+")
+pprOp i (ArithSub x y)  = pprOp' i [x,y] (text "-")
+pprOp i (ArithMul x y)  = pprOp' i [x,y] (text "*")
+pprOp i (ArithInput id) = pure $ pprInput  i id
+pprOp i (ArithConst id) = pure $ pprSecret i id
 
 pprOp' :: Int -> [Ref] -> Doc -> PrettyPr Doc
 pprOp' i rs op = do

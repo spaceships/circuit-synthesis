@@ -1,5 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module Circuit.Optimizer where
+{-# LANGUAGE FlexibleInstances #-}
+module Circuit.Optimizer (Optimize(..)) where
 
 import Circuit
 import qualified Circuit.Builder as B
@@ -16,29 +17,44 @@ import Text.Printf
 import qualified Circuit.Format.Sexp as Sexp
 import qualified Data.Map as M
 
-circToSage :: Circuit -> [String]
+class Optimize g where
+    optimizeO1 :: Circuit g -> IO (Circuit g)
+    optimizeO2 :: Circuit g -> IO (Circuit g)
+    optimizeO3 :: Circuit g -> IO (Circuit g)
+
+    optimizeO1 = error "-O1 undefined for this type type"
+    optimizeO2 = error "-O2 undefined for this type type"
+    optimizeO3 = error "-O3 undefined for this type type"
+
+instance Optimize BoolGate where
+instance Optimize ArithGate where
+    optimizeO1 = return . foldConsts
+    optimizeO2 = flattenRec . foldConsts
+    optimizeO3 = flatten . foldConsts
+
+circToSage :: Circuit ArithGate -> [String]
 circToSage c = foldCirc eval c
   where
-    eval (OpAdd _ _) [x,y] = printf "(%s) + (%s)" x y
-    eval (OpSub _ _) [x,y] = printf "(%s) - (%s)" x y
-    eval (OpMul _ _) [x,y] = printf "(%s) * (%s)" x y
-    eval (OpInput i) []   = printf "var('x%d')" (getId i)
-    eval (OpConst i) []   = if secretConst c i
+    eval (ArithAdd _ _) [x,y] = printf "(%s) + (%s)" x y
+    eval (ArithSub _ _) [x,y] = printf "(%s) - (%s)" x y
+    eval (ArithMul _ _) [x,y] = printf "(%s) * (%s)" x y
+    eval (ArithInput i) []   = printf "var('x%d')" (getId i)
+    eval (ArithConst i) []   = if secretConst c i
                                then printf "var('y%d')" (getId i)
                                else show (getConst c i)
     eval op args  = error ("[circToSexp] weird input: " ++ show op ++ " " ++ show args)
 
-callSage :: Int -> String -> IO Circuit
+callSage :: Int -> String -> IO (Circuit ArithGate)
 callSage ninputs s = do
     r <- readProcess "./scripts/poly-sage.sage" [] s
     -- printf "[callSage] output=\"%s\"\n" r
     return $ Sexp.parse ninputs r
 
-flatten :: Circuit -> IO Circuit
+flatten :: Circuit ArithGate -> IO (Circuit ArithGate)
 flatten c = merge <$> mapM (callSage (ninputs c)) (circToSage c)
 
 -- merge circuits to use the same inputs, consts, and intermediate gates
-merge :: [Circuit] -> Circuit
+merge :: [Circuit ArithGate] -> Circuit ArithGate
 merge cs = B.buildCircuit $ do
     B.exportParams (head cs)
     xs   <- B.inputs (ninputs (head cs))
@@ -46,36 +62,36 @@ merge cs = B.buildCircuit $ do
     B.outputs outs
 
 -- find the highest degree subcircuit within a given depth
-find :: Int -> Circuit -> Ref
+find :: Int -> Circuit ArithGate -> Ref
 find maxDepth c = snd $ execState (foldCircM eval c) (0, Ref 0)
   where
-    eval (OpAdd _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
+    eval (ArithAdd _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
         let degs  = M.unionWith max xdegs ydegs
             depth = max xdepth ydepth + 1
         check ref degs depth
         return (degs, depth)
 
-    eval (OpSub _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
+    eval (ArithSub _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
         let degs  = M.unionWith (max) xdegs ydegs
             depth = max xdepth ydepth + 1
         check ref degs depth
         return (degs, depth)
 
-    eval (OpMul _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
+    eval (ArithMul _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
         let degs  = M.unionWith (+) xdegs ydegs
             depth = max xdepth ydepth + 1
         check ref degs depth
         return (degs, depth)
 
-    eval op@(OpInput _)   _ _ = return (M.singleton op 1, 0)
+    eval op@(ArithInput _)   _ _ = return (M.singleton op 1, 0)
 
-    eval op@(OpConst id) _ _ = if secretConst c id
+    eval op@(ArithConst id) _ _ = if secretConst c id
                                    then return (M.singleton op 1, 0)
                                    else return (M.empty         , 0)
 
     eval _ _ _ = undefined
 
-    check :: Monad m => Ref -> M.Map Op Int -> Int -> StateT (Int, Ref) m ()
+    check :: Monad m => Ref -> M.Map ArithGate Int -> Int -> StateT (Int, Ref) m ()
     check ref degs depth
       | depth > maxDepth = return ()
       | otherwise = do
@@ -87,7 +103,7 @@ find maxDepth c = snd $ execState (foldCircM eval c) (0, Ref 0)
 
 
 -- find the first subcircuit that satisfies some predicate
-findFirst :: (Circuit -> Bool) -> Circuit -> Maybe Ref
+findFirst :: (Circuit ArithGate -> Bool) -> Circuit ArithGate -> Maybe Ref
 findFirst pred c = listToMaybe $ catMaybes $ runIdentity (foldCircM eval c)
   where
     eval _ ref [xref, yref] = return $
@@ -98,80 +114,80 @@ findFirst pred c = listToMaybe $ catMaybes $ runIdentity (foldCircM eval c)
            else Nothing
     eval _ _ _ = return Nothing
 
-hasHighSingleVarDeg :: Int -> Circuit -> Bool
+hasHighSingleVarDeg :: Int -> Circuit ArithGate -> Bool
 hasHighSingleVarDeg deg c = any ((>= deg) . fromIntegral) (nonPublicDegs c)
 
-nonPublicDegs :: Circuit -> [Integer]
+nonPublicDegs :: Circuit ArithGate -> [Integer]
 nonPublicDegs c = map (varDegree c) ids
   where
-    allIds = map (OpInput . Id) [0 .. ninputs c-1]
+    allIds = map (ArithInput . Id) [0 .. ninputs c-1]
 
-    ok (OpConst id) = not (secretConst c id)
-    ok (OpInput _ ) = True
+    ok (ArithConst id) = not (secretConst c id)
+    ok (ArithInput _ ) = True
     ok _            = undefined
 
     ids = filter ok allIds
 
 
 -- find the highest degree subcircuit within a given depth
-findFirstHSVD :: Int -> Int -> Circuit -> [Ref]
+findFirstHSVD :: Int -> Int -> Circuit ArithGate -> [Ref]
 findFirstHSVD maxDepth minDeg c = execWriter (foldCircM eval c)
   where
-    eval :: Op -> Ref -> [(M.Map Op Int, Int)] -> Writer [Ref] (M.Map Op Int, Int)
-    eval (OpMul _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
+    eval :: ArithGate -> Ref -> [(M.Map ArithGate Int, Int)] -> Writer [Ref] (M.Map ArithGate Int, Int)
+    eval (ArithMul _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
         let degs  = M.unionWith (+) xdegs ydegs
             depth = max xdepth ydepth + 1
         check ref degs depth
         return (degs, depth)
 
-    eval (OpAdd _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
+    eval (ArithAdd _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
         let degs  = M.unionWith (max) xdegs ydegs
             depth = max xdepth ydepth + 1
         check ref degs depth
         return (degs, depth)
 
-    eval (OpSub _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
+    eval (ArithSub _ _) ref [(xdegs, xdepth), (ydegs, ydepth)] = do
         let degs  = M.unionWith (max) xdegs ydegs
             depth = max xdepth ydepth + 1
         check ref degs depth
         return (degs, depth)
 
-    eval op@(OpInput _)  _ _ = return (M.singleton op 1, 0)
+    eval op@(ArithInput _)  _ _ = return (M.singleton op 1, 0)
 
-    eval op@(OpConst id) _ _ = if secretConst c id
+    eval op@(ArithConst id) _ _ = if secretConst c id
                                   then return (M.singleton op 1, 0)
                                   else return (M.empty         , 0)
 
     eval _ _ _ = undefined
 
-    check :: Ref -> M.Map Op Int -> Int -> Writer [Ref] ()
+    check :: Ref -> M.Map ArithGate Int -> Int -> Writer [Ref] ()
     check ref degs depth
       | depth > maxDepth = return ()
       | otherwise = when (any (>= minDeg) (M.elems degs)) (tell [ref])
 
 -- get a subcircuit using an intermediate ref as an output ref
-slice :: Ref -> Circuit -> Circuit
+slice :: Ref -> Circuit ArithGate -> Circuit ArithGate
 slice ref c = B.buildCircuit $ do
     B.exportParams c
     out <- foldCircRefM eval c ref
     B.output out
   where
-    eval (OpAdd _ _) _ [x,y] = B.circAdd x y
-    eval (OpSub _ _) _ [x,y] = B.circSub x y
-    eval (OpMul _ _) _ [x,y] = B.circMul x y
-    eval (OpInput i) _ _ = B.input_n i
-    eval (OpConst i) _ _ = let sec = getConst c i in
+    eval (ArithAdd _ _) _ [x,y] = B.circAdd x y
+    eval (ArithSub _ _) _ [x,y] = B.circSub x y
+    eval (ArithMul _ _) _ [x,y] = B.circMul x y
+    eval (ArithInput i) _ _ = B.input_n i
+    eval (ArithConst i) _ _ = let sec = getConst c i in
                                if secretConst c i
                                   then B.secret sec
                                   else B.constant sec
     eval _ _ _ = error "[slice] oops"
 
 -- get a slice without rebuilding!
-cheapSlice :: Ref -> Circuit -> Circuit
+cheapSlice :: Ref -> Circuit ArithGate -> Circuit ArithGate
 cheapSlice root = circ_outputs .~ [root]
 
 -- replace subcircuit ending at loc with c2 in c1
-patch :: Ref -> Circuit -> Circuit -> Circuit
+patch :: Ref -> Circuit ArithGate -> Circuit ArithGate -> Circuit ArithGate
 patch loc c1 c2
   | noutputs c2 /= 1 = error "[patch] expected c2 to have only one output"
   | otherwise = B.buildCircuit $ do
@@ -185,17 +201,17 @@ patch loc c1 c2
                              then head <$> B.subcircuit' c2 xs (ys ++ zs)
                              else other
 
-    let eval (OpAdd _ _) ref [x,y] = catch ref $ B.circAdd x y
-        eval (OpSub _ _) ref [x,y] = catch ref $ B.circSub x y
-        eval (OpMul _ _) ref [x,y] = catch ref $ B.circMul x y
-        eval (OpInput i) ref _ = catch ref $ B.input_n i
-        eval (OpConst i) ref _ = catch ref $ B.secret_n i
+    let eval (ArithAdd _ _) ref [x,y] = catch ref $ B.circAdd x y
+        eval (ArithSub _ _) ref [x,y] = catch ref $ B.circSub x y
+        eval (ArithMul _ _) ref [x,y] = catch ref $ B.circMul x y
+        eval (ArithInput i) ref _ = catch ref $ B.input_n i
+        eval (ArithConst i) ref _ = catch ref $ B.secret_n i
         eval _ _ _ = error "[slice] oops"
 
     outs <- foldCircM eval c1
     B.outputs outs
 
-foldConsts :: Circuit -> Circuit
+foldConsts :: Circuit ArithGate -> Circuit ArithGate
 foldConsts c = B.buildCircuit $ do
     _ <- B.inputs (ninputs c)
     _ <- B.exportConsts c
@@ -204,25 +220,25 @@ foldConsts c = B.buildCircuit $ do
     B.outputs (map fst zs)
 
   where
-    eval (OpAdd _ _) _ [x,y] = case (snd x, snd y) of
+    eval (ArithAdd _ _) _ [x,y] = case (snd x, snd y) of
         (Just a, Just b) -> do z <- B.constant (a+b); return (z, Just (a+b))
         (Just 0, _     ) -> return y
         (_     , Just 0) -> return x
         (_     , _     ) -> do z <- B.circAdd (fst x) (fst y); return (z, Nothing)
 
-    eval (OpSub _ _) _ [x,y] = case (snd x, snd y) of
+    eval (ArithSub _ _) _ [x,y] = case (snd x, snd y) of
         (Just a, Just b) -> do z <- B.constant (a-b); return (z, Just (a-b))
         (_     , Just 0) -> return x
         (_     , _     ) -> do z <- B.circSub (fst x) (fst y); return (z, Nothing)
 
-    eval (OpMul _ _) _ [x,y] = case (snd x, snd y) of
+    eval (ArithMul _ _) _ [x,y] = case (snd x, snd y) of
         (Just a, Just b) -> do z <- B.constant (a*b); return (z, Just (a*b))
         (Just 1, _     ) -> return y
         (_     , Just 1) -> return x
         (_     , _     ) -> do z <- B.circMul (fst x) (fst y); return (z, Nothing)
 
-    eval (OpInput i) _ _ = do z <- B.input_n i; return (z, Nothing)
-    eval (OpConst i) _ _ = do
+    eval (ArithInput i) _ _ = do z <- B.input_n i; return (z, Nothing)
+    eval (ArithConst i) _ _ = do
         let sec = if secretConst c i then Nothing else Just (getConst c i)
         z <- B.secret_n i -- exists already due to export consts
         return (z, sec)
@@ -230,13 +246,13 @@ foldConsts c = B.buildCircuit $ do
     eval _ _ _ = error "[foldConsts] oops"
 
 -- remove unused gates
-cleanup :: Circuit -> Circuit
+cleanup :: Circuit ArithGate -> Circuit ArithGate
 cleanup c = B.buildCircuit $ do
     inps <- B.inputs (ninputs c)
     outs <- B.subcircuit c inps
     B.outputs outs
 
-flattenRec :: Circuit -> IO Circuit
+flattenRec :: Circuit ArithGate -> IO (Circuit ArithGate)
 flattenRec c = outerLoop maxDepth c
   where
     maxDepth = 14
@@ -259,7 +275,7 @@ flattenRec c = outerLoop maxDepth c
             innerLoop minDeg rs c
 
 -- push multiplications down toward the inputs
-pushDown :: Circuit -> Circuit
+pushDown :: Circuit ArithGate -> Circuit ArithGate
 pushDown c = B.buildCircuit $ do
     _ <- B.inputs (ninputs c)
     _ <- B.exportConsts c
@@ -267,16 +283,16 @@ pushDown c = B.buildCircuit $ do
     B.outputs (map fst zs)
 
   where
-    eval (OpAdd _ _) _ [x,y] = do
+    eval (ArithAdd _ _) _ [x,y] = do
         z <- B.circAdd (fst x) (fst y)
-        return (z, Just (OpAdd (fst x) (fst y)))
+        return (z, Just (ArithAdd (fst x) (fst y)))
 
-    eval (OpSub _ _) _ [x,y] = do
+    eval (ArithSub _ _) _ [x,y] = do
         z <- B.circSub (fst x) (fst y)
-        return (z, Just (OpSub (fst x) (fst y)))
+        return (z, Just (ArithSub (fst x) (fst y)))
 
-    eval (OpMul _ _) _ [x,y] = case (snd x, snd y) of
-        (Just (OpAdd xa xb), Just (OpAdd ya yb)) -> do
+    eval (ArithMul _ _) _ [x,y] = case (snd x, snd y) of
+        (Just (ArithAdd xa xb), Just (ArithAdd ya yb)) -> do
             a <- B.circMul xa ya
             b <- B.circMul xa yb
             c <- B.circMul xb ya
@@ -284,11 +300,11 @@ pushDown c = B.buildCircuit $ do
             e <- B.circAdd a b
             f <- B.circAdd c d
             g <- B.circAdd e f
-            return (g, Just (OpAdd e f))
+            return (g, Just (ArithAdd e f))
 
         -- (xa - xb)(ya - yb) = xa*ya - xa*yb - xb*ya + xb*yb
         --                    = (xa*ya - xa*yb) + (xb*yb - xb*ya)
-        (Just (OpSub xa xb), Just (OpSub ya yb)) -> do
+        (Just (ArithSub xa xb), Just (ArithSub ya yb)) -> do
             a <- B.circMul xa ya
             b <- B.circMul xa yb
             c <- B.circMul xb ya
@@ -296,11 +312,11 @@ pushDown c = B.buildCircuit $ do
             e <- B.circSub a b
             f <- B.circSub d c
             g <- B.circAdd e f
-            return (g, Just (OpAdd e f))
+            return (g, Just (ArithAdd e f))
 
         -- (xa + xb)(ya - yb) = xa*ya - xa*yb + xb*ya - xb*yb
         --                    = (xa*ya - xa*yb) + (xb*ya - xb*yb)
-        (Just (OpAdd xa xb), Just (OpSub ya yb)) -> do
+        (Just (ArithAdd xa xb), Just (ArithSub ya yb)) -> do
             a <- B.circMul xa ya
             b <- B.circMul xa yb
             c <- B.circMul xb ya
@@ -308,11 +324,11 @@ pushDown c = B.buildCircuit $ do
             e <- B.circSub a b
             f <- B.circSub c d
             g <- B.circAdd e f
-            return (g, Just (OpAdd e f))
+            return (g, Just (ArithAdd e f))
 
         -- (xa - xb)(ya + yb) = xa*ya + xa*yb - xb*ya - xb*yb
         --                    = (xa*ya + xa*yb) - (xb*ya + xb*yb)
-        (Just (OpSub xa xb), Just (OpAdd ya yb)) -> do
+        (Just (ArithSub xa xb), Just (ArithAdd ya yb)) -> do
             a <- B.circMul xa ya
             b <- B.circMul xa yb
             c <- B.circMul xb ya
@@ -320,41 +336,41 @@ pushDown c = B.buildCircuit $ do
             e <- B.circAdd a b
             f <- B.circAdd c d
             g <- B.circSub e f
-            return (g, Just (OpSub e f))
+            return (g, Just (ArithSub e f))
 
-        (Just (OpAdd xa xb), _) -> do
+        (Just (ArithAdd xa xb), _) -> do
             a <- B.circMul (fst y) xa
             b <- B.circMul (fst y) xb
             z <- B.circAdd a b
-            return (z, Just (OpAdd a b))
+            return (z, Just (ArithAdd a b))
 
-        (Just (OpSub xa xb), _) -> do
+        (Just (ArithSub xa xb), _) -> do
             a <- B.circMul (fst y) xa
             b <- B.circMul (fst y) xb
             z <- B.circSub a b
-            return (z, Just (OpSub a b))
+            return (z, Just (ArithSub a b))
 
-        (_ , Just (OpAdd ya yb)) -> do
+        (_ , Just (ArithAdd ya yb)) -> do
             a <- B.circMul (fst x) ya
             b <- B.circMul (fst x) yb
             z <- B.circAdd a b
-            return (z, Just (OpAdd a b))
+            return (z, Just (ArithAdd a b))
 
-        (_ , Just (OpSub ya yb)) -> do
+        (_ , Just (ArithSub ya yb)) -> do
             a <- B.circMul (fst x) ya
             b <- B.circMul (fst x) yb
             z <- B.circSub a b
-            return (z, Just (OpSub a b))
+            return (z, Just (ArithSub a b))
 
         (_ , _) -> do
             z <- B.circMul (fst x) (fst y)
             return (z, Nothing)
 
-    eval (OpInput i) _ _ = do
+    eval (ArithInput i) _ _ = do
         z <- B.input_n i
         return (z, Nothing)
 
-    eval (OpConst i) _ _ = do
+    eval (ArithConst i) _ _ = do
         z <- B.secret_n i
         return (z, Nothing)
 

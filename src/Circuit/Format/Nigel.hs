@@ -10,31 +10,15 @@ import Control.Monad.Trans (lift)
 import Text.Parsec hiding (spaces, parseTest)
 import Text.Printf
 import Prelude hiding (lookup)
-import qualified Data.Map as M
-import qualified Control.Monad.State as S
+import qualified Data.IntMap as IM
 
-read :: FilePath -> IO Circuit
+read :: GateEval g => FilePath -> IO (Circuit g)
 read file = fst <$> readNigel file
 
-readNigel :: FilePath -> IO (Circuit, [TestCase])
-readNigel file = parseNigel <$> readFile file
+readNigel :: GateEval g => FilePath -> IO (Circuit g, [TestCase])
+readNigel file = runCircParser parseCircuit <$> readFile file
 
-parseNigel :: String -> (Circuit, [TestCase])
-parseNigel s = S.evalState (runCircParserT parseCircuit s) M.empty
-
--- while parsing, we need to keep track of how Nigel refs correspond to our refs
-type ParseNigel = ParseCircT (S.State (M.Map Int Ref))
-
-update :: Int -> Ref -> ParseNigel ()
-update nigelRef acircRef = (lift.lift) $ S.modify (M.insert nigelRef acircRef)
-
-merge :: M.Map Int Ref -> ParseNigel ()
-merge map = (lift.lift) $ S.modify (M.union map)
-
-lookup :: Int -> ParseNigel Ref
-lookup nigelRef = (lift.lift) $ S.gets (M.! nigelRef)
-
-parseCircuit :: ParseNigel ()
+parseCircuit :: GateEval g => ParseCirc g ()
 parseCircuit = do
     ngates <- int
     spaces
@@ -50,16 +34,16 @@ parseCircuit = do
     endLine
     xs <- lift (B.inputs ninputs)
     ys <- lift (B.secrets (replicate nsecrets 0))
-    merge (M.fromList (zip [0..] xs))       -- update refs for inputs
-    merge (M.fromList (zip [ninputs..] ys)) -- update refs for secrets
+    refMerge (IM.fromList (zip [0..] xs))       -- update refs for inputs
+    refMerge (IM.fromList (zip [ninputs..] ys)) -- update refs for secrets
 
     many parseLine -- parse the gates
 
     let nigelOutputs = reverse (take noutputs [nwires-1, nwires-2..])
-    acircOutputs <- mapM lookup nigelOutputs
+    acircOutputs <- mapM refLookup nigelOutputs
     lift $ B.outputs acircOutputs
 
-parseLine :: ParseNigel ()
+parseLine :: GateEval g => ParseCirc g ()
 parseLine = do
     nargs <- int
     spaces
@@ -75,13 +59,13 @@ parseLine = do
     ty <- choice $ map string ["AND", "XOR", "INV"]
     z <- case ty of
         "AND" -> do
-            [x,y] <- mapM lookup args
+            [x,y] <- mapM refLookup args
             lift $ B.circMul x y
         "XOR" -> do
-            [x,y] <- mapM lookup args
+            [x,y] <- mapM refLookup args
             lift $ B.circXor x y
         "INV" -> do
-            [x] <- mapM lookup args
+            [x] <- mapM refLookup args
             lift $ B.circNot x
-    update out z
+    refUpdate out z
     endLine

@@ -6,13 +6,13 @@ import Circuit
 import Circuit.Builder
 import Control.Monad
 
-make :: IO [(Maybe String, Circuit)]
+make :: IO [(Maybe String, Circuit ArithGate)]
 make = return [ (Just "comparison.dsl.acirc", comparison 9 22) ]
 
 -- returns less-than-or-equals
 -- first input comes in unary form for instance 0 -> [1,0,0,0] or 3 -> [0,0,0,1]
 -- second input is expected to come in special negated unary form: 0 -> [1,0,0,0], 3 -> [1,1,1,1]
-comparison :: Int -> Int -> Circuit
+comparison :: Int -> Int -> Circuit ArithGate
 comparison nsyms symlen = buildCircuit $ do
     setSymlen symlen
     xs <- replicateM nsyms (inputs symlen)

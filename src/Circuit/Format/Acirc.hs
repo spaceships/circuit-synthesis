@@ -1,20 +1,15 @@
 module Circuit.Format.Acirc
   ( Circuit.Format.Acirc.read
   , Circuit.Format.Acirc.write
-  , readAcirc
-  , writeAcirc
-  , parseCirc
-  , showCirc
-  , showSortedCirc
-  , showTest
-  , genTestStr
-  , addTestsToFile
-  , showCircWithTests
+  , readWithTests
+  , showWithTests
   ) where
 
 import Circuit
+import Circuit.Conversion
 import Circuit.Parser
 import Circuit.Utils
+import qualified Circuit.Builder           as B
 import qualified Circuit.Builder.Internals as B
 
 import Control.Monad
@@ -23,67 +18,23 @@ import Lens.Micro.Platform
 import Text.Parsec hiding (spaces, parseTest)
 import Text.Printf
 import qualified Data.Map as M
-import qualified Data.IntMap as IM
 import qualified Control.Monad.State as S
 
---------------------------------------------------------------------------------
--- printer
+read :: GateEval g => FilePath -> IO (Circuit g)
+read = fmap fst . readWithTests
 
-read :: FilePath -> IO Circuit
-read = fmap fst . readAcirc
+readWithTests :: GateEval g => FilePath -> IO (Circuit g, [TestCase])
+readWithTests fp = parseCirc <$> readFile fp
 
-write :: FilePath -> Circuit -> IO ()
-write = writeAcirc
+write :: ToAcirc g => FilePath -> Circuit g -> IO ()
+write fp c = writeFile (showCirc (toAcirc c)) fp
 
-addTestsToFile :: FilePath -> IO ()
-addTestsToFile fp = do
-    s <- readFile fp
-    let (c,_) = parseCirc s
-    ts <- replicateM 10 (genTestStr c)
-    forceM ts
-    writeFile fp (unlines ts ++ s)
+showWithTests :: ToAcirc g => Circuit g -> [TestCase] -> String
+showWithTests c ts = let s = showCirc (toAcirc c)
+                         t = unlines (map showTest ts)
+                     in t ++ s
 
-writeAcirc :: FilePath -> Circuit -> IO ()
-writeAcirc fp c = do
-    s <- showCircWithTests 10 c
-    writeFile fp s
-
-showCircWithTests :: Int -> Circuit -> IO String
-showCircWithTests ntests c = do
-    ts <- replicateM ntests (genTestStr c)
-    return (unlines ts ++ showCirc c)
-
-showSortedCirc :: Circuit -> String
-showSortedCirc c = unlines (header ++ gateLines ++ output)
-  where
-    header = [ printf ":symlen %d" (_circ_symlen c)
-             , printf ":base %d" (_circ_base c)
-             ]
-
-    inputs = map gateStr (_circ_inputs c)
-    consts = map gateStr (M.keys (_circ_consts c))
-    gates  = map gateStr (sortedNonInputGates c)
-    gateLines = concat [inputs, consts, gates]
-    output = let outs = map show (_circ_outputs c)
-                 secs = map show (secretRefs c)
-             in [ printf ":outputs %s" (unwords outs)
-                , printf ":secrets %s" (unwords secs)
-                ]
-
-    gateStr :: Ref -> String
-    gateStr ref = do
-        case c ^. circ_refmap . at (getRef ref) . non (error "[gateStr] unknown ref") of
-            (OpInput id) -> printf "%d input %d" (getRef ref) (getId id)
-            (OpConst id) ->
-                let val = case c ^. circ_const_vals . at id of
-                                Nothing -> ""
-                                Just y  -> show y
-                in printf "%d const %s" (getRef ref) val
-            (OpAdd x y) -> printf "%d ADD %d %d" (getRef ref) (getRef x) (getRef y)
-            (OpSub x y) -> printf "%d SUB %d %d" (getRef ref) (getRef x) (getRef y)
-            (OpMul x y) -> printf "%d MUL %d %d" (getRef ref) (getRef x) (getRef y)
-
-showCirc :: Circuit -> String
+showCirc :: Circuit ArithGate -> String
 showCirc c = unlines (header ++ gateLines)
   where
     header = [ printf ":symlen %d" (_circ_symlen c)
@@ -117,15 +68,15 @@ showCirc c = unlines (header ++ gateLines)
     gateStr ref = do
         ref' <- tr ref
         case c ^. circ_refmap . at (getRef ref) . non (error "[gateStr] unknown ref") of
-            (OpInput  id) -> return $ printf "%d input %d" ref' (getId id)
-            (OpConst id) -> do
+            (ArithInput  id) -> return $ printf "%d input %d" ref' (getId id)
+            (ArithConst id) -> do
                 let val = case c ^. circ_const_vals . at id  of
                                 Nothing -> ""
                                 Just y  -> show y
                 return $ printf "%d const %s" ref' val
-            (OpAdd x y) -> pr ref' "ADD" x y
-            (OpSub x y) -> pr ref' "SUB" x y
-            (OpMul x y) -> pr ref' "MUL" x y
+            (ArithAdd x y) -> pr ref' "ADD" x y
+            (ArithSub x y) -> pr ref' "SUB" x y
+            (ArithMul x y) -> pr ref' "MUL" x y
 
     pr :: Int -> String -> Ref -> Ref -> S.State (M.Map Ref Int, Int) String
     pr ref' gateTy x y = do
@@ -136,16 +87,10 @@ showCirc c = unlines (header ++ gateLines)
 showTest :: TestCase -> String
 showTest (inp, out) = printf ":test %s %s" (showInts (reverse inp)) (showInts (reverse out))
 
-genTestStr :: Circuit -> IO String
-genTestStr = fmap showTest . genTest
-
 --------------------------------------------------------------------------------
 -- parser
 
-readAcirc :: FilePath -> IO (Circuit, [TestCase])
-readAcirc fp = parseCirc <$> readFile fp
-
-parseCirc :: String -> (Circuit, [TestCase])
+parseCirc :: GateEval g => String -> (Circuit g, [TestCase])
 parseCirc s = runCircParser circParser s
   where
     circParser = preamble >> lines >> end >> eof
@@ -153,12 +98,12 @@ parseCirc s = runCircParser circParser s
     lines    = many parseRefLine
     end      = parseOutputs >> optional parseSecrets
 
-skipParam :: ParseCirc ()
+skipParam :: ParseCirc g ()
 skipParam = do
     skipMany (oneOf " \t" <|> alphaNum)
     endLine
 
-parseTest :: ParseCirc ()
+parseTest :: ParseCirc g ()
 parseTest = do
     string "test"
     spaces
@@ -170,7 +115,7 @@ parseTest = do
     addTest (reverse inp, reverse res)
     endLine
 
-parseBase :: ParseCirc ()
+parseBase :: ParseCirc g ()
 parseBase = do
     string "base"
     spaces
@@ -178,7 +123,7 @@ parseBase = do
     lift (B.setBase n)
     endLine
 
-parseSymlen :: ParseCirc ()
+parseSymlen :: ParseCirc g ()
 parseSymlen = do
     string "symlen"
     spaces
@@ -186,7 +131,7 @@ parseSymlen = do
     lift $ B.setSymlen n
     endLine
 
-parseOutputs :: ParseCirc ()
+parseOutputs :: ParseCirc g ()
 parseOutputs = do
     string ":outputs"
     spaces
@@ -194,7 +139,7 @@ parseOutputs = do
     lift $ mapM_ B.markOutput refs
     endLine
 
-parseSecrets :: ParseCirc ()
+parseSecrets :: ParseCirc g ()
 parseSecrets = do
     string ":secrets"
     spaces
@@ -202,45 +147,46 @@ parseSecrets = do
     lift $ mapM B.markSecret secs
     endLine
 
-parseRef :: ParseCirc Ref
+parseRef :: ParseCirc g Ref
 parseRef = Ref <$> Prelude.read <$> many1 digit
 
-parseRefLine :: ParseCirc ()
+parseRefLine :: GateEval g => ParseCirc g ()
 parseRefLine = do
-    ref <- parseRef
+    existingRef <- parseRef
     spaces
-    choice [parseConst ref, parseInput ref, parseGate ref]
+    newRef <- choice [parseConst, parseInput, parseGate]
+    refUpdate (getRef existingRef) newRef
     endLine
 
-parseInput :: Ref -> ParseCirc ()
-parseInput ref = do
+parseInput :: GateEval g => ParseCirc g Ref
+parseInput = do
+    ref <- lift $ B.nextRef
     string "input"
     spaces
     id <- Id <$> Prelude.read <$> many1 digit
     lift $ B.insertInput ref id
+    return ref
 
-parseConst :: Ref -> ParseCirc ()
-parseConst ref = do
+parseConst :: GateEval g => ParseCirc g Ref
+parseConst = do
+    ref <- lift $ B.nextRef
     string "const"
     spaces
     val <- Prelude.read <$> many1 digit
     id  <- lift B.nextConstId
     lift $ B.insertConst ref id
     lift $ B.insertConstVal id val
+    return ref
 
-parseGate :: Ref -> ParseCirc ()
-parseGate ref = do
-    -- gateType <- oneOfStr ["gate", "output"]
-    -- when (gateType == "output") $ markOutput ref
+parseGate :: GateEval g => ParseCirc g Ref
+parseGate = do
     opType <- oneOfStr ["ADD", "SUB", "MUL"]
     spaces
-    -- xref <- Ref <$> read <$> ((:) <$> option ' ' (char '-') <*> many1 digit)
-    xref <- Ref <$> Prelude.read <$> many1 digit
+    x <- refLookup =<< Prelude.read <$> many1 digit
     spaces
-    yref <- Ref <$> Prelude.read <$> many1 digit
-    let op = case opType of
-            "ADD" -> OpAdd xref yref
-            "MUL" -> OpMul xref yref
-            "SUB" -> OpSub xref yref
+    y <- refLookup =<< Prelude.read <$> many1 digit
+    case opType of
+            "ADD" -> lift $ B.circAdd x y
+            "MUL" -> lift $ B.circMul x y
+            "SUB" -> lift $ B.circSub x y
             g     -> error ("[parser] unkonwn gate type " ++ g)
-    lift $ B.insertOp ref op

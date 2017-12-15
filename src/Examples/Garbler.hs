@@ -16,14 +16,14 @@ import Control.Monad.Trans (lift)
 import Data.List.Split
 import qualified Data.IntMap as IntMap
 
-makeSizeTest :: IO [(Maybe String, Circuit)]
+makeSizeTest :: IO [(Maybe String, Acirc)]
 makeSizeTest = sequence
     [ (Just "size_test.acirc",) <$> sizeTest ]
 
 --------------------------------------------------------------------------------
 -- a circuit for the garbler of a garbled circuit scheme
 
-garbler :: Circuit -> IO Circuit
+garbler :: Circ -> IO Acirc
 garbler c = buildCircuitT $ do
     let k = 80 -- security parameter
 
@@ -41,13 +41,13 @@ garbler c = buildCircuitT $ do
     let wires = IntMap.fromList (zip [0..] withPbits) -- indexed by the refs of c
 
     -- generate garbled tables for every gate in c
-    tabs <- forM (gates c) $ \(zref, op) -> do
-        let [xref, yref] = opArgs op
+    tabs <- forM (gates c) $ \(zref, g) -> do
+        let [xref, yref] = gateArgs g
             x = wires IntMap.! getRef xref
             y = wires IntMap.! getRef yref
             z = wires IntMap.! getRef zref
 
-        let g = case op of { (OpMul _ _) -> (&&); _ -> xor }
+        -- let g = case op of { (OpMul _ _) -> (&&); _ -> xor }
 
             -- gx <- g2 (x!!i)
             -- gy <- g2 (y!!j)
@@ -85,7 +85,7 @@ garbler c = buildCircuitT $ do
 --------------------------------------------------------------------------------
 -- test to see how well we can evaluate extra large circuits
 
-sizeTest :: IO Circuit
+sizeTest :: IO Acirc
 sizeTest = buildCircuitT $ do
     let n = 80
     xs <- inputs n

@@ -10,7 +10,7 @@ import Data.List.Split (chunksOf)
 import Control.Monad
 import Control.Monad.Trans (lift)
 
-make :: IO [(Maybe String, Circuit)]
+make :: IO [(Maybe String, Acirc)]
 make = sequence
     [ (Just "point.dsl.acirc",) <$> point 25 10
     , (Just "point_base10.dsl.acirc",) <$> pointBaseN 25 10
@@ -20,7 +20,7 @@ make = sequence
     , (Just "point_base15.dsl.acirc",) <$> pointBaseN 21 15
     ]
 
-point :: Int -> Int -> IO Circuit
+point :: Int -> Int -> IO Acirc
 point ninputs symlen = buildCircuitT $ do
     let q = (fromIntegral ninputs :: Integer) ^ (fromIntegral symlen :: Integer)
     thePoint <- lift $ randIntegerModIO q
@@ -37,7 +37,7 @@ point ninputs symlen = buildCircuitT $ do
   where
     toSel n x = [ if i == x then 1 else 0 | i <- [0..n-1] ]
 
-pointBaseN :: Int -> Int -> IO Circuit
+pointBaseN :: Int -> Integer -> IO Acirc
 pointBaseN ndigits base = buildCircuitT $ do
     let q = (fromIntegral base :: Integer) ^ (fromIntegral ndigits :: Integer)
     thePoint <- lift $ randIntegerModIO q

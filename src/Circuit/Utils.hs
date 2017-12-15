@@ -22,7 +22,6 @@ import System.IO
 import qualified Data.ByteString as BS
 import qualified Data.Map as M
 import qualified GHC.Integer.GMP.Internals as GMP
-import qualified GHC.Integer.GMP.Internals as GMP
 
 import Prelude hiding (truncate)
 sizeBase2 :: Integer -> Int
@@ -64,7 +63,7 @@ pr s = do
     putStrLn s
     hFlush stdout
 
-num2Base :: Int -> Int -> Integer -> [Integer]
+num2Base :: Integer -> Int -> Integer -> [Integer]
 num2Base base ndigits x = map fromIntegral $ reverse (map snd (take ndigits (tail ds)))
   where
     ds = (x, 0) : [ (div y (fromIntegral base), mod y (fromIntegral base)) | (y, _) <- ds ]
@@ -271,4 +270,3 @@ foldM1 f (x:xs) = foldM f x xs
 pairsOf :: [a] -> [(a,a)]
 pairsOf [] = []
 pairsOf (x:y:xs) = (x,y) : pairsOf xs
-

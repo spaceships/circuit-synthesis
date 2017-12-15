@@ -7,7 +7,7 @@ import Circuit.Utils
 import Control.Monad
 import Control.Monad.Trans (lift)
 
-prg :: Int -> Int -> Int -> IO Circuit
+prg :: Int -> Int -> Int -> IO (Circuit ArithGate)
 prg n m d = buildCircuitT $ do
     when (n <= 4 || mod n 4 /= 0) $ error "n must be a multiple of 4 and greater than 4"
     when (m <= 4 || mod m 4 /= 0) $ error "n must be a multiple of 4 and greater than 4"

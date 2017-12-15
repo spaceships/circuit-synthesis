@@ -7,21 +7,21 @@ import Control.Monad
 import Control.Monad.Trans
 import Circuit
 
-circToSexp :: Circuit -> [String]
+circToSexp :: Circuit ArithGate -> [String]
 circToSexp c = foldCirc eval c
   where
-    eval (OpAdd _ _) [x,y] = printf "Add(%s, %s)" x y
-    eval (OpSub _ _) [x,y] = printf "Add(%s, Mul(Integer(-1), %s))" x y
-    eval (OpMul _ _) [x,y] = printf "Mul(%s, %s)" x y
-    eval (OpInput i) []   = printf "Symbol('x%d')" (getId i)
-    eval (OpConst i) []   = if secretConst c i
+    eval (ArithAdd _ _) [x,y] = printf "Add(%s, %s)" x y
+    eval (ArithSub _ _) [x,y] = printf "Add(%s, Mul(Integer(-1), %s))" x y
+    eval (ArithMul _ _) [x,y] = printf "Mul(%s, %s)" x y
+    eval (ArithInput i) []   = printf "Symbol('x%d')" (getId i)
+    eval (ArithConst i) []   = if secretConst c i
                                then printf "Symbol('y%d')" (getId i)
                                else printf "Integer(%d)" (getConst c i)
     eval op args  = error ("[circToSexp] weird input: " ++ show op ++ " " ++ show args)
 
-type SexpParser = ParsecT String () B.Builder
+type SexpParser = ParsecT String () (B.Builder ArithGate)
 
-parse :: Int -> String -> Circuit
+parse :: Int -> String -> Circuit ArithGate
 parse ninps s = B.buildCircuit $ do
     _   <- B.inputs ninps
     res <- runParserT parseSexp () "" s

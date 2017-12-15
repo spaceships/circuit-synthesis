@@ -12,25 +12,16 @@ module Circuit where
 import Circuit.Utils
 
 import Control.Monad.Identity
-import Control.Monad.Par (IVar, Par, runPar)
-import Control.Concurrent
-import Control.Concurrent.STM
-import Control.Concurrent.ParallelIO
-import Control.DeepSeq (NFData)
-import Control.Monad.IfElse (whenM)
 import Control.Monad.State.Strict
 import Data.List (nub, sortBy)
 import Lens.Micro.Platform
 import Text.Printf
-import qualified Control.Monad.Par as IVar
 import qualified Data.Map.Strict as M
 import qualified Data.IntMap.Strict as IM
 import qualified Data.IntSet as IS
 
-import Debug.Trace
-
-newtype Ref = Ref { getRef :: Int } deriving (Eq, Ord, NFData, Num)
-newtype Id  = Id  { getId  :: Int } deriving (Eq, Ord, NFData, Num)
+newtype Ref = Ref { getRef :: Int } deriving (Eq, Ord, Num)
+newtype Id  = Id  { getId  :: Int } deriving (Eq, Ord, Num)
 
 instance Show Ref where
     show ref = show (getRef ref)
@@ -38,61 +29,136 @@ instance Show Ref where
 instance Show Id where
     show id = show (getId id)
 
-data Op = OpAdd !Ref !Ref
-        | OpSub !Ref !Ref
-        | OpMul !Ref !Ref
-        | OpInput !Id
-        | OpConst !Id
-        deriving (Eq, Ord, Show)
+data ArithGate =
+      ArithAdd !Ref !Ref
+    | ArithSub !Ref !Ref
+    | ArithMul !Ref !Ref
+    | ArithInput !Id
+    | ArithConst !Id
+    deriving (Eq, Ord, Show)
 
-data Circuit = Circuit
+data BoolGate =
+      BoolXor !Ref !Ref
+    | BoolAnd !Ref !Ref
+    | BoolNot !Ref
+    | BoolInput !Id
+    | BoolConst !Id
+    deriving (Eq, Ord, Show)
+
+data Circuit gate = Circuit
     { _circ_outputs     :: ![Ref]
     , _circ_inputs      :: ![Ref]
     , _circ_consts      :: !(M.Map Ref Id)
     , _circ_secret_refs :: !(IS.IntSet)
     , _circ_secret_ids  :: !(IS.IntSet)
-    , _circ_refmap      :: !(IM.IntMap Op)
+    , _circ_refmap      :: !(IM.IntMap gate)
     , _circ_const_vals  :: !(M.Map Id Integer)
     , _circ_symlen      :: !Int
-    , _circ_base        :: !Int -- the expected base of the inputs
+    , _circ_base        :: !Integer
     } deriving (Show)
 
 makeLenses ''Circuit
 
 type TestCase = ([Integer], [Integer])
 
---------------------------------------------------------------------------------
--- instances and such
+type Acirc = Circuit ArithGate
+type Circ = Circuit BoolGate
 
-emptyCirc :: Circuit
+---------------------------------------------------------------------------------------
+-- GateEval class allows us to share boilerplate between binary and arithmetic circuits
+
+class (Eq g, Ord g) => GateEval g where
+    gateArgs :: g -> [Ref]
+    gateEval :: (Id -> Integer) -> (Id -> Integer) -> g -> [Integer] -> Integer
+    gateAdd :: Ref -> Ref -> g
+    gateSub :: Ref -> Ref -> g
+    gateMul :: Ref -> Ref -> g
+    gateXor :: Ref -> Ref -> Maybe g
+    gateNot :: Ref -> Maybe g
+    gateInput :: Id -> g
+    gateConst :: Id -> g
+    gateIsMul :: g -> Bool
+
+instance GateEval ArithGate where
+    gateArgs (ArithAdd x y)  = [x,y]
+    gateArgs (ArithSub x y)  = [x,y]
+    gateArgs (ArithMul x y)  = [x,y]
+    gateArgs (ArithInput _) = []
+    gateArgs (ArithConst _) = []
+
+    gateEval _ _ (ArithAdd _ _) [x,y] = x + y
+    gateEval _ _ (ArithSub _ _) [x,y] = x - y
+    gateEval _ _ (ArithMul _ _) [x,y] = x * y
+    gateEval getInp _   (ArithInput i) [] = getInp i
+    gateEval _ getConst (ArithConst i) [] = getConst i
+
+    gateAdd x y = ArithAdd x y
+    gateSub x y = ArithSub x y
+    gateMul x y = ArithMul x y
+    gateXor _ _ = Nothing
+    gateNot _   = Nothing
+    gateInput i = ArithInput i
+    gateConst i = ArithConst i
+
+    gateIsMul (ArithMul _ _) = True
+    gateIsMul _ = False
+
+instance GateEval BoolGate where
+    gateArgs (BoolXor x y) = [x,y]
+    gateArgs (BoolAnd x y) = [x,y]
+    gateArgs (BoolNot x)   = [x]
+    gateArgs (BoolInput _) = []
+    gateArgs (BoolConst _) = []
+
+    gateEval _ _ (BoolXor _ _) [x,y] = b2i (i2b x `xor` i2b y)
+    gateEval _ _ (BoolAnd _ _) [x,y] = x * y
+    gateEval _ _ (BoolNot _)   [x]   = 1 - x
+    gateEval getInp _   (BoolInput i) [] = getInp i
+    gateEval _ getConst (BoolConst i) [] = getConst i
+
+    gateAdd x y = BoolXor x y
+    gateSub x y = BoolXor x y
+    gateMul x y = BoolAnd x y
+    gateXor x y = Just (BoolXor x y)
+    gateNot x   = Just (BoolNot x)
+    gateInput i = BoolInput i
+    gateConst i = BoolConst i
+
+    gateIsMul (BoolAnd _ _) = True
+    gateIsMul _ = False
+
+--------------------------------------------------------------------------------
+-- Generic circuit functions
+
+emptyCirc :: Circuit a
 emptyCirc = Circuit [] [] M.empty IS.empty IS.empty IM.empty M.empty 1 2
 
-getConst :: Circuit -> Id -> Integer
+getConst :: Circuit gate -> Id -> Integer
 getConst c id = case c^.circ_const_vals.at id of
     Just x  -> x
     Nothing -> error ("[getConst] no const known for y" ++ show id)
 
-secretConst :: Circuit -> Id -> Bool
+secretConst :: Circuit gate -> Id -> Bool
 secretConst c id = IS.member (getId id) (_circ_secret_ids c)
 
-secretRefs :: Circuit -> [Ref]
+secretRefs :: Circuit gate -> [Ref]
 secretRefs c = map Ref $ IS.toAscList (_circ_secret_refs c)
 
-getGate :: Circuit -> Ref -> Op
+getGate :: Circuit gate -> Ref -> gate
 getGate c ref = case c^.circ_refmap.at (getRef ref) of
-    Nothing -> error (printf "[getGate] no ref %d!" (getRef ref))
-    Just op -> op
+    Nothing   -> error (printf "[getGate] no ref %d!" (getRef ref))
+    Just gate -> gate
 
-randomizeSecrets :: Circuit -> IO Circuit
+randomizeSecrets :: Circuit gate -> IO (Circuit gate)
 randomizeSecrets c = do
     key <- replicateM (nsecrets c) $ randIntegerModIO (fromIntegral (_circ_base c))
     let newSecrets = M.fromList $ zip (map Id $ IS.toAscList (c^.circ_secret_ids)) key
     return $ c & circ_const_vals %~ M.union newSecrets
 
-genTest :: Circuit -> IO TestCase
+genTest :: GateEval gate => Circuit gate -> IO TestCase
 genTest c
     | c^.circ_symlen == 1 = do
-        let q = (fromIntegral (_circ_base c) :: Integer) ^ (fromIntegral (ninputs c) :: Integer)
+        let q = _circ_base c ^ (fromIntegral (ninputs c) :: Integer)
         inp <- num2Base (_circ_base c) (ninputs c) <$> randIO (randIntegerMod q)
         return (inp, plainEval c inp)
     | otherwise = do
@@ -105,9 +171,8 @@ genTest c
         return (inp, plainEval c inp)
 
 
-printCircInfo :: Circuit -> IO ()
+printCircInfo :: GateEval g => Circuit g -> IO ()
 printCircInfo c = do
-    -- let ds = degs c
     let n = ninputs c
     printf "circuit info\n"
     printf "============\n"
@@ -116,7 +181,7 @@ printCircInfo c = do
     printf "ngates=%d depth=%d\n" (ngates c) (depth c)
     printf "degree=%d\n" (circDegree c)
 
-printTruthTable :: Circuit -> IO ()
+printTruthTable :: GateEval gate => Circuit gate -> IO ()
 printTruthTable c = forM_ inputs $ \inp -> do
     let out = plainEval c inp
     printf "%s -> %s\n" (showInts inp) (showInts out)
@@ -127,140 +192,87 @@ printTruthTable c = forM_ inputs $ \inp -> do
         1 -> sequence (replicate (ninputs c) [(0::Integer)..fromIntegral (c^.circ_base - 1)])
         _ -> map concat $ sequence (replicate n (map sym [0..symlen c - 1]))
 
-circEq :: Circuit -> Circuit -> IO Bool
+circEq :: GateEval gate => Circuit gate -> Circuit gate -> IO Bool
 circEq c0 c1
   | ninputs  c0 /= ninputs  c1 = return False
   | noutputs c0 /= noutputs c1 = return False
   | otherwise = do
-    let n = 10
+    let n = 16
     t0 <- replicateM n (genTest c0)
     t1 <- replicateM n (genTest c1)
     x  <- ensure False c1 t0
     y  <- ensure False c0 t1
     return (x && y)
 
-opArgs :: Op -> [Ref]
-opArgs (OpAdd x y)  = [x,y]
-opArgs (OpSub x y)  = [x,y]
-opArgs (OpMul x y)  = [x,y]
-opArgs (OpInput _) = []
-opArgs (OpConst _) = []
-
-ngates :: Circuit -> Int
+ngates :: Circuit gate -> Int
 ngates = IM.size . _circ_refmap
 
-ninputs :: Circuit -> Int
+ninputs :: Circuit gate -> Int
 ninputs = length . _circ_inputs
 
-nconsts :: Circuit -> Int
+nconsts :: Circuit gate -> Int
 nconsts = length . _circ_consts
 
-nsecrets :: Circuit -> Int
+nsecrets :: Circuit gate -> Int
 nsecrets = IS.size . _circ_secret_refs
 
-noutputs :: Circuit -> Int
+noutputs :: Circuit gate -> Int
 noutputs = length . _circ_outputs
 
-symlen :: Circuit -> Int
+symlen :: Circuit gate -> Int
 symlen = _circ_symlen
 
-ydeg :: Circuit -> Integer
+ydeg :: Circuit ArithGate -> Integer
 ydeg c = head (degs c)
 
-xdeg :: Circuit -> Int -> Integer
+xdeg :: Circuit ArithGate -> Int -> Integer
 xdeg c i = degs c !! (i+1)
 
-degs :: Circuit -> [Integer]
+degs :: Circuit ArithGate -> [Integer]
 degs c = map (varDegree c) ids
   where
-    ids = OpConst (Id (-1)) : map (OpInput . Id) [0 .. ninputs c-1]
+    ids = ArithConst (Id (-1)) : map (ArithInput . Id) [0 .. ninputs c-1]
 
-depth :: Circuit -> Integer
+depth :: GateEval gate => Circuit gate -> Integer
 depth c = maximum $ foldCirc f c
   where
-    f (OpInput _) [] = 0
-    f (OpConst _) [] = 0
-    f _           xs = maximum xs + 1
+    f _ args = if null args then 0 else maximum args + 1
 
-varDegree :: Circuit -> Op -> Integer
+varDegree :: Circuit ArithGate -> ArithGate -> Integer
 varDegree c z = maximum (varDegree' c z)
 
-varDegree' :: Circuit -> Op -> [Integer]
+varDegree' :: Circuit ArithGate -> ArithGate -> [Integer]
 varDegree' c z = foldCirc f c
   where
-    f (OpAdd _ _) [x,y] = max x y
-    f (OpSub _ _) [x,y] = max x y
-    f (OpMul _ _) [x,y] = x + y
+    f (ArithAdd _ _) [x,y] = max x y
+    f (ArithSub _ _) [x,y] = max x y
+    f (ArithMul _ _) [x,y] = x + y
 
     f x _ = if eq x z then 1 else 0
 
-    eq (OpInput x) (OpInput y) = x == y
-    eq (OpConst _) (OpConst _) = True
+    eq (ArithInput x) (ArithInput y) = x == y
+    eq (ArithConst _) (ArithConst _) = True
     eq _ _ = False
 
-circDegree :: Circuit -> Integer
+circDegree :: GateEval g => Circuit g -> Integer
 circDegree c = maximum $ foldCirc f c
   where
-    f (OpAdd _ _) [x,y] = max x y
-    f (OpSub _ _) [x,y] = max x y
-    f (OpMul _ _) [x,y] = x + y
-    f (OpInput _) _ = 1
-    f (OpConst _) _ = 1
-
--- evaluate the circuit using an arbitrary integral type as input
-evalMod :: (Show a, Integral a) => Circuit -> [a] -> a -> [a]
-evalMod c inps q = foldCirc eval c
-  where
-    eval (OpAdd _ _) [x,y] = x + y % q
-    eval (OpSub _ _) [x,y] = x - y % q
-    eval (OpMul _ _) [x,y] = x * y % q
-    eval (OpInput i) [] = inps !! getId i
-    eval (OpConst i) [] = fromIntegral (getConst c i)
-    eval op args  = error ("[evalMod] weird input: " ++ show op ++ " " ++ show args)
+    f g [x,y] = if gateIsMul g then x + y else max x y
+    f _ [] = 1 -- input or const
 
 zeroTest :: Integer -> Integer
 zeroTest 0 = 0
 zeroTest _ = 1
 
-plainEval :: Circuit -> [Integer] -> [Integer]
+plainEval :: GateEval gate => Circuit gate -> [Integer] -> [Integer]
 plainEval c inps
     | ninputs c /= length inps =
         error (printf "[plainEval] incorrect number of inputs: expected %d, got %s" (ninputs c) (show inps))
-    | otherwise = map zeroTest $ foldCirc eval c
+    | otherwise = map zeroTest $ foldCirc (gateEval getInp (getConst c)) c
   where
-    eval :: Op -> [Integer] -> Integer
-    eval (OpAdd _ _) [x,y] = x + y
-    eval (OpSub _ _) [x,y] = x - y
-    eval (OpMul _ _) [x,y] = x * y
-    eval (OpInput i) [] = inps !! getId i
-    eval (OpConst i) [] = getConst c i
-    eval op args = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
+    getInp i = inps !! getId i
 
-parEval :: Circuit -> [Integer] -> [Integer]
-parEval c inps = map zeroTest $ runPar $ mapM IVar.get =<< foldCircM eval c
-  where
-    eval :: Op -> Ref -> [IVar Integer] -> Par (IVar Integer)
-    eval (OpAdd _ _) _ [x,y] = liftBin (+) x y
-    eval (OpSub _ _) _ [x,y] = liftBin (-) x y
-    eval (OpMul _ _) _ [x,y] = liftBin (*) x y
-    eval (OpInput i) _ [] = IVar.newFull (inps !! getId i)
-    eval (OpConst i) _ [] = IVar.newFull (getConst c i)
-    eval op _ args = error ("[parEval] weird input: " ++ show op ++ " with " ++ show (length args) ++ " arguments")
-
-    liftBin f x y = IVar.spawn (liftM2 f (IVar.get x) (IVar.get y))
-
-plainEvalIO :: Circuit -> [Integer] -> IO [Integer]
-plainEvalIO c xs = map zeroTest <$> foldCircIO eval c
-  where
-    eval :: Op -> [Integer] -> Integer
-    eval (OpAdd _ _) [x,y] = x + y
-    eval (OpSub _ _) [x,y] = x - y
-    eval (OpMul _ _) [x,y] = x * y
-    eval (OpInput i) [] = xs !! getId i
-    eval (OpConst i) [] = getConst c i
-    eval op args = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
-
-ensure :: Bool -> Circuit -> [TestCase] -> IO Bool
+ensure :: GateEval gate => Bool -> Circuit gate -> [TestCase] -> IO Bool
 ensure verbose c ts = and <$> mapM ensure' (zip [(0::Integer)..] ts)
   where
     ensure' (i, (inps, outs)) = do
@@ -277,7 +289,7 @@ ensure verbose c ts = and <$> mapM ensure' (zip [(0::Integer)..] ts)
             return False
 
 
-ensureIO :: Bool -> (Circuit -> [Integer] -> IO [Integer]) -> Circuit -> [TestCase] -> IO Bool
+ensureIO :: Bool -> (Circuit gate -> [Integer] -> IO [Integer]) -> Circuit gate -> [TestCase] -> IO Bool
 ensureIO verbose eval c ts = and <$> mapM ensureIO' (zip [(0::Integer)..] ts)
   where
     ensureIO' (i, (inps, outs)) = do
@@ -293,92 +305,63 @@ ensureIO verbose eval c ts = and <$> mapM ensureIO' (zip [(0::Integer)..] ts)
             putStrLn (red s)
             return False
 
-foldCirc :: (Op -> [a] -> a) -> Circuit -> [a]
+foldCirc :: GateEval gate => (gate -> [a] -> a) -> Circuit gate -> [a]
 foldCirc f c = runIdentity (foldCircM f' c)
   where
     f' op _ xs = return (f op xs)
 
-foldCircRef :: (Op -> Ref -> [a] -> a) -> Circuit -> [a]
+foldCircRef :: GateEval gate => (gate -> Ref -> [a] -> a) -> Circuit gate -> [a]
 foldCircRef f c = runIdentity (foldCircM f' c)
   where
     f' op ref xs = return (f op ref xs)
 
-foldCircM :: Monad m => (Op -> Ref -> [a] -> m a) -> Circuit -> m [a]
+foldCircM :: (GateEval gate, Monad m) => (gate -> Ref -> [a] -> m a) -> Circuit gate -> m [a]
 foldCircM f c = evalStateT (mapM eval (c^.circ_outputs)) M.empty
   where
     eval ref = gets (M.lookup ref) >>= \case
         Just val -> return val
         Nothing  -> do
-            when (IM.notMember (getRef ref) (c^.circ_refmap))
-                (traceM (printf "unknown ref \"%s\"" (show ref)))
-            let op = c^.circ_refmap.at (getRef ref).non (error "no ref")
-            argVals <- mapM eval (opArgs op)
-            val     <- lift (f op ref argVals)
+            let gate = c^.circ_refmap.at (getRef ref).non (error "no ref")
+            argVals <- mapM eval (gateArgs gate)
+            val     <- lift (f gate ref argVals)
             modify (M.insert ref val)
             return val
 
 
-foldCircRefM :: Monad m => (Op -> Ref -> [a] -> m a) -> Circuit -> Ref -> m a
+foldCircRefM :: (GateEval gate, Monad m) => (gate -> Ref -> [a] -> m a) -> Circuit gate -> Ref -> m a
 foldCircRefM f c ref = evalStateT (eval ref) M.empty
   where
     eval ref = gets (M.lookup ref) >>= \case
         Just val -> return val
         Nothing  -> do
-            when (IM.notMember (getRef ref) (c^.circ_refmap))
-                (traceM (printf "unknown ref \"%s\"" (show ref)))
             let op = c^.circ_refmap.at (getRef ref).non (error "no ref")
-            argVals <- mapM eval (opArgs op)
+            argVals <- mapM eval (gateArgs op)
             val     <- lift (f op ref argVals)
             modify (M.insert ref val)
             return val
 
--- evaluate the circuit in parallel
-foldCircIO :: NFData a => (Op -> [a] -> a) -> Circuit -> IO [a]
-foldCircIO f c = do
-    let refs = map Ref $ IM.keys (_circ_refmap c)
-    mem <- (M.fromList . zip refs) <$> replicateM (length refs) newEmptyTMVarIO
-    let eval :: Ref -> IO ()
-        eval ref = do
-            let op      = c^.circ_refmap.at (getRef ref).non (error "no ref")
-                argRefs = map (mem M.!) (opArgs op)
-            -- this condition should never be hit since we parallelize over the topological levels
-            whenM (or <$> mapM (atomically . isEmptyTMVar) argRefs) $ do
-                putStrLn "blocking!"
-                yield
-                eval ref
-            argVals <- mapM (atomically . readTMVar) argRefs
-            let val = f op argVals
-            forceM val
-            atomically $ putTMVar (mem M.! ref) val
-    let lvls = topoLevels c
-    forceM lvls
-    forM_ (zip [(0 :: Int)..] lvls) $ \(_, lvl) -> do
-        {-printf "evaluating level %d size=%d\n" i (length lvl)-}
-        parallelInterleaved (map eval lvl)
-    mapM (atomically . readTMVar . (mem M.!)) (_circ_outputs c)
-
-topologicalOrder :: Circuit -> [Ref]
+topologicalOrder :: GateEval gate => Circuit gate -> [Ref]
 topologicalOrder c = reverse $ execState (foldCircM eval c) []
   where
-    eval :: Op -> Ref -> [a] -> State [Ref] ()
+    eval :: gate -> Ref -> [a] -> State [Ref] ()
     eval _ ref _ = modify (ref:)
 
 -- Ugly and fast!
-topoLevels :: Circuit -> [[Ref]]
+topoLevels :: GateEval gate => Circuit gate -> [[Ref]]
 topoLevels c = nub $ map snd $ M.toAscList $ execState (foldCircM eval c) M.empty
   where
-    eval :: Op -> Ref -> [Int] -> State (M.Map Int [Ref]) Int
+    eval :: gate -> Ref -> [Int] -> State (M.Map Int [Ref]) Int
     eval _ ref [] = modify (M.insertWith (++) 0 [ref]) >> return 0
     eval _ ref ds = do
         let d = 1 + maximum ds
         modify (M.insertWith (++) d [ref])
         return d
 
-sortGates :: Circuit -> [Ref]
+sortGates :: GateEval gate => Circuit gate -> [Ref]
 sortGates c = concatMap (sortBy refDist) (topoLevels c)
   where
-    refDist xref yref = let xargs = opArgs (getGate c xref)
-                            yargs = opArgs (getGate c yref)
+    refDist xref yref = let xargs = gateArgs (getGate c xref)
+                            yargs = gateArgs (getGate c yref)
                         in case (xargs, yargs) of
                             ([], []) -> EQ
                             (_,  []) -> GT
@@ -386,45 +369,23 @@ sortGates c = concatMap (sortBy refDist) (topoLevels c)
                             (xs, ys) -> let cs = zipWith compare xs ys
                                         in if any (== EQ) cs then EQ else maximum cs
 
-gates :: Circuit -> [(Ref, Op)]
-gates c = filter (gate.snd) $ map (\ref -> (ref, getGate c ref)) (topologicalOrder c)
+gates :: GateEval gate => Circuit gate -> [(Ref, gate)]
+gates c = filter (f.snd) $ map (\ref -> (ref, getGate c ref)) (topologicalOrder c)
   where
-    gate (OpInput _) = False
-    gate (OpConst _) = False
-    gate _ = True
+    f gate = not $ null (gateArgs gate)
 
-gateRefs :: Circuit -> [Ref]
+gateRefs :: GateEval gate => Circuit gate -> [Ref]
 gateRefs = map fst . gates
 
-sortedNonInputGates :: Circuit -> [Ref]
+sortedNonInputGates :: GateEval gate => Circuit gate -> [Ref]
 sortedNonInputGates c = filter notInput (sortGates c)
   where
     notInput ref = notElem ref (_circ_inputs c) &&
                    IS.notMember (getRef ref) (_circ_secret_refs c)
 
-intermediateGates :: Circuit -> [Ref]
+intermediateGates :: GateEval gate => Circuit gate -> [Ref]
 intermediateGates c = filter intermediate (topologicalOrder c)
   where
     intermediate ref = notElem ref (_circ_inputs c) &&
                        notElem ref (_circ_outputs c) &&
                        IS.notMember (getRef ref) (_circ_secret_refs c)
-
-numDisjointAdditions :: Circuit -> Int
-numDisjointAdditions c = execState (foldCircM eval c) 0
-  where
-    eval :: Op -> Ref -> [M.Map Op Int] -> State Int (M.Map Op Int)
-    eval (OpAdd _ _) _ [xdegs, ydegs] = do
-        let degs = M.unionWith max xdegs ydegs
-        when (M.null (M.intersection xdegs ydegs)) (modify succ)
-        return degs
-    eval (OpSub _ _) _ [xdegs, ydegs] = do
-        let degs  = M.unionWith max xdegs ydegs
-        return degs
-    eval (OpMul _ _) _ [xdegs, ydegs] = do
-        let degs  = M.unionWith (+) xdegs ydegs
-        return degs
-    eval op@(OpInput _) _ _ = return (M.singleton op 1)
-    eval op@(OpConst id) _ _ = if secretConst c id
-                                   then return (M.singleton op 1)
-                                   else return M.empty
-    eval _ _ _ = undefined

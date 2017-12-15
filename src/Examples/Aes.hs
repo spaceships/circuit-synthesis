@@ -14,7 +14,7 @@ import Control.Monad.Trans (lift)
 import Data.List.Split
 import qualified Data.Vector as V
 
-make :: IO [(Maybe String, Circuit)]
+make :: IO [(Maybe String, Circuit ArithGate)]
 make = sequence
     [ (Just "aes1r.dsl.acirc"      ,) <$> buildAesRound 128
     , (Just "aes1r_128_1.dsl.acirc",) <$> aes1Bit 128
@@ -27,11 +27,11 @@ make = sequence
     , return (Just "sbox.dsl.acirc", subByte)
     ]
 
-makeAes1r :: IO [(Maybe String, Circuit)]
+makeAes1r :: IO [(Maybe String, Circuit ArithGate)]
 makeAes1r = sequence
     [ (Just "aes1r.dsl.acirc",) <$> buildAesRound 128 ]
 
-makeAes10r :: IO [(Maybe String, Circuit)]
+makeAes10r :: IO [(Maybe String, Circuit ArithGate)]
 makeAes10r = sequence
     [ (Just "aes.dsl.acirc",) <$> buildAes 10 128 ]
 
@@ -296,14 +296,14 @@ sbox =
     ]
 -- }}}
 
-toRachel :: Int -> Circuit
+toRachel :: Int -> Circuit ArithGate
 toRachel n = buildCircuit $ do
     xs <- inputs n
     let vals = sequence (replicate n [False, True])
     zs <- mapM (bitsSet xs) vals
     outputs zs
 
-subByteFromRachael :: Circuit
+subByteFromRachael :: Circuit ArithGate
 subByteFromRachael = buildCircuit $ do
     xs <- inputs 256
     outs <- forM [0..7] $ \j -> do
@@ -311,14 +311,14 @@ subByteFromRachael = buildCircuit $ do
         circSum vars
     outputs outs
 
-subByte :: Circuit
+subByte :: Circuit ArithGate
 subByte = buildCircuit $ do
     xs <- inputs 8
     rs <- subcircuit (toRachel 8) xs
     ys <- subcircuit subByteFromRachael rs
     outputs ys
 
-buildAesRound :: Int -> IO Circuit
+buildAesRound :: Int -> IO (Circuit ArithGate)
 buildAesRound n = buildCircuitT $ do
         linearParts <- lift buildLinearParts
         inp  <- inputs n
@@ -332,7 +332,7 @@ buildAesRound n = buildCircuitT $ do
         xs'' <- zipWithM circXor xs' key -- addRoundKey
         outputs xs''
 
-buildAes :: Int -> Int -> IO Circuit
+buildAes :: Int -> Int -> IO (Circuit ArithGate)
 buildAes nrounds ninputs = buildCircuitT $ do
     aesRound <- lift $ Acirc.read "optimized_circuits/aes1r.o2.acirc"
     inp      <- inputs ninputs
@@ -347,20 +347,20 @@ buildAes nrounds ninputs = buildCircuitT $ do
     else do
         outputs xs
 
-aes1Bit :: Int -> IO Circuit
+aes1Bit :: Int -> IO (Circuit ArithGate)
 aes1Bit n = buildCircuitT $ do
         aes <- lift $ buildAesRound n
         inp <- inputs n
         zs <- subcircuit aes inp
         output (head zs)
 
-sbox0 :: Circuit
+sbox0 :: Circuit ArithGate
 sbox0 = buildCircuit $ do
     xs <- inputs 8
     ys <- subcircuit subByte xs
     output (head ys)
 
-sboxsum :: IO Circuit
+sboxsum :: IO (Circuit ArithGate)
 sboxsum = buildCircuitT $ do
         ks <- lift $ randKeyIO 8
         xs <- inputs 8
@@ -368,7 +368,7 @@ sboxsum = buildCircuitT $ do
         zs <- zipWithM circXor ys =<< secrets ks
         output =<< circXors zs
 
-xor :: Circuit
+xor :: Circuit ArithGate
 xor = buildCircuit $ do
     x <- input
     y <- input
@@ -382,7 +382,7 @@ fromState :: [[[Ref]]] -> [Ref]
 fromState = concat . concat . transpose
 
 -- assume inputs come in chunks of 8
-gf28DotProduct :: Monad m => Circuit -> Circuit -> [Int] -> [[Ref]] -> BuilderT m [Ref]
+gf28DotProduct :: Monad m => Circuit ArithGate -> Circuit ArithGate -> [Int] -> [[Ref]] -> BuilderT ArithGate m [Ref]
 gf28DotProduct double triple xs ys = do
     when (length xs /= length ys) $ error "[gf28DotProduct] unequal length vectors"
     let mult (1,x) = return x
@@ -392,16 +392,16 @@ gf28DotProduct double triple xs ys = do
     ws <- mapM mult (zip xs ys)
     mapM circXors (transpose ws)
 
-gf28VectorMult :: Monad m => Circuit -> Circuit -> [Int] -> [[[Ref]]] -> BuilderT m [[Ref]]
+gf28VectorMult :: Monad m => Circuit ArithGate -> Circuit ArithGate -> [Int] -> [[[Ref]]] -> BuilderT ArithGate m [[Ref]]
 gf28VectorMult double triple v ms = mapM (gf28DotProduct double triple v) ms
 
-gf28MatrixMult :: Monad m => Circuit -> Circuit -> [[Int]] -> [[[Ref]]] -> BuilderT m [[[Ref]]]
+gf28MatrixMult :: Monad m => Circuit ArithGate -> Circuit ArithGate -> [[Int]] -> [[[Ref]]] -> BuilderT ArithGate m [[[Ref]]]
 gf28MatrixMult double triple xs ys = mapM (\x -> gf28VectorMult double triple x (transpose ys)) xs
 
 rotate :: Int -> [a] -> [a]
 rotate n xs = drop n xs ++ take n xs
 
-buildLinearParts :: IO Circuit
+buildLinearParts :: IO (Circuit ArithGate)
 buildLinearParts = buildCircuitT $ do
     double <- lift $ Acirc.read "optimized_circuits/gf28Double.o3.acirc"
     triple <- lift $ Acirc.read "optimized_circuits/gf28Triple.o3.acirc"

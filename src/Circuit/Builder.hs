@@ -1,6 +1,3 @@
-{-# LANGUAGE DoAndIfThenElse #-}
-{-# LANGUAGE CPP #-}
-
 module Circuit.Builder
   ( Builder
   , BuilderT
@@ -15,14 +12,12 @@ import Circuit
 import Circuit.Builder.Internals
 import Circuit.Utils
 
-import Control.Monad.State
-import Data.Bits (testBit)
-import Data.List.Split (chunksOf)
+import Control.Monad
 import Lens.Micro.Platform
 import Text.Printf
 import qualified Data.Map.Strict as M
 
-input :: Monad m => BuilderT m Ref
+input :: (GateEval g, Monad m) => BuilderT g m Ref
 input = do
     id   <- nextInputId
     ref  <- nextRef
@@ -30,19 +25,19 @@ input = do
     return ref
 
 -- get the ref of a particular input, even if it does not exist already.
-input_n :: Monad m => Id -> BuilderT m Ref
+input_n :: (GateEval g, Monad m) => Id -> BuilderT g m Ref
 input_n n = do
     dedup <- use bs_dedup
-    case M.lookup (OpInput n) dedup of
+    case M.lookup (gateInput n) dedup of
         Just ref -> return ref
         Nothing  -> do
             cur <- use bs_next_inp
             last <$> replicateM (getId n - getId cur + 1) input
 
-inputs :: Monad m => Int -> BuilderT m [Ref]
+inputs :: (GateEval g, Monad m) => Int -> BuilderT g m [Ref]
 inputs n = replicateM n input
 
-secret :: Monad m => Integer -> BuilderT m Ref
+secret :: (GateEval g, Monad m) => Integer -> BuilderT g m Ref
 secret val = do
     id  <- nextConstId
     ref <- nextRef
@@ -52,21 +47,21 @@ secret val = do
     return ref
 
 -- get the ref of a particular secret, even if it does not exist already (inserts secret 0s)
-secret_n :: Monad m => Id -> BuilderT m Ref
+secret_n :: (GateEval g, Monad m) => Id -> BuilderT g m Ref
 secret_n n = do
     dedup <- use bs_dedup
-    case M.lookup (OpConst n) dedup of
+    case M.lookup (gateConst n) dedup of
         Just ref -> return ref
         Nothing  -> do
             cur <- use bs_next_const
             last <$> replicateM (getId n - getId cur + 1) (secret 0)
 
 -- preserve duplication: there will be many gates for secret 0
-secrets :: Monad m => [Integer] -> BuilderT m [Ref]
+secrets :: (GateEval g, Monad m) => [Integer] -> BuilderT g m [Ref]
 secrets = mapM secret
 
 -- avoid duplication: there will be only one gate for const 0
-constant :: Monad m => Integer -> BuilderT m Ref
+constant :: (GateEval g, Monad m) => Integer -> BuilderT g m Ref
 constant val = do
     r <- existingConstant val
     case r of
@@ -79,61 +74,59 @@ constant val = do
             markConstant val ref
             return ref
 
-constants :: Monad m => [Integer] -> BuilderT m [Ref]
+constants :: (GateEval g, Monad m) => [Integer] -> BuilderT g m [Ref]
 constants = mapM constant
 
-circAdd :: Monad m => Ref -> Ref -> BuilderT m Ref
-circAdd x y = newOp (OpAdd x y)
+circAdd :: (GateEval g, Monad m) => Ref -> Ref -> BuilderT g m Ref
+circAdd x y = newOp (gateAdd x y)
 
-circSub :: Monad m => Ref -> Ref -> BuilderT m Ref
-circSub x y = newOp (OpSub x y)
+circSub :: (GateEval g, Monad m) => Ref -> Ref -> BuilderT g m Ref
+circSub x y = newOp (gateSub x y)
 
-circMul :: Monad m => Ref -> Ref -> BuilderT m Ref
-circMul x y = newOp (OpMul x y)
+circMul :: (GateEval g, Monad m) => Ref -> Ref -> BuilderT g m Ref
+circMul x y = newOp (gateMul x y)
 
-circProd :: Monad m => [Ref] -> BuilderT m Ref
+circProd :: (GateEval g, Monad m) => [Ref] -> BuilderT g m Ref
 circProd = foldTreeM circMul
 
-circSum :: Monad m => [Ref] -> BuilderT m Ref
+circSum :: (GateEval g, Monad m) => [Ref] -> BuilderT g m Ref
 circSum = foldTreeM circAdd
 
-circXor :: Monad m => Ref -> Ref -> BuilderT m Ref
-#ifdef ADDITION_IS_XOR
-circXor = circAdd
-#else
-circXor x y = do
-    z  <- circAdd x y
-    c  <- circMul x y
-    c' <- circAdd c c
-    circSub z c'
-#endif
+circXor :: (GateEval g, Monad m) => Ref -> Ref -> BuilderT g m Ref
+circXor x y = case gateXor x y of
+    Just g  -> newOp g
+    Nothing -> do
+        z  <- circAdd x y
+        c  <- circMul x y
+        c' <- circAdd c c
+        circSub z c'
 
-circXors :: Monad m => [Ref] -> BuilderT m Ref
+circXors :: (GateEval g, Monad m) => [Ref] -> BuilderT g m Ref
 circXors = foldTreeM circXor
 
-circOr :: Monad m => Ref -> Ref -> BuilderT m Ref
+circOr :: (GateEval g, Monad m) => Ref -> Ref -> BuilderT g m Ref
 circOr x y = do
     z <- circAdd x y
     c <- circMul x y
     circSub z c
 
-circOrs :: Monad m => [Ref] -> BuilderT m Ref
+circOrs :: (GateEval g, Monad m) => [Ref] -> BuilderT g m Ref
 circOrs = foldTreeM circOr
 
-circNot :: Monad m => Ref -> BuilderT m Ref
+circNot :: (GateEval g, Monad m) => Ref -> BuilderT g m Ref
 circNot x = do
     one <- constant 1
     circSub one x
 
-outputs :: Monad m => [Ref] -> BuilderT m ()
+outputs :: Monad m => [Ref] -> BuilderT g m ()
 outputs = mapM_ markOutput
 
-output :: Monad m => Ref -> BuilderT m ()
+output :: Monad m => Ref -> BuilderT g m ()
 output = markOutput
 
 -- NOTE: unconnected secrets from the subcircuit will be secrets in the
 -- resulting composite circuit.
-subcircuit' :: Monad m => Circuit -> [Ref] -> [Ref] -> BuilderT m [Ref]
+subcircuit' :: Monad m => Circuit ArithGate -> [Ref] -> [Ref] -> BuilderT ArithGate m [Ref]
 subcircuit' c xs ys
     | length xs < ninputs c = error (printf "[subcircuit'] not enough inputs got %d, need %d"
                                             (length xs) (ninputs c))
@@ -141,21 +134,21 @@ subcircuit' c xs ys
                                             (length ys) (nconsts c))
     | otherwise = foldCircM translate c
   where
-    translate (OpAdd _ _) _ [x,y] = circAdd x y
-    translate (OpSub _ _) _ [x,y] = circSub x y
-    translate (OpMul _ _) _ [x,y] = circMul x y
-    translate (OpInput id) _ _ = return (xs !! getId id)
-    translate (OpConst id) _ _ = return (ys !! getId id)
+    translate (ArithAdd _ _) _ [x,y] = circAdd x y
+    translate (ArithSub _ _) _ [x,y] = circSub x y
+    translate (ArithMul _ _) _ [x,y] = circMul x y
+    translate (ArithInput id) _ _ = return (xs !! getId id)
+    translate (ArithConst id) _ _ = return (ys !! getId id)
     translate op _ args =
         error ("[subcircuit'] weird input: " ++ show op ++ " " ++ show args)
 
 -- lift the subcircuit's constants and secrets into the circuit above
-subcircuit :: Monad m => Circuit -> [Ref] -> BuilderT m [Ref]
+subcircuit :: Monad m => Circuit ArithGate -> [Ref] -> BuilderT ArithGate m [Ref]
 subcircuit c xs = do
     ys <- exportConsts c
     subcircuit' c xs ys
 
-exportConsts :: Monad m => Circuit -> BuilderT m [Ref]
+exportConsts :: (GateEval g, Monad m) => Circuit g -> BuilderT g m [Ref]
 exportConsts c = do
     forM (M.toAscList (c^.circ_consts)) $ \(_, id) -> do
         let x = getConst c id
@@ -164,7 +157,7 @@ exportConsts c = do
         else
             constant x
 
-exportParams :: Monad m => Circuit -> BuilderT m ()
+exportParams :: Monad m => Circuit g -> BuilderT g m ()
 exportParams c = do
     setSymlen (c^.circ_symlen)
     setBase (c^.circ_base)
@@ -172,7 +165,7 @@ exportParams c = do
 --------------------------------------------------------------------------------
 -- extras!
 
-selectPT :: Monad m => [Ref] -> [Bool] -> BuilderT m [Ref]
+selectPT :: (GateEval g, Monad m) => [Ref] -> [Bool] -> BuilderT g m [Ref]
 selectPT xs bs = do
     one <- constant 1
     when (length xs /= length bs) $ error "[select] unequal length inputs"
@@ -180,41 +173,41 @@ selectPT xs bs = do
         set one (x, False) = circSub one x
     mapM (set one) (zip xs bs)
 
-bitsSet :: Monad m => [Ref] -> [Bool] -> BuilderT m Ref
+bitsSet :: (GateEval g, Monad m) => [Ref] -> [Bool] -> BuilderT g m Ref
 bitsSet xs bs = circProd =<< selectPT xs bs
 
 -- transforms an input x into a vector [ 0 .. 1 .. 0 ] with a 1 in the xth place
-selectionVector :: Monad m => [Ref] -> BuilderT m [Ref]
+selectionVector :: (GateEval g, Monad m) => [Ref] -> BuilderT g m [Ref]
 selectionVector xs = mapM (bitsSet xs) (permutations (length xs) [False, True])
 
-lookupTable :: Monad m => ([Bool] -> Bool) -> [Ref] -> BuilderT m Ref
+lookupTable :: (GateEval g, Monad m) => ([Bool] -> Bool) -> [Ref] -> BuilderT g m Ref
 lookupTable f xs = do
     sel <- selectionVector xs
     let tt   = f <$> booleanPermutations (length xs)
         vars = snd <$> filter (\(i,_) -> tt !! i) (zip [0..] sel)
     circSum vars
 
-lookupTableMultibit :: Monad m => ([Bool] -> [Bool]) -> [Ref] -> BuilderT m [Ref]
+lookupTableMultibit :: (GateEval g, Monad m) => ([Bool] -> [Bool]) -> [Ref] -> BuilderT g m [Ref]
 lookupTableMultibit f xs =
     mapM (flip lookupTable xs) [ (\x -> f x !! i) | i <- [0..noutputs - 1] ]
   where
     noutputs = length (f (replicate (length xs) False))
 
-matrixTimesVect :: Monad m => [[Ref]] -> [Ref] -> BuilderT m [Ref]
+matrixTimesVect :: (GateEval g, Monad m) => [[Ref]] -> [Ref] -> BuilderT g m [Ref]
 matrixTimesVect rows vect
   | not $ all ((== length vect) . length) rows = error "[matrixTimesVect] bad dimensions"
   | otherwise = mapM (circXors <=< zipWithM circMul vect) rows
 
-matrixTimesVectPT :: Monad m => [[Bool]] -> [Ref] -> BuilderT m [Ref]
+matrixTimesVectPT :: (GateEval g, Monad m) => [[Bool]] -> [Ref] -> BuilderT g m [Ref]
 matrixTimesVectPT rows vect
   | not $ all ((== length vect) . length) rows = error "[matrixTimesVectPT] bad dimensions"
   | otherwise = mapM (circXors <=< selectPT vect) rows
 
-matrixMul :: Monad m => [[Ref]] -> [[Ref]] -> BuilderT m [[Ref]]
+matrixMul :: (GateEval g, Monad m) => [[Ref]] -> [[Ref]] -> BuilderT g m [[Ref]]
 matrixMul a b = mapM (matrixTimesVect a) b
 
 -- swap elements based on a bit in the circuit
-swap :: Monad m => Ref -> [Ref] -> [Ref] -> BuilderT m [[Ref]]
+swap :: (GateEval g, Monad m) => Ref -> [Ref] -> [Ref] -> BuilderT g m [[Ref]]
 swap b xs ys
  | length xs /= length ys = error "[swap] unequal length inputs!"
  | otherwise = do
