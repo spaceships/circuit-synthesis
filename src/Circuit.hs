@@ -46,14 +46,15 @@ data Op = OpAdd !Ref !Ref
         deriving (Eq, Ord, Show)
 
 data Circuit = Circuit
-    { _circ_outputs    :: ![Ref]
-    , _circ_inputs     :: ![Ref]
-    , _circ_consts     :: !(M.Map Ref Id)
-    , _circ_secrets    :: !(M.Map Ref Id)
-    , _circ_refmap     :: !(IM.IntMap Op)
-    , _circ_const_vals :: !(M.Map Id Integer)
-    , _circ_symlen     :: !Int
-    , _circ_base       :: !Int -- the expected base of the inputs
+    { _circ_outputs     :: ![Ref]
+    , _circ_inputs      :: ![Ref]
+    , _circ_consts      :: !(M.Map Ref Id)
+    , _circ_secret_refs :: !(IS.IntSet)
+    , _circ_secret_ids  :: !(IS.IntSet)
+    , _circ_refmap      :: !(IM.IntMap Op)
+    , _circ_const_vals  :: !(M.Map Id Integer)
+    , _circ_symlen      :: !Int
+    , _circ_base        :: !Int -- the expected base of the inputs
     } deriving (Show)
 
 makeLenses ''Circuit
@@ -64,7 +65,7 @@ type TestCase = ([Integer], [Integer])
 -- instances and such
 
 emptyCirc :: Circuit
-emptyCirc = Circuit [] [] M.empty M.empty IM.empty M.empty 1 2
+emptyCirc = Circuit [] [] M.empty IS.empty IS.empty IM.empty M.empty 1 2
 
 getConst :: Circuit -> Id -> Integer
 getConst c id = case c^.circ_const_vals.at id of
@@ -72,10 +73,10 @@ getConst c id = case c^.circ_const_vals.at id of
     Nothing -> error ("[getConst] no const known for y" ++ show id)
 
 secretConst :: Circuit -> Id -> Bool
-secretConst c id = id `elem` M.elems (_circ_secrets c)
+secretConst c id = IS.member (getId id) (_circ_secret_ids c)
 
 secretRefs :: Circuit -> [Ref]
-secretRefs = M.keys . _circ_secrets
+secretRefs c = map Ref $ IS.toAscList (_circ_secret_refs c)
 
 getGate :: Circuit -> Ref -> Op
 getGate c ref = case c^.circ_refmap.at (getRef ref) of
@@ -85,7 +86,7 @@ getGate c ref = case c^.circ_refmap.at (getRef ref) of
 randomizeSecrets :: Circuit -> IO Circuit
 randomizeSecrets c = do
     key <- replicateM (nsecrets c) $ randIntegerModIO (fromIntegral (_circ_base c))
-    let newSecrets = M.fromList $ zip (c^.circ_secrets^..each) key
+    let newSecrets = M.fromList $ zip (map Id $ IS.toAscList (c^.circ_secret_ids)) key
     return $ c & circ_const_vals %~ M.union newSecrets
 
 genTest :: Circuit -> IO TestCase
@@ -155,7 +156,7 @@ nconsts :: Circuit -> Int
 nconsts = length . _circ_consts
 
 nsecrets :: Circuit -> Int
-nsecrets = M.size . _circ_secrets
+nsecrets = IS.size . _circ_secret_refs
 
 noutputs :: Circuit -> Int
 noutputs = length . _circ_outputs
@@ -399,14 +400,14 @@ sortedNonInputGates :: Circuit -> [Ref]
 sortedNonInputGates c = filter notInput (sortGates c)
   where
     notInput ref = notElem ref (_circ_inputs c) &&
-                   M.notMember ref (_circ_secrets c)
+                   IS.notMember (getRef ref) (_circ_secret_refs c)
 
 intermediateGates :: Circuit -> [Ref]
 intermediateGates c = filter intermediate (topologicalOrder c)
   where
     intermediate ref = notElem ref (_circ_inputs c) &&
                        notElem ref (_circ_outputs c) &&
-                       M.notMember ref (_circ_secrets c)
+                       IS.notMember (getRef ref) (_circ_secret_refs c)
 
 numDisjointAdditions :: Circuit -> Int
 numDisjointAdditions c = execState (foldCircM eval c) 0

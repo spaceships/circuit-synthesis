@@ -12,7 +12,7 @@ import Lens.Micro.Platform
 import Text.Printf
 import qualified Data.Map.Strict as M
 import qualified Data.IntMap.Strict as IM
-import qualified Data.IntSet as S
+import qualified Data.IntSet as IS
 
 type BuilderT = StateT BuildSt
 type Builder = BuilderT Identity
@@ -115,7 +115,9 @@ markSecret !ref = do
     id <- use $ bs_circ . circ_consts . at ref
     case id of
         Nothing  -> error $ printf "[markSecret] ref %s is not a const!" (show ref)
-        Just id' -> bs_circ . circ_secrets . at ref ?= id'
+        Just id' -> do
+            bs_circ . circ_secret_ids  %= IS.insert (getId id')
+            bs_circ . circ_secret_refs %= IS.insert (getRef ref)
 
 markConstant :: Monad m => Integer -> Ref -> BuilderT m ()
 markConstant !x !ref = bs_constants . at x ?= ref
