@@ -31,7 +31,6 @@ library
                         , Examples.Tribes
 
     build-depends:        base
-                        , array
                         , DRBG
                         , IfElse
                         , bytestring
@@ -40,6 +39,7 @@ library
                         , deepseq
                         , ghc-prim
                         , integer-gmp
+                        , microlens-platform
                         , monad-par
                         , monad-parallel
                         , mtl

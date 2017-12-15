@@ -10,6 +10,7 @@ import Control.Monad.State
 import Control.Monad.Writer
 import Data.Maybe (isJust, catMaybes, listToMaybe)
 import Debug.Trace
+import Lens.Micro.Platform
 import System.Process
 import Text.Printf
 import qualified Circuit.Format.Sexp as Sexp
@@ -167,7 +168,7 @@ slice ref c = B.buildCircuit $ do
 
 -- get a slice without rebuilding!
 cheapSlice :: Ref -> Circuit -> Circuit
-cheapSlice root c = c { circ_outputs = [root] }
+cheapSlice root = circ_outputs .~ [root]
 
 -- replace subcircuit ending at loc with c2 in c1
 patch :: Ref -> Circuit -> Circuit -> Circuit

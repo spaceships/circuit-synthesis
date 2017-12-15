@@ -18,6 +18,7 @@ import Circuit.Utils
 import Control.Monad.State
 import Data.Bits (testBit)
 import Data.List.Split (chunksOf)
+import Lens.Micro.Platform
 import Text.Printf
 import qualified Data.Map.Strict as M
 
@@ -31,11 +32,11 @@ input = do
 -- get the ref of a particular input, even if it does not exist already.
 input_n :: Monad m => Id -> BuilderT m Ref
 input_n n = do
-    dedup <- gets bs_dedup
+    dedup <- use bs_dedup
     case M.lookup (OpInput n) dedup of
         Just ref -> return ref
         Nothing  -> do
-            cur <- gets bs_next_inp
+            cur <- use bs_next_inp
             last <$> replicateM (getId n - getId cur + 1) input
 
 inputs :: Monad m => Int -> BuilderT m [Ref]
@@ -53,11 +54,11 @@ secret val = do
 -- get the ref of a particular secret, even if it does not exist already (inserts secret 0s)
 secret_n :: Monad m => Id -> BuilderT m Ref
 secret_n n = do
-    dedup <- gets bs_dedup
+    dedup <- use bs_dedup
     case M.lookup (OpConst n) dedup of
         Just ref -> return ref
         Nothing  -> do
-            cur <- gets bs_next_const
+            cur <- use bs_next_const
             last <$> replicateM (getId n - getId cur + 1) (secret 0)
 
 -- preserve duplication: there will be many gates for secret 0
@@ -67,7 +68,6 @@ secrets = mapM secret
 -- avoid duplication: there will be only one gate for const 0
 constant :: Monad m => Integer -> BuilderT m Ref
 constant val = do
-    c <- getCirc
     r <- existingConstant val
     case r of
         Just ref -> return ref
@@ -157,7 +157,7 @@ subcircuit c xs = do
 
 exportConsts :: Monad m => Circuit -> BuilderT m [Ref]
 exportConsts c = do
-    forM (M.toAscList (circ_consts c)) $ \(_, id) -> do
+    forM (M.toAscList (c^.circ_consts)) $ \(_, id) -> do
         let x = getConst c id
         if secretConst c id then do
             secret x
@@ -166,8 +166,8 @@ exportConsts c = do
 
 exportParams :: Monad m => Circuit -> BuilderT m ()
 exportParams c = do
-    setSymlen (circ_symlen c)
-    setBase (circ_base c)
+    setSymlen (c^.circ_symlen)
+    setBase (c^.circ_base)
 
 --------------------------------------------------------------------------------
 -- extras!

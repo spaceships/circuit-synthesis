@@ -19,6 +19,7 @@ import qualified Circuit.Builder.Internals as B
 
 import Control.Monad
 import Control.Monad.Trans (lift)
+import Lens.Micro.Platform
 import Text.Parsec hiding (spaces, parseTest)
 import Text.Printf
 import qualified Data.Map as M
@@ -55,15 +56,15 @@ showCircWithTests ntests c = do
 showSortedCirc :: Circuit -> String
 showSortedCirc c = unlines (header ++ gateLines ++ output)
   where
-    header = [ printf ":symlen %d" (circ_symlen c)
-             , printf ":base %d" (circ_base c)
+    header = [ printf ":symlen %d" (_circ_symlen c)
+             , printf ":base %d" (_circ_base c)
              ]
 
-    inputs = map gateStr (circ_inputs c)
-    consts = map gateStr (M.keys (circ_consts c))
+    inputs = map gateStr (_circ_inputs c)
+    consts = map gateStr (M.keys (_circ_consts c))
     gates  = map gateStr (sortedNonInputGates c)
     gateLines = concat [inputs, consts, gates]
-    output = let outs = map show (circ_outputs c)
+    output = let outs = map show (_circ_outputs c)
                  secs = map show (secretRefs c)
              in [ printf ":outputs %s" (unwords outs)
                 , printf ":secrets %s" (unwords secs)
@@ -71,31 +72,30 @@ showSortedCirc c = unlines (header ++ gateLines ++ output)
 
     gateStr :: Ref -> String
     gateStr ref = do
-        case IM.lookup (getRef ref) (circ_refmap c) of
-            Nothing -> error (printf "[gateStr] unknown ref %s" (show ref))
-            Just (OpInput id) -> printf "%d input %d" (getRef ref) (getId id)
-            Just (OpConst id) ->
-                let val = case M.lookup id (circ_const_vals c) of
+        case c ^. circ_refmap . at (getRef ref) . non (error "[gateStr] unknown ref") of
+            (OpInput id) -> printf "%d input %d" (getRef ref) (getId id)
+            (OpConst id) ->
+                let val = case c ^. circ_const_vals . at id of
                                 Nothing -> ""
                                 Just y  -> show y
                 in printf "%d const %s" (getRef ref) val
-            Just (OpAdd x y) -> printf "%d ADD %d %d" (getRef ref) (getRef x) (getRef y)
-            Just (OpSub x y) -> printf "%d SUB %d %d" (getRef ref) (getRef x) (getRef y)
-            Just (OpMul x y) -> printf "%d MUL %d %d" (getRef ref) (getRef x) (getRef y)
+            (OpAdd x y) -> printf "%d ADD %d %d" (getRef ref) (getRef x) (getRef y)
+            (OpSub x y) -> printf "%d SUB %d %d" (getRef ref) (getRef x) (getRef y)
+            (OpMul x y) -> printf "%d MUL %d %d" (getRef ref) (getRef x) (getRef y)
 
 showCirc :: Circuit -> String
 showCirc c = unlines (header ++ gateLines)
   where
-    header = [ printf ":symlen %d" (circ_symlen c)
-             , printf ":base %d" (circ_base c)
+    header = [ printf ":symlen %d" (_circ_symlen c)
+             , printf ":base %d" (_circ_base c)
              ]
 
-    inputs = mapM gateStr (circ_inputs c)
-    consts = mapM gateStr (M.keys (circ_consts c))
+    inputs = mapM gateStr (_circ_inputs c)
+    consts = mapM gateStr (M.keys (_circ_consts c))
     gates  = mapM gateStr (gateRefs c)
 
     output = do
-        outs <- map show <$> mapM tr (circ_outputs c)
+        outs <- map show <$> mapM tr (_circ_outputs c)
         secs <- map show <$> mapM tr (secretRefs c)
         return [ printf ":outputs %s" (unwords outs)
                , printf ":secrets %s" (unwords secs)
@@ -116,17 +116,16 @@ showCirc c = unlines (header ++ gateLines)
     gateStr :: Ref -> S.State (M.Map Ref Int, Int) String
     gateStr ref = do
         ref' <- tr ref
-        case IM.lookup (getRef ref) (circ_refmap c) of
-            Nothing -> error (printf "[gateStr] unknown ref %s" (show ref))
-            Just (OpInput  id) -> return $ printf "%d input %d" ref' (getId id)
-            Just (OpConst id) -> do
-                let val = case M.lookup id (circ_const_vals c) of
+        case c ^. circ_refmap . at (getRef ref) . non (error "[gateStr] unknown ref") of
+            (OpInput  id) -> return $ printf "%d input %d" ref' (getId id)
+            (OpConst id) -> do
+                let val = case c ^. circ_const_vals . at id  of
                                 Nothing -> ""
                                 Just y  -> show y
                 return $ printf "%d const %s" ref' val
-            Just (OpAdd x y) -> pr ref' "ADD" x y
-            Just (OpSub x y) -> pr ref' "SUB" x y
-            Just (OpMul x y) -> pr ref' "MUL" x y
+            (OpAdd x y) -> pr ref' "ADD" x y
+            (OpSub x y) -> pr ref' "SUB" x y
+            (OpMul x y) -> pr ref' "MUL" x y
 
     pr :: Int -> String -> Ref -> Ref -> S.State (M.Map Ref Int, Int) String
     pr ref' gateTy x y = do

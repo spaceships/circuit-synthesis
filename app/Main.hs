@@ -145,7 +145,7 @@ main = runCommand $ \opts args -> do
 
 circuitMain :: MainOptions -> [TestCase] -> (Maybe String, Circuit) -> IO ()
 circuitMain opts ts (outputName, c) = do
-    let old_symlen = circ_symlen c
+    let old_symlen = _circ_symlen c
 
     c' <- case opt_optimize opts of
         Nothing -> return c
@@ -156,7 +156,7 @@ circuitMain opts ts (outputName, c) = do
             printf "[error] unknown optimization level %d\n" x
             exitFailure
 
-    let c = c' { circ_symlen = old_symlen }
+    let c = c' { _circ_symlen = old_symlen }
 
     c <- if opt_randomize_secrets opts
             then randomizeSecrets c

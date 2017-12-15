@@ -35,7 +35,7 @@ pprCircuit' c = text "digraph circ {" <> linebreak
                  <> indent 4 douts    <> linebreak
                  <> text "}"          <> linebreak
   where
-    outs  = circ_outputs c
+    outs  = _circ_outputs c
     douts = vsep (runPrettyPr c S.empty (sequence $ fmap pprRef outs))
 
 
@@ -118,6 +118,6 @@ pprRef r@(Ref i) = do
   case b of
     False -> do
       c <- ask
-      let op = circ_refmap c ! getRef r
+      let op = _circ_refmap c ! getRef r
       pprOp i op
     True -> return empty

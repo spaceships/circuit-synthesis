@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -19,6 +20,7 @@ import Control.DeepSeq (NFData)
 import Control.Monad.IfElse (whenM)
 import Control.Monad.State.Strict
 import Data.List (nub, sortBy)
+import Lens.Micro.Platform
 import Text.Printf
 import qualified Control.Monad.Par as IVar
 import qualified Data.Map.Strict as M
@@ -30,6 +32,12 @@ import Debug.Trace
 newtype Ref = Ref { getRef :: Int } deriving (Eq, Ord, NFData, Num)
 newtype Id  = Id  { getId  :: Int } deriving (Eq, Ord, NFData, Num)
 
+instance Show Ref where
+    show ref = show (getRef ref)
+
+instance Show Id where
+    show id = show (getId id)
+
 data Op = OpAdd !Ref !Ref
         | OpSub !Ref !Ref
         | OpMul !Ref !Ref
@@ -37,16 +45,18 @@ data Op = OpAdd !Ref !Ref
         | OpConst !Id
         deriving (Eq, Ord, Show)
 
-data Circuit = Circuit {
-      circ_outputs    :: ![Ref]
-    , circ_inputs     :: ![Ref]
-    , circ_consts     :: !(M.Map Ref Id)
-    , circ_secrets    :: !(M.Map Ref Id)
-    , circ_refmap     :: !(IM.IntMap Op)
-    , circ_const_vals :: !(M.Map Id Integer)
-    , circ_symlen     :: !Int
-    , circ_base       :: !Int -- the expected base of the inputs
+data Circuit = Circuit
+    { _circ_outputs    :: ![Ref]
+    , _circ_inputs     :: ![Ref]
+    , _circ_consts     :: !(M.Map Ref Id)
+    , _circ_secrets    :: !(M.Map Ref Id)
+    , _circ_refmap     :: !(IM.IntMap Op)
+    , _circ_const_vals :: !(M.Map Id Integer)
+    , _circ_symlen     :: !Int
+    , _circ_base       :: !Int -- the expected base of the inputs
     } deriving (Show)
+
+makeLenses ''Circuit
 
 type TestCase = ([Integer], [Integer])
 
@@ -56,47 +66,41 @@ type TestCase = ([Integer], [Integer])
 emptyCirc :: Circuit
 emptyCirc = Circuit [] [] M.empty M.empty IM.empty M.empty 1 2
 
-instance Show Ref where
-    show ref = show (getRef ref)
-
-instance Show Id where
-    show id = show (getId id)
-
 getConst :: Circuit -> Id -> Integer
-getConst c id = case M.lookup id (circ_const_vals c) of
+getConst c id = case c^.circ_const_vals.at id of
     Just x  -> x
     Nothing -> error ("[getConst] no const known for y" ++ show id)
 
 secretConst :: Circuit -> Id -> Bool
-secretConst c id = id `elem` M.elems (circ_secrets c)
+secretConst c id = id `elem` M.elems (_circ_secrets c)
 
 secretRefs :: Circuit -> [Ref]
-secretRefs = M.keys . circ_secrets
+secretRefs = M.keys . _circ_secrets
 
 getGate :: Circuit -> Ref -> Op
-getGate c ref = case IM.lookup (getRef ref) (circ_refmap c) of
+getGate c ref = case c^.circ_refmap.at (getRef ref) of
     Nothing -> error (printf "[getGate] no ref %d!" (getRef ref))
     Just op -> op
 
 randomizeSecrets :: Circuit -> IO Circuit
 randomizeSecrets c = do
-    key <- replicateM (nsecrets c) $ randIntegerModIO (fromIntegral (circ_base c))
-    let newSecrets = M.fromList $ zip (M.elems (circ_secrets c)) key
-    return $ c { circ_const_vals = M.union newSecrets (circ_const_vals c) }
+    key <- replicateM (nsecrets c) $ randIntegerModIO (fromIntegral (_circ_base c))
+    let newSecrets = M.fromList $ zip (c^.circ_secrets^..each) key
+    return $ c & circ_const_vals %~ M.union newSecrets
 
 genTest :: Circuit -> IO TestCase
 genTest c
-    | circ_symlen c == 1 = do
-        let q = (fromIntegral (circ_base c) :: Integer) ^ (fromIntegral (ninputs c) :: Integer)
-        inp <- num2Base (circ_base c) (ninputs c) <$> randIO (randIntegerMod q)
+    | c^.circ_symlen == 1 = do
+        let q = (fromIntegral (_circ_base c) :: Integer) ^ (fromIntegral (ninputs c) :: Integer)
+        inp <- num2Base (_circ_base c) (ninputs c) <$> randIO (randIntegerMod q)
         return (inp, plainEval c inp)
     | otherwise = do
-        when ((ninputs c `mod` circ_symlen c) /= 0) $
+        when ((ninputs c `mod` _circ_symlen c) /= 0) $
             error "[genTest] inputs not evenly dividable"
-        let nsyms = ninputs c `div` circ_symlen c
+        let nsyms = ninputs c `div` _circ_symlen c
         inp <- fmap concat $ replicateM nsyms $ do
-            x <- fromIntegral <$> randIO (randInteger (numBits (circ_symlen c)))
-            return [ if i == x then 1 else 0 | i <- [0..circ_symlen c-1] ]
+            x <- fromIntegral <$> randIO (randInteger (numBits (c^.circ_symlen)))
+            return [ if i == x then 1 else 0 | i <- [0..c^.circ_symlen-1] ]
         return (inp, plainEval c inp)
 
 
@@ -107,7 +111,7 @@ printCircInfo c = do
     printf "circuit info\n"
     printf "============\n"
     printf "ninputs=%d noutputs=%d nconsts=%d nsecrets=%d\n" n (noutputs c) (nconsts c) (nsecrets c)
-    printf "symlen=%d base=%d\n" (symlen c) (circ_base c)
+    printf "symlen=%d base=%d\n" (symlen c) (c^.circ_base)
     printf "ngates=%d depth=%d\n" (ngates c) (depth c)
     printf "degree=%d\n" (circDegree c)
 
@@ -119,7 +123,7 @@ printTruthTable c = forM_ inputs $ \inp -> do
     n = ninputs c `div` symlen c
     sym x = [ if i == x then (1 :: Integer) else 0 | i <- [ 0 .. symlen c - 1 ] ]
     inputs = case symlen c of
-        1 -> sequence (replicate (ninputs c) [(0::Integer)..fromIntegral (circ_base c - 1)])
+        1 -> sequence (replicate (ninputs c) [(0::Integer)..fromIntegral (c^.circ_base - 1)])
         _ -> map concat $ sequence (replicate n (map sym [0..symlen c - 1]))
 
 circEq :: Circuit -> Circuit -> IO Bool
@@ -142,22 +146,22 @@ opArgs (OpInput _) = []
 opArgs (OpConst _) = []
 
 ngates :: Circuit -> Int
-ngates = IM.size . circ_refmap
+ngates = IM.size . _circ_refmap
 
 ninputs :: Circuit -> Int
-ninputs = length . circ_inputs
+ninputs = length . _circ_inputs
 
 nconsts :: Circuit -> Int
-nconsts = length . circ_consts
+nconsts = length . _circ_consts
 
 nsecrets :: Circuit -> Int
-nsecrets = M.size . circ_secrets
+nsecrets = M.size . _circ_secrets
 
 noutputs :: Circuit -> Int
-noutputs = length . circ_outputs
+noutputs = length . _circ_outputs
 
 symlen :: Circuit -> Int
-symlen = circ_symlen
+symlen = _circ_symlen
 
 ydeg :: Circuit -> Integer
 ydeg c = head (degs c)
@@ -299,14 +303,14 @@ foldCircRef f c = runIdentity (foldCircM f' c)
     f' op ref xs = return (f op ref xs)
 
 foldCircM :: Monad m => (Op -> Ref -> [a] -> m a) -> Circuit -> m [a]
-foldCircM f c = evalStateT (mapM eval (circ_outputs c)) M.empty
+foldCircM f c = evalStateT (mapM eval (c^.circ_outputs)) M.empty
   where
     eval ref = gets (M.lookup ref) >>= \case
         Just val -> return val
         Nothing  -> do
-            when (IM.notMember (getRef ref) (circ_refmap c))
+            when (IM.notMember (getRef ref) (c^.circ_refmap))
                 (traceM (printf "unknown ref \"%s\"" (show ref)))
-            let op = circ_refmap c IM.! getRef ref
+            let op = c^.circ_refmap.at (getRef ref).non (error "no ref")
             argVals <- mapM eval (opArgs op)
             val     <- lift (f op ref argVals)
             modify (M.insert ref val)
@@ -319,9 +323,9 @@ foldCircRefM f c ref = evalStateT (eval ref) M.empty
     eval ref = gets (M.lookup ref) >>= \case
         Just val -> return val
         Nothing  -> do
-            when (IM.notMember (getRef ref) (circ_refmap c))
+            when (IM.notMember (getRef ref) (c^.circ_refmap))
                 (traceM (printf "unknown ref \"%s\"" (show ref)))
-            let op = circ_refmap c IM.! getRef ref
+            let op = c^.circ_refmap.at (getRef ref).non (error "no ref")
             argVals <- mapM eval (opArgs op)
             val     <- lift (f op ref argVals)
             modify (M.insert ref val)
@@ -330,11 +334,11 @@ foldCircRefM f c ref = evalStateT (eval ref) M.empty
 -- evaluate the circuit in parallel
 foldCircIO :: NFData a => (Op -> [a] -> a) -> Circuit -> IO [a]
 foldCircIO f c = do
-    let refs = map Ref $ IM.keys (circ_refmap c)
+    let refs = map Ref $ IM.keys (_circ_refmap c)
     mem <- (M.fromList . zip refs) <$> replicateM (length refs) newEmptyTMVarIO
     let eval :: Ref -> IO ()
         eval ref = do
-            let op      = circ_refmap c IM.! getRef ref
+            let op      = c^.circ_refmap.at (getRef ref).non (error "no ref")
                 argRefs = map (mem M.!) (opArgs op)
             -- this condition should never be hit since we parallelize over the topological levels
             whenM (or <$> mapM (atomically . isEmptyTMVar) argRefs) $ do
@@ -350,7 +354,7 @@ foldCircIO f c = do
     forM_ (zip [(0 :: Int)..] lvls) $ \(_, lvl) -> do
         {-printf "evaluating level %d size=%d\n" i (length lvl)-}
         parallelInterleaved (map eval lvl)
-    mapM (atomically . readTMVar . (mem M.!)) (circ_outputs c)
+    mapM (atomically . readTMVar . (mem M.!)) (_circ_outputs c)
 
 topologicalOrder :: Circuit -> [Ref]
 topologicalOrder c = reverse $ execState (foldCircM eval c) []
@@ -394,15 +398,15 @@ gateRefs = map fst . gates
 sortedNonInputGates :: Circuit -> [Ref]
 sortedNonInputGates c = filter notInput (sortGates c)
   where
-    notInput ref = notElem ref (circ_inputs c) &&
-                   M.notMember ref (circ_secrets c)
+    notInput ref = notElem ref (_circ_inputs c) &&
+                   M.notMember ref (_circ_secrets c)
 
 intermediateGates :: Circuit -> [Ref]
 intermediateGates c = filter intermediate (topologicalOrder c)
   where
-    intermediate ref = notElem ref (circ_inputs c) &&
-                       notElem ref (circ_outputs c) &&
-                       M.notMember ref (circ_secrets c)
+    intermediate ref = notElem ref (_circ_inputs c) &&
+                       notElem ref (_circ_outputs c) &&
+                       M.notMember ref (_circ_secrets c)
 
 numDisjointAdditions :: Circuit -> Int
 numDisjointAdditions c = execState (foldCircM eval c) 0
