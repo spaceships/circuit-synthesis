@@ -7,6 +7,7 @@ import Circuit.Utils
 
 import Control.Monad.State.Strict
 import Control.Monad.Identity
+import Text.Printf
 import qualified Data.Map.Strict as M
 import qualified Data.IntMap.Strict as IM
 import qualified Data.IntSet as S
@@ -18,12 +19,13 @@ data BuildSt = BuildSt {
       bs_circ        :: !Circuit
     , bs_next_ref    :: !Ref
     , bs_next_inp    :: !Id
-    , bs_next_secret :: !Id
+    , bs_next_const  :: !Id
     , bs_dedup       :: !(M.Map Op Ref)
+    , bs_constants   :: !(M.Map Integer Ref)
     }
 
 emptyBuild :: BuildSt
-emptyBuild = BuildSt emptyCirc 0 0 0 M.empty
+emptyBuild = BuildSt emptyCirc 0 0 0 M.empty M.empty
 
 runCircuitT :: Monad m => BuilderT m a -> m (Circuit, a)
 runCircuitT b = do
@@ -48,11 +50,6 @@ getCirc = gets bs_circ
 modifyCirc :: Monad m => (Circuit -> Circuit) -> BuilderT m ()
 modifyCirc f = modify' (\st -> st { bs_circ = f (bs_circ st) })
 
-exportParams :: Monad m => Circuit -> BuilderT m ()
-exportParams c = do
-    setSymlen (circ_symlen c)
-    setBase (circ_base c)
-
 setSymlen :: Monad m => Int -> BuilderT m ()
 setSymlen n = modifyCirc (\c -> c { circ_symlen = n })
 
@@ -67,19 +64,19 @@ insertOp !ref !op = do
     modifyCirc (\c -> c { circ_refmap = IM.insert (getRef ref) op refs })
     modify' (\st -> st { bs_dedup = M.insert op ref (bs_dedup st)})
 
-insertSecret :: Monad m => Ref -> Id -> BuilderT m ()
-insertSecret !ref !id = do
-    modifyCirc (\c -> c { circ_secret_refs = M.insert ref id (circ_secret_refs c) })
-    insertOp ref (OpSecret id)
+insertConst :: Monad m => Ref -> Id -> BuilderT m ()
+insertConst !ref !id = do
+    modifyCirc (\c -> c { circ_consts = M.insert ref id (circ_consts c) })
+    insertOp ref (OpConst id)
 
-insertSecretVal :: Monad m => Id -> Integer -> BuilderT m ()
-insertSecretVal id val = do
-    ys <- circ_secrets <$> getCirc
+insertConstVal :: Monad m => Id -> Integer -> BuilderT m ()
+insertConstVal !id !val = do
+    ys <- circ_const_vals <$> getCirc
     let ys' = safeInsert ("reassignment of y" ++ show id) id val ys
-    modifyCirc (\c -> c { circ_secrets = ys' })
+    modifyCirc (\c -> c { circ_const_vals = ys' })
 
 insertInput :: Monad m => Ref -> Id -> BuilderT m ()
-insertInput ref id = do
+insertInput !ref !id = do
     modifyCirc (\c -> c { circ_inputs = circ_inputs c ++ [ref] })
     insertOp ref (OpInput id)
 
@@ -106,16 +103,24 @@ nextInputId = do
     modify' (\st -> st { bs_next_inp = id + 1 })
     return id
 
-nextSecretId :: Monad m => BuilderT m Id
-nextSecretId = do
-    id <- gets bs_next_secret
-    modify' (\st -> st { bs_next_secret = id + 1 })
+nextConstId :: Monad m => BuilderT m Id
+nextConstId = do
+    id <- gets bs_next_const
+    modify' (\st -> st { bs_next_const = id + 1 })
     return id
 
 markOutput :: Monad m => Ref -> BuilderT m ()
 markOutput ref = modifyCirc (\c -> c { circ_outputs = circ_outputs c ++ [ref] })
 
-markConst :: Monad m => Integer -> Ref -> Id -> BuilderT m ()
-markConst val ref id = modifyCirc (\c -> c { circ_consts    = M.insert val ref (circ_consts c)
-                                           , circ_const_ids = S.insert (getId id) (circ_const_ids c)
-                                           })
+markSecret :: Monad m => Ref -> BuilderT m ()
+markSecret ref = do
+    id <- gets (M.lookup ref . circ_consts . bs_circ)
+    case id of
+        Nothing  -> error $ printf "[markSecret] ref %s is not a const!" (show ref)
+        Just id' -> modifyCirc (\c -> c { circ_secrets = M.insert ref id' (circ_secrets c) })
+
+markConstant :: Monad m => Integer -> Ref -> BuilderT m ()
+markConstant x ref = modify' (\bs -> bs { bs_constants = M.insert x ref (bs_constants bs) })
+
+existingConstant :: Monad m => Integer -> BuilderT m (Maybe Ref)
+existingConstant x = gets (M.lookup x . bs_constants)

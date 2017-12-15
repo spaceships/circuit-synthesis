@@ -31,6 +31,7 @@ library
                         , Examples.Tribes
 
     build-depends:        base
+                        , array
                         , DRBG
                         , IfElse
                         , bytestring
@@ -55,7 +56,7 @@ library
                         , IfElse
 
     default-extensions:   DoAndIfThenElse
-    -- cpp-options:          -DADDITION_IS_XOR
+    cpp-options:          -DADDITION_IS_XOR
 
 executable cxs
     default-language: Haskell2010

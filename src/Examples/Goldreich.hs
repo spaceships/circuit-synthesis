@@ -307,7 +307,7 @@ selectsPt :: Monad m => [Int] -> [Ref] -> BuilderT m [Ref]
 selectsPt sels xs = return (map (xs!!) sels)
 
 prg :: Int -> Int -> IO Circuit
-prg n m = prg' n m (numBits n) xorAnd
+prg n m = prg' n m 5 xorAnd
 
 prg' :: Int -> Int -> Int -> ([Ref] -> BuilderT IO Ref) -> IO Circuit
 prg' n m d predicate = buildCircuitT $ do

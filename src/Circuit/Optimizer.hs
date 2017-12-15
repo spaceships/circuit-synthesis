@@ -21,10 +21,10 @@ circToSage c = foldCirc eval c
     eval (OpAdd _ _) [x,y] = printf "(%s) + (%s)" x y
     eval (OpSub _ _) [x,y] = printf "(%s) - (%s)" x y
     eval (OpMul _ _) [x,y] = printf "(%s) * (%s)" x y
-    eval (OpInput  i) []   = printf "var('x%d')" (getId i)
-    eval (OpSecret i) []   = if publicConst c i
-                                then show (getSecret c i)
-                                else printf "var('y%d')" (getId i)
+    eval (OpInput i) []   = printf "var('x%d')" (getId i)
+    eval (OpConst i) []   = if secretConst c i
+                               then printf "var('y%d')" (getId i)
+                               else show (getConst c i)
     eval op args  = error ("[circToSexp] weird input: " ++ show op ++ " " ++ show args)
 
 callSage :: Int -> String -> IO Circuit
@@ -68,9 +68,9 @@ find maxDepth c = snd $ execState (foldCircM eval c) (0, Ref 0)
 
     eval op@(OpInput _)   _ _ = return (M.singleton op 1, 0)
 
-    eval op@(OpSecret id) _ _ = if publicConst c id
-                                   then return (M.empty         , 0)
-                                   else return (M.singleton op 1, 0)
+    eval op@(OpConst id) _ _ = if secretConst c id
+                                   then return (M.singleton op 1, 0)
+                                   else return (M.empty         , 0)
 
     eval _ _ _ = undefined
 
@@ -105,9 +105,9 @@ nonPublicDegs c = map (varDegree c) ids
   where
     allIds = map (OpInput . Id) [0 .. ninputs c-1]
 
-    ok (OpSecret id) = publicConst c id
-    ok (OpInput  _ ) = True
-    ok _             = undefined
+    ok (OpConst id) = not (secretConst c id)
+    ok (OpInput _ ) = True
+    ok _            = undefined
 
     ids = filter ok allIds
 
@@ -135,11 +135,11 @@ findFirstHSVD maxDepth minDeg c = execWriter (foldCircM eval c)
         check ref degs depth
         return (degs, depth)
 
-    eval op@(OpInput _)   _ _ = return (M.singleton op 1, 0)
+    eval op@(OpInput _)  _ _ = return (M.singleton op 1, 0)
 
-    eval op@(OpSecret id) _ _ = if publicConst c id
-                                   then return (M.empty         , 0)
-                                   else return (M.singleton op 1, 0)
+    eval op@(OpConst id) _ _ = if secretConst c id
+                                  then return (M.singleton op 1, 0)
+                                  else return (M.empty         , 0)
 
     eval _ _ _ = undefined
 
@@ -158,11 +158,11 @@ slice ref c = B.buildCircuit $ do
     eval (OpAdd _ _) _ [x,y] = B.circAdd x y
     eval (OpSub _ _) _ [x,y] = B.circSub x y
     eval (OpMul _ _) _ [x,y] = B.circMul x y
-    eval (OpInput  i) _ _ = B.input_n i
-    eval (OpSecret i) _ _ = let sec = getSecret c i in
-                                if publicConst c i
-                                   then B.constant sec
-                                   else B.secret sec
+    eval (OpInput i) _ _ = B.input_n i
+    eval (OpConst i) _ _ = let sec = getConst c i in
+                               if secretConst c i
+                                  then B.secret sec
+                                  else B.constant sec
     eval _ _ _ = error "[slice] oops"
 
 -- get a slice without rebuilding!
@@ -176,8 +176,8 @@ patch loc c1 c2
   | otherwise = B.buildCircuit $ do
     B.exportParams c1
     xs <- B.inputs (ninputs c1)
-    ys <- B.exportSecrets c1
-    zs <- B.exportSecrets c2
+    ys <- B.exportConsts c1
+    zs <- B.exportConsts c2
 
     -- when we get to loc, eval c2 as subcircuit and return that output
     let catch ref other = if ref == loc
@@ -187,8 +187,8 @@ patch loc c1 c2
     let eval (OpAdd _ _) ref [x,y] = catch ref $ B.circAdd x y
         eval (OpSub _ _) ref [x,y] = catch ref $ B.circSub x y
         eval (OpMul _ _) ref [x,y] = catch ref $ B.circMul x y
-        eval (OpInput  i) ref _ = catch ref $ B.input_n i
-        eval (OpSecret i) ref _ = catch ref $ B.secret_n i
+        eval (OpInput i) ref _ = catch ref $ B.input_n i
+        eval (OpConst i) ref _ = catch ref $ B.secret_n i
         eval _ _ _ = error "[slice] oops"
 
     outs <- foldCircM eval c1
@@ -197,7 +197,7 @@ patch loc c1 c2
 foldConsts :: Circuit -> Circuit
 foldConsts c = B.buildCircuit $ do
     _ <- B.inputs (ninputs c)
-    _ <- B.exportSecrets c
+    _ <- B.exportConsts c
     B.exportParams c
     zs <- foldCircM eval c
     B.outputs (map fst zs)
@@ -220,10 +220,10 @@ foldConsts c = B.buildCircuit $ do
         (_     , Just 1) -> return x
         (_     , _     ) -> do z <- B.circMul (fst x) (fst y); return (z, Nothing)
 
-    eval (OpInput  i) _ _ = do z <- B.input_n i; return (z, Nothing)
-    eval (OpSecret i) _ _ = do
-        let sec = if publicConst c i then Just (getSecret c i) else Nothing
-        z <- B.secret_n i
+    eval (OpInput i) _ _ = do z <- B.input_n i; return (z, Nothing)
+    eval (OpConst i) _ _ = do
+        let sec = if secretConst c i then Nothing else Just (getConst c i)
+        z <- B.secret_n i -- exists already due to export consts
         return (z, sec)
 
     eval _ _ _ = error "[foldConsts] oops"
@@ -261,7 +261,7 @@ flattenRec c = outerLoop maxDepth c
 pushDown :: Circuit -> Circuit
 pushDown c = B.buildCircuit $ do
     _ <- B.inputs (ninputs c)
-    _ <- B.exportSecrets c
+    _ <- B.exportConsts c
     zs <- foldCircM eval c
     B.outputs (map fst zs)
 
@@ -353,7 +353,7 @@ pushDown c = B.buildCircuit $ do
         z <- B.input_n i
         return (z, Nothing)
 
-    eval (OpSecret i) _ _ = do
+    eval (OpConst i) _ _ = do
         z <- B.secret_n i
         return (z, Nothing)
 

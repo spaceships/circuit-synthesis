@@ -60,7 +60,7 @@ showSortedCirc c = unlines (header ++ gateLines ++ output)
              ]
 
     inputs = map gateStr (circ_inputs c)
-    consts = map gateStr (M.keys (circ_secret_refs c))
+    consts = map gateStr (M.keys (circ_consts c))
     gates  = map gateStr (sortedNonInputGates c)
     gateLines = concat [inputs, consts, gates]
     output = let outs = map show (circ_outputs c)
@@ -73,12 +73,12 @@ showSortedCirc c = unlines (header ++ gateLines ++ output)
     gateStr ref = do
         case IM.lookup (getRef ref) (circ_refmap c) of
             Nothing -> error (printf "[gateStr] unknown ref %s" (show ref))
-            Just (OpInput  id) -> printf "%d input %d" (getRef ref) (getId id)
-            Just (OpSecret id) ->
-                let secret = case M.lookup id (circ_secrets c) of
+            Just (OpInput id) -> printf "%d input %d" (getRef ref) (getId id)
+            Just (OpConst id) ->
+                let val = case M.lookup id (circ_const_vals c) of
                                 Nothing -> ""
                                 Just y  -> show y
-                in printf "%d const %s" (getRef ref) secret
+                in printf "%d const %s" (getRef ref) val
             Just (OpAdd x y) -> printf "%d ADD %d %d" (getRef ref) (getRef x) (getRef y)
             Just (OpSub x y) -> printf "%d SUB %d %d" (getRef ref) (getRef x) (getRef y)
             Just (OpMul x y) -> printf "%d MUL %d %d" (getRef ref) (getRef x) (getRef y)
@@ -91,7 +91,7 @@ showCirc c = unlines (header ++ gateLines)
              ]
 
     inputs = mapM gateStr (circ_inputs c)
-    consts = mapM gateStr (M.keys (circ_secret_refs c))
+    consts = mapM gateStr (M.keys (circ_consts c))
     gates  = mapM gateStr (gateRefs c)
 
     output = do
@@ -119,11 +119,11 @@ showCirc c = unlines (header ++ gateLines)
         case IM.lookup (getRef ref) (circ_refmap c) of
             Nothing -> error (printf "[gateStr] unknown ref %s" (show ref))
             Just (OpInput  id) -> return $ printf "%d input %d" ref' (getId id)
-            Just (OpSecret id) -> do
-                let secret = case M.lookup id (circ_secrets c) of
+            Just (OpConst id) -> do
+                let val = case M.lookup id (circ_const_vals c) of
                                 Nothing -> ""
                                 Just y  -> show y
-                return $ printf "%d const %s" ref' secret
+                return $ printf "%d const %s" ref' val
             Just (OpAdd x y) -> pr ref' "ADD" x y
             Just (OpSub x y) -> pr ref' "SUB" x y
             Just (OpMul x y) -> pr ref' "MUL" x y
@@ -199,11 +199,8 @@ parseSecrets :: ParseCirc ()
 parseSecrets = do
     string ":secrets"
     spaces
-    secs <- many (do ref <- parseRef; spaces; return ref)
-    ys   <- (M.keys . circ_secret_refs) <$> lift B.getCirc
-    forM_ ys $ \y -> do
-        when (y `notElem` secs) $ do
-            markPublicConst y
+    secs <- many (do { ref <- parseRef; spaces; return ref })
+    lift $ mapM B.markSecret secs
     endLine
 
 parseRef :: ParseCirc Ref
@@ -228,9 +225,9 @@ parseConst ref = do
     string "const"
     spaces
     val <- Prelude.read <$> many1 digit
-    id  <- lift B.nextSecretId
-    lift $ B.insertSecret ref id
-    lift $ B.insertSecretVal id val
+    id  <- lift B.nextConstId
+    lift $ B.insertConst ref id
+    lift $ B.insertConstVal id val
 
 parseGate :: Ref -> ParseCirc ()
 parseGate ref = do

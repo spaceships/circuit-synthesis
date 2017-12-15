@@ -217,7 +217,7 @@ randIntegerMod :: Integer -> Rand Integer
 randIntegerMod q = do
     let nbits = sizeBase2 q
     x <- randInteger nbits
-    if x <= 0 || x >= q then
+    if x >= q then
         randIntegerMod q
     else
         return x

@@ -27,15 +27,6 @@ runCircParserT p s = do
         Left err -> error (show err)
         Right ts -> return (c, reverse ts)
 
-markPublicConst :: Monad m => Ref -> ParseCircT m ()
-markPublicConst ref = do
-    c <- lift B.getCirc
-    case Map.lookup ref (circ_secret_refs c) of
-        Nothing -> error ("no const with ref " ++ show ref)
-        Just id -> lift $ B.modifyCirc (\c -> c { circ_consts    = Map.insert (getSecret c id) ref (circ_consts c)
-                                                , circ_const_ids = IntSet.insert (getId id) (circ_const_ids c)
-                                                })
-
 --------------------------------------------------------------------------------
 -- custom parsers
 

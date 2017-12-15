@@ -18,7 +18,6 @@ import Control.Concurrent.ParallelIO
 import Control.DeepSeq (NFData)
 import Control.Monad.IfElse (whenM)
 import Control.Monad.State.Strict
-import Data.Map.Strict ((!))
 import Data.List (nub, sortBy)
 import Text.Printf
 import qualified Control.Monad.Par as IVar
@@ -35,19 +34,18 @@ data Op = OpAdd !Ref !Ref
         | OpSub !Ref !Ref
         | OpMul !Ref !Ref
         | OpInput !Id
-        | OpSecret !Id
+        | OpConst !Id
         deriving (Eq, Ord, Show)
 
 data Circuit = Circuit {
-      circ_outputs     :: ![Ref]
-    , circ_inputs      :: ![Ref]
-    , circ_secrets     :: !(M.Map Id Integer)
-    , circ_secret_refs :: !(M.Map Ref Id)
-    , circ_refmap      :: !(IM.IntMap Op)
-    , circ_consts      :: !(M.Map Integer Ref)
-    , circ_const_ids   :: !IS.IntSet -- which OpSecrets are public
-    , circ_symlen      :: !Int
-    , circ_base        :: !Int -- the expected base of the inputs
+      circ_outputs    :: ![Ref]
+    , circ_inputs     :: ![Ref]
+    , circ_consts     :: !(M.Map Ref Id)
+    , circ_secrets    :: !(M.Map Ref Id)
+    , circ_refmap     :: !(IM.IntMap Op)
+    , circ_const_vals :: !(M.Map Id Integer)
+    , circ_symlen     :: !Int
+    , circ_base       :: !Int -- the expected base of the inputs
     } deriving (Show)
 
 type TestCase = ([Integer], [Integer])
@@ -56,7 +54,7 @@ type TestCase = ([Integer], [Integer])
 -- instances and such
 
 emptyCirc :: Circuit
-emptyCirc = Circuit [] [] M.empty M.empty IM.empty M.empty IS.empty 1 2
+emptyCirc = Circuit [] [] M.empty M.empty IM.empty M.empty 1 2
 
 instance Show Ref where
     show ref = show (getRef ref)
@@ -64,17 +62,16 @@ instance Show Ref where
 instance Show Id where
     show id = show (getId id)
 
-getSecret :: Circuit -> Id -> Integer
-getSecret c id = case M.lookup id (circ_secrets c) of
+getConst :: Circuit -> Id -> Integer
+getConst c id = case M.lookup id (circ_const_vals c) of
     Just x  -> x
-    Nothing -> error ("[getSecret] no secret known for y" ++ show id)
+    Nothing -> error ("[getConst] no const known for y" ++ show id)
 
-publicConst :: Circuit -> Id -> Bool
-publicConst c id = IS.member (getId id) (circ_const_ids c)
+secretConst :: Circuit -> Id -> Bool
+secretConst c id = id `elem` M.elems (circ_secrets c)
 
--- refs of all non-public consts
 secretRefs :: Circuit -> [Ref]
-secretRefs c = map fst $ filter (not . publicConst c . snd) $ M.toList (circ_secret_refs c)
+secretRefs = M.keys . circ_secrets
 
 getGate :: Circuit -> Ref -> Op
 getGate c ref = case IM.lookup (getRef ref) (circ_refmap c) of
@@ -83,12 +80,10 @@ getGate c ref = case IM.lookup (getRef ref) (circ_refmap c) of
 
 randomizeSecrets :: Circuit -> IO Circuit
 randomizeSecrets c = do
-    key <- map b2i <$> num2Bits (nsecrets c) <$> randIO (randInteger (nsecrets c))
-    return $ flip execState c $ do
-        forM [0..nsecrets c-1] $ \i -> do
-            modify $ \c -> c { circ_secrets = M.insert (Id i) (key !! i) (circ_secrets c) }
+    key <- replicateM (nsecrets c) $ randIntegerModIO (fromIntegral (circ_base c))
+    let newSecrets = M.fromList $ zip (M.elems (circ_secrets c)) key
+    return $ c { circ_const_vals = M.union newSecrets (circ_const_vals c) }
 
--- symlen determines how large a rachel symbol is
 genTest :: Circuit -> IO TestCase
 genTest c
     | circ_symlen c == 1 = do
@@ -111,32 +106,15 @@ printCircInfo c = do
     let n = ninputs c
     printf "circuit info\n"
     printf "============\n"
-    printf "ninputs=%d noutputs=%d nconsts=%d symlen=%d base=%d\n"
-            n (noutputs c) (nconsts c) (symlen c) (circ_base c)
-    -- printf "ngates=%d depth=%d var-degree=%d circ-degree=%d\n"
-    --         (ngates c) (depth c) (sum ds) (circDegree c)
-    printf "ngates=%d depth=%d circ-degree=%d\n"
-            (ngates c) (depth c) (circDegree c)
-    -- printf "number of additions with disjoint indices: %d\n"
-            -- (numDisjointAdditions c)
-
-printCircInfoLatex :: Circuit -> IO ()
-printCircInfoLatex c = do
-    let ds = degs c
-        n = fromIntegral $ ninputs c
-    printf "#1 & #2 & %d & %d & %d & %d & #3 & %d & %d & %d & #4\\\\ \\hline\n"
-            n (nconsts c) (noutputs c) (ngates c) (depth c) (sum ds) (sum ds + 2*n)
-
-printSecrets :: Circuit -> IO ()
-printSecrets c = do
-    mapM (putStr . show) (M.elems (circ_secrets c))
-    putStrLn ""
+    printf "ninputs=%d noutputs=%d nconsts=%d nsecrets=%d\n" n (noutputs c) (nconsts c) (nsecrets c)
+    printf "symlen=%d base=%d\n" (symlen c) (circ_base c)
+    printf "ngates=%d depth=%d\n" (ngates c) (depth c)
+    printf "degree=%d\n" (circDegree c)
 
 printTruthTable :: Circuit -> IO ()
 printTruthTable c = forM_ inputs $ \inp -> do
     let out = plainEval c inp
     printf "%s -> %s\n" (showInts inp) (showInts out)
-
   where
     n = ninputs c `div` symlen c
     sym x = [ if i == x then (1 :: Integer) else 0 | i <- [ 0 .. symlen c - 1 ] ]
@@ -160,8 +138,8 @@ opArgs :: Op -> [Ref]
 opArgs (OpAdd x y)  = [x,y]
 opArgs (OpSub x y)  = [x,y]
 opArgs (OpMul x y)  = [x,y]
-opArgs (OpSecret _) = []
-opArgs (OpInput  _) = []
+opArgs (OpInput _) = []
+opArgs (OpConst _) = []
 
 ngates :: Circuit -> Int
 ngates = IM.size . circ_refmap
@@ -170,7 +148,7 @@ ninputs :: Circuit -> Int
 ninputs = length . circ_inputs
 
 nconsts :: Circuit -> Int
-nconsts = length . circ_secret_refs
+nconsts = length . circ_consts
 
 nsecrets :: Circuit -> Int
 nsecrets = M.size . circ_secrets
@@ -190,14 +168,14 @@ xdeg c i = degs c !! (i+1)
 degs :: Circuit -> [Integer]
 degs c = map (varDegree c) ids
   where
-    ids = OpSecret (Id (-1)) : map (OpInput . Id) [0 .. ninputs c-1]
+    ids = OpConst (Id (-1)) : map (OpInput . Id) [0 .. ninputs c-1]
 
 depth :: Circuit -> Integer
 depth c = maximum $ foldCirc f c
   where
-    f (OpInput  _) [] = 0
-    f (OpSecret _) [] = 0
-    f _            xs = maximum xs + 1
+    f (OpInput _) [] = 0
+    f (OpConst _) [] = 0
+    f _           xs = maximum xs + 1
 
 varDegree :: Circuit -> Op -> Integer
 varDegree c z = maximum (varDegree' c z)
@@ -211,21 +189,18 @@ varDegree' c z = foldCirc f c
 
     f x _ = if eq x z then 1 else 0
 
-    eq (OpInput  x) (OpInput  y) = x == y
-    eq (OpSecret _) (OpSecret _) = True
+    eq (OpInput x) (OpInput y) = x == y
+    eq (OpConst _) (OpConst _) = True
     eq _ _ = False
 
--- TODO make me better! does this really reflect the degree of the multivariate
--- polynomial corresponding to C?
 circDegree :: Circuit -> Integer
 circDegree c = maximum $ foldCirc f c
   where
     f (OpAdd _ _) [x,y] = max x y
     f (OpSub _ _) [x,y] = max x y
     f (OpMul _ _) [x,y] = x + y
-    f (OpInput  _) _ = 1
-    f (OpSecret _) _ = 1
-    f _ _ = error "[circDegree] unknown input"
+    f (OpInput _) _ = 1
+    f (OpConst _) _ = 1
 
 -- evaluate the circuit using an arbitrary integral type as input
 evalMod :: (Show a, Integral a) => Circuit -> [a] -> a -> [a]
@@ -234,8 +209,8 @@ evalMod c inps q = foldCirc eval c
     eval (OpAdd _ _) [x,y] = x + y % q
     eval (OpSub _ _) [x,y] = x - y % q
     eval (OpMul _ _) [x,y] = x * y % q
-    eval (OpInput  i) [] = inps !! getId i
-    eval (OpSecret i) [] = fromIntegral (getSecret c i)
+    eval (OpInput i) [] = inps !! getId i
+    eval (OpConst i) [] = fromIntegral (getConst c i)
     eval op args  = error ("[evalMod] weird input: " ++ show op ++ " " ++ show args)
 
 zeroTest :: Integer -> Integer
@@ -252,8 +227,8 @@ plainEval c inps
     eval (OpAdd _ _) [x,y] = x + y
     eval (OpSub _ _) [x,y] = x - y
     eval (OpMul _ _) [x,y] = x * y
-    eval (OpInput  i) [] = inps !! getId i
-    eval (OpSecret i) [] = getSecret c i
+    eval (OpInput i) [] = inps !! getId i
+    eval (OpConst i) [] = getConst c i
     eval op args = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
 
 parEval :: Circuit -> [Integer] -> [Integer]
@@ -263,8 +238,8 @@ parEval c inps = map zeroTest $ runPar $ mapM IVar.get =<< foldCircM eval c
     eval (OpAdd _ _) _ [x,y] = liftBin (+) x y
     eval (OpSub _ _) _ [x,y] = liftBin (-) x y
     eval (OpMul _ _) _ [x,y] = liftBin (*) x y
-    eval (OpInput  i) _ [] = IVar.newFull (inps !! getId i)
-    eval (OpSecret i) _ [] = IVar.newFull (getSecret c i)
+    eval (OpInput i) _ [] = IVar.newFull (inps !! getId i)
+    eval (OpConst i) _ [] = IVar.newFull (getConst c i)
     eval op _ args = error ("[parEval] weird input: " ++ show op ++ " with " ++ show (length args) ++ " arguments")
 
     liftBin f x y = IVar.spawn (liftM2 f (IVar.get x) (IVar.get y))
@@ -276,8 +251,8 @@ plainEvalIO c xs = map zeroTest <$> foldCircIO eval c
     eval (OpAdd _ _) [x,y] = x + y
     eval (OpSub _ _) [x,y] = x - y
     eval (OpMul _ _) [x,y] = x * y
-    eval (OpInput  i) [] = xs !! getId i
-    eval (OpSecret i) [] = getSecret c i
+    eval (OpInput i) [] = xs !! getId i
+    eval (OpConst i) [] = getConst c i
     eval op args = error ("[plainEval] weird input: " ++ show op ++ " " ++ show args)
 
 ensure :: Bool -> Circuit -> [TestCase] -> IO Bool
@@ -360,7 +335,7 @@ foldCircIO f c = do
     let eval :: Ref -> IO ()
         eval ref = do
             let op      = circ_refmap c IM.! getRef ref
-                argRefs = map (mem!) (opArgs op)
+                argRefs = map (mem M.!) (opArgs op)
             -- this condition should never be hit since we parallelize over the topological levels
             whenM (or <$> mapM (atomically . isEmptyTMVar) argRefs) $ do
                 putStrLn "blocking!"
@@ -369,13 +344,13 @@ foldCircIO f c = do
             argVals <- mapM (atomically . readTMVar) argRefs
             let val = f op argVals
             forceM val
-            atomically $ putTMVar (mem ! ref) val
+            atomically $ putTMVar (mem M.! ref) val
     let lvls = topoLevels c
     forceM lvls
     forM_ (zip [(0 :: Int)..] lvls) $ \(_, lvl) -> do
         {-printf "evaluating level %d size=%d\n" i (length lvl)-}
         parallelInterleaved (map eval lvl)
-    mapM (atomically . readTMVar . (mem !)) (circ_outputs c)
+    mapM (atomically . readTMVar . (mem M.!)) (circ_outputs c)
 
 topologicalOrder :: Circuit -> [Ref]
 topologicalOrder c = reverse $ execState (foldCircM eval c) []
@@ -410,7 +385,7 @@ gates :: Circuit -> [(Ref, Op)]
 gates c = filter (gate.snd) $ map (\ref -> (ref, getGate c ref)) (topologicalOrder c)
   where
     gate (OpInput _) = False
-    gate (OpSecret _) = False
+    gate (OpConst _) = False
     gate _ = True
 
 gateRefs :: Circuit -> [Ref]
@@ -420,14 +395,14 @@ sortedNonInputGates :: Circuit -> [Ref]
 sortedNonInputGates c = filter notInput (sortGates c)
   where
     notInput ref = notElem ref (circ_inputs c) &&
-                   M.notMember ref (circ_secret_refs c)
+                   M.notMember ref (circ_secrets c)
 
 intermediateGates :: Circuit -> [Ref]
 intermediateGates c = filter intermediate (topologicalOrder c)
   where
     intermediate ref = notElem ref (circ_inputs c) &&
                        notElem ref (circ_outputs c) &&
-                       M.notMember ref (circ_secret_refs c)
+                       M.notMember ref (circ_secrets c)
 
 numDisjointAdditions :: Circuit -> Int
 numDisjointAdditions c = execState (foldCircM eval c) 0
@@ -444,7 +419,7 @@ numDisjointAdditions c = execState (foldCircM eval c) 0
         let degs  = M.unionWith (+) xdegs ydegs
         return degs
     eval op@(OpInput _) _ _ = return (M.singleton op 1)
-    eval op@(OpSecret id) _ _ = if publicConst c id
-                                   then return M.empty
-                                   else return (M.singleton op 1)
+    eval op@(OpConst id) _ _ = if secretConst c id
+                                   then return (M.singleton op 1)
+                                   else return M.empty
     eval _ _ _ = undefined

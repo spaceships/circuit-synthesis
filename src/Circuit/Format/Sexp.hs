@@ -13,10 +13,10 @@ circToSexp c = foldCirc eval c
     eval (OpAdd _ _) [x,y] = printf "Add(%s, %s)" x y
     eval (OpSub _ _) [x,y] = printf "Add(%s, Mul(Integer(-1), %s))" x y
     eval (OpMul _ _) [x,y] = printf "Mul(%s, %s)" x y
-    eval (OpInput  i) []   = printf "Symbol('x%d')" (getId i)
-    eval (OpSecret i) []   = if publicConst c i
-                                then printf "Integer(%d)" (getSecret c i)
-                                else printf "Symbol('y%d')" (getId i)
+    eval (OpInput i) []   = printf "Symbol('x%d')" (getId i)
+    eval (OpConst i) []   = if secretConst c i
+                               then printf "Symbol('y%d')" (getId i)
+                               else printf "Integer(%d)" (getConst c i)
     eval op args  = error ("[circToSexp] weird input: " ++ show op ++ " " ++ show args)
 
 type SexpParser = ParsecT String () B.Builder

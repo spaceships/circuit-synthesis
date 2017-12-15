@@ -43,37 +43,41 @@ inputs n = replicateM n input
 
 secret :: Monad m => Integer -> BuilderT m Ref
 secret val = do
-    id  <- nextSecretId
+    id  <- nextConstId
     ref <- nextRef
-    insertSecret ref id
-    insertSecretVal id val
+    insertConst ref id
+    insertConstVal id val
+    markSecret ref
     return ref
 
--- get the ref of a particular secret, even if it does not exist already.
+-- get the ref of a particular secret, even if it does not exist already (inserts secret 0s)
 secret_n :: Monad m => Id -> BuilderT m Ref
 secret_n n = do
     dedup <- gets bs_dedup
-    case M.lookup (OpSecret n) dedup of
+    case M.lookup (OpConst n) dedup of
         Just ref -> return ref
         Nothing  -> do
-            cur <- gets bs_next_secret
+            cur <- gets bs_next_const
             last <$> replicateM (getId n - getId cur + 1) (secret 0)
 
+-- preserve duplication: there will be many gates for secret 0
 secrets :: Monad m => [Integer] -> BuilderT m [Ref]
 secrets = mapM secret
 
+-- avoid duplication: there will be only one gate for const 0
 constant :: Monad m => Integer -> BuilderT m Ref
 constant val = do
     c <- getCirc
-    if M.member val (circ_consts c) then do
-        return (circ_consts c M.! val)
-    else do
-        id  <- nextSecretId
-        ref <- nextRef
-        insertSecret ref id
-        insertSecretVal id val
-        markConst val ref id
-        return ref
+    r <- existingConstant val
+    case r of
+        Just ref -> return ref
+        Nothing  -> do
+            id  <- nextConstId
+            ref <- nextRef
+            insertConst ref id
+            insertConstVal id val
+            markConstant val ref
+            return ref
 
 constants :: Monad m => [Integer] -> BuilderT m [Ref]
 constants = mapM constant
@@ -140,25 +144,30 @@ subcircuit' c xs ys
     translate (OpAdd _ _) _ [x,y] = circAdd x y
     translate (OpSub _ _) _ [x,y] = circSub x y
     translate (OpMul _ _) _ [x,y] = circMul x y
-    translate (OpInput  id) _ _ = return (xs !! getId id)
-    translate (OpSecret id) _ _ = return (ys !! getId id)
+    translate (OpInput id) _ _ = return (xs !! getId id)
+    translate (OpConst id) _ _ = return (ys !! getId id)
     translate op _ args =
         error ("[subcircuit'] weird input: " ++ show op ++ " " ++ show args)
 
 -- lift the subcircuit's constants and secrets into the circuit above
 subcircuit :: Monad m => Circuit -> [Ref] -> BuilderT m [Ref]
 subcircuit c xs = do
-    ys <- exportSecrets c
+    ys <- exportConsts c
     subcircuit' c xs ys
 
-exportSecrets :: Monad m => Circuit -> BuilderT m [Ref]
-exportSecrets c = do
-    forM (M.toAscList (circ_secret_refs c)) $ \(_, sid) -> do
-        let x = getSecret c sid
-        if publicConst c sid then do
-            constant x
-        else
+exportConsts :: Monad m => Circuit -> BuilderT m [Ref]
+exportConsts c = do
+    forM (M.toAscList (circ_consts c)) $ \(_, id) -> do
+        let x = getConst c id
+        if secretConst c id then do
             secret x
+        else
+            constant x
+
+exportParams :: Monad m => Circuit -> BuilderT m ()
+exportParams c = do
+    setSymlen (circ_symlen c)
+    setBase (circ_base c)
 
 --------------------------------------------------------------------------------
 -- extras!

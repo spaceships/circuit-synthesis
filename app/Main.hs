@@ -21,7 +21,6 @@ import System.Exit
 import System.FilePath.Posix (takeExtension)
 
 data MainOptions = MainOptions { opt_info       :: Bool
-                               , opt_latex_info :: Bool
                                , opt_verbose    :: Bool
                                , opt_test       :: Bool
                                , opt_gentests   :: Maybe Int
@@ -40,12 +39,6 @@ instance Options MainOptions where
             (\o -> o { optionLongFlags   = ["info"]
                      , optionShortFlags  = "i"
                      , optionDescription = "Show circuit info."
-                     })
-
-        <*> defineOption optionType_bool
-            (\o -> o { optionLongFlags   = ["latex"]
-                     , optionShortFlags  = "l"
-                     , optionDescription = "Show circuit info as a latex table."
                      })
 
         <*> defineOption optionType_bool
@@ -171,9 +164,6 @@ circuitMain opts ts (outputName, c) = do
 
     when (opt_info opts) $ do
         printCircInfo c
-
-    when (opt_latex_info opts) $ do
-        printCircInfoLatex c
 
     ts <- case opt_gentests opts of
         Nothing -> return ts

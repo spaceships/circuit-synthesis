@@ -29,7 +29,7 @@ garbler c = buildCircuitT $ do
 
     s <- inputs k -- the seed to the PRGs
 
-    let g1 = fmap (chunksOf k) . prgBuilder k (2 * ngates c * k) 5 xorAnd -- prg for generating wires
+    let g1 = fmap (chunksOf k) . prgBuilder k (2 * ngates c * k) 5 xorMaj -- prg for generating wires
     -- let g2 = fmap (chunksOf k) . prgBuilder k (2*k) 5 xorAnd -- prg for encrypting table entries
 
     -- generate pairs of wirelabels for every wire in c
