@@ -37,8 +37,6 @@ while [[ $# -gt 0 ]]; do
 done
 set -- "${POSITIONAL[@]}"
 
-echo "opt_binary=$opt_binary liberty_file=$liberty_file \$1=$1 \$2=$2"
-
 if [ x$1 = x ] || [ x$2 = x ]; then
     usage 1
 fi
