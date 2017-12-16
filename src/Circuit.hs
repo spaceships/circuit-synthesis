@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 #if __GLASGOW_HASKELL__ >= 800
 {-# LANGUAGE Strict #-}
@@ -315,29 +315,29 @@ foldCircRef f c = runIdentity (foldCircM f' c)
   where
     f' op ref xs = return (f op ref xs)
 
-foldCircM :: (GateEval gate, Monad m) => (gate -> Ref -> [a] -> m a) -> Circuit gate -> m [a]
-foldCircM f c = evalStateT (mapM eval (c^.circ_outputs)) M.empty
-  where
-    eval ref = gets (M.lookup ref) >>= \case
-        Just val -> return val
-        Nothing  -> do
-            let gate = c^.circ_refmap.at (getRef ref).non (error "no ref")
-            argVals <- mapM eval (gateArgs gate)
-            val     <- lift (f gate ref argVals)
-            modify (M.insert ref val)
-            return val
+-- evaluate the circuit
+foldCircM :: (GateEval g, Monad m) => (g -> Ref -> [a] -> m a) -> Circuit g -> m [a]
+foldCircM f c = evalStateT (mapM (foldCircRec f c) (c^.circ_outputs)) M.empty
 
+-- evaluate the circuit for a particular ref as output
+foldCircRefM :: (GateEval g, Monad m) => (g -> Ref -> [a] -> m a) -> Circuit g -> Ref -> m a
+foldCircRefM !f !c !ref = evalStateT (foldCircRec f c ref) M.empty
 
-foldCircRefM :: (GateEval gate, Monad m) => (gate -> Ref -> [a] -> m a) -> Circuit gate -> Ref -> m a
-foldCircRefM f c ref = evalStateT (eval ref) M.empty
-  where
-    eval ref = gets (M.lookup ref) >>= \case
-        Just val -> return val
-        Nothing  -> do
-            let op = c^.circ_refmap.at (getRef ref).non (error "no ref")
-            argVals <- mapM eval (gateArgs op)
-            val     <- lift (f op ref argVals)
-            modify (M.insert ref val)
+-- helper function for foldCircM and foldCircRefM
+foldCircRec :: (GateEval g, Monad m)
+            => (g -> Ref -> [a] -> m a) -> Circuit g -> Ref
+            -> StateT (M.Map Ref a) m a
+foldCircRec f c !ref = do
+    existingVal <- gets (M.lookup ref)
+    case existingVal of
+        Just !val -> return val -- evaluated already
+        Nothing   -> do
+            -- get the gate
+            let !g = c^.circ_refmap.at (getRef ref).non
+                    (error $ printf "[foldCircMRec] no gate for ref %s!" (show ref))
+            argVals <- mapM (foldCircRec f c) (gateArgs g)
+            val     <- lift (f g ref argVals)
+            modify' (M.insert ref val)
             return val
 
 topologicalOrder :: GateEval gate => Circuit gate -> [Ref]

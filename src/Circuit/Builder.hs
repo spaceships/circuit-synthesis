@@ -78,13 +78,13 @@ constants :: (GateEval g, Monad m) => [Integer] -> BuilderT g m [Ref]
 constants = mapM constant
 
 circAdd :: (GateEval g, Monad m) => Ref -> Ref -> BuilderT g m Ref
-circAdd x y = newOp (gateAdd x y)
+circAdd x y = newGate (gateAdd x y)
 
 circSub :: (GateEval g, Monad m) => Ref -> Ref -> BuilderT g m Ref
-circSub x y = newOp (gateSub x y)
+circSub x y = newGate (gateSub x y)
 
 circMul :: (GateEval g, Monad m) => Ref -> Ref -> BuilderT g m Ref
-circMul x y = newOp (gateMul x y)
+circMul x y = newGate (gateMul x y)
 
 circProd :: (GateEval g, Monad m) => [Ref] -> BuilderT g m Ref
 circProd = foldTreeM circMul
@@ -94,7 +94,7 @@ circSum = foldTreeM circAdd
 
 circXor :: (GateEval g, Monad m) => Ref -> Ref -> BuilderT g m Ref
 circXor x y = case gateXor x y of
-    Just g  -> newOp g
+    Just g  -> newGate g
     Nothing -> do
         z  <- circAdd x y
         c  <- circMul x y

@@ -20,10 +20,10 @@ import Text.Printf
 import qualified Data.Map as M
 import qualified Control.Monad.State as S
 
-read :: GateEval g => FilePath -> IO (Circuit g)
+read :: FilePath -> IO Acirc
 read = fmap fst . readWithTests
 
-readWithTests :: GateEval g => FilePath -> IO (Circuit g, [TestCase])
+readWithTests :: FilePath -> IO (Acirc, [TestCase])
 readWithTests fp = parseCirc <$> readFile fp
 
 write :: ToAcirc g => FilePath -> Circuit g -> IO ()
@@ -34,7 +34,7 @@ showWithTests c ts = let s = showCirc (toAcirc c)
                          t = unlines (map showTest ts)
                      in t ++ s
 
-showCirc :: Circuit ArithGate -> String
+showCirc :: Acirc -> String
 showCirc c = unlines (header ++ gateLines)
   where
     header = [ printf ":symlen %d" (_circ_symlen c)
@@ -90,7 +90,7 @@ showTest (inp, out) = printf ":test %s %s" (showInts (reverse inp)) (showInts (r
 --------------------------------------------------------------------------------
 -- parser
 
-parseCirc :: GateEval g => String -> (Circuit g, [TestCase])
+parseCirc :: String -> (Acirc, [TestCase])
 parseCirc s = runCircParser circParser s
   where
     circParser = preamble >> lines >> end >> eof
@@ -98,12 +98,12 @@ parseCirc s = runCircParser circParser s
     lines    = many parseRefLine
     end      = parseOutputs >> optional parseSecrets
 
-skipParam :: ParseCirc g ()
+skipParam :: ParseCirc ArithGate ()
 skipParam = do
     skipMany (oneOf " \t" <|> alphaNum)
     endLine
 
-parseTest :: ParseCirc g ()
+parseTest :: ParseCirc ArithGate ()
 parseTest = do
     string "test"
     spaces
@@ -115,7 +115,7 @@ parseTest = do
     addTest (reverse inp, reverse res)
     endLine
 
-parseBase :: ParseCirc g ()
+parseBase :: ParseCirc ArithGate ()
 parseBase = do
     string "base"
     spaces
@@ -123,7 +123,7 @@ parseBase = do
     lift (B.setBase n)
     endLine
 
-parseSymlen :: ParseCirc g ()
+parseSymlen :: ParseCirc ArithGate ()
 parseSymlen = do
     string "symlen"
     spaces
@@ -131,7 +131,7 @@ parseSymlen = do
     lift $ B.setSymlen n
     endLine
 
-parseOutputs :: ParseCirc g ()
+parseOutputs :: ParseCirc ArithGate ()
 parseOutputs = do
     string ":outputs"
     spaces
@@ -139,54 +139,50 @@ parseOutputs = do
     lift $ mapM_ B.markOutput refs
     endLine
 
-parseSecrets :: ParseCirc g ()
+parseSecrets :: ParseCirc ArithGate ()
 parseSecrets = do
     string ":secrets"
     spaces
-    secs <- many (do { ref <- parseRef; spaces; return ref })
+    secs <- many (do { ref <- parseRef; spaces; refLookup (getRef ref) })
     lift $ mapM B.markSecret secs
     endLine
 
 parseRef :: ParseCirc g Ref
 parseRef = Ref <$> Prelude.read <$> many1 digit
 
-parseRefLine :: GateEval g => ParseCirc g ()
+parseRefLine :: ParseCirc ArithGate ()
 parseRefLine = do
-    existingRef <- parseRef
+    ref <- parseRef
     spaces
-    newRef <- choice [parseConst, parseInput, parseGate]
-    refUpdate (getRef existingRef) newRef
+    choice [parseConst ref, parseInput ref, parseGate ref]
     endLine
 
-parseInput :: GateEval g => ParseCirc g Ref
-parseInput = do
-    ref <- lift $ B.nextRef
+parseInput :: Ref -> ParseCirc ArithGate ()
+parseInput ref = do
     string "input"
     spaces
     id <- Id <$> Prelude.read <$> many1 digit
     lift $ B.insertInput ref id
-    return ref
 
-parseConst :: GateEval g => ParseCirc g Ref
-parseConst = do
-    ref <- lift $ B.nextRef
+parseConst :: Ref -> ParseCirc ArithGate ()
+parseConst ref = do
     string "const"
     spaces
     val <- Prelude.read <$> many1 digit
     id  <- lift B.nextConstId
     lift $ B.insertConst ref id
     lift $ B.insertConstVal id val
-    return ref
 
-parseGate :: GateEval g => ParseCirc g Ref
-parseGate = do
+parseGate :: Ref -> ParseCirc ArithGate ()
+parseGate ref = do
     opType <- oneOfStr ["ADD", "SUB", "MUL"]
     spaces
-    x <- refLookup =<< Prelude.read <$> many1 digit
+    x <- Ref . Prelude.read <$> many1 digit
     spaces
-    y <- refLookup =<< Prelude.read <$> many1 digit
-    case opType of
-            "ADD" -> lift $ B.circAdd x y
-            "MUL" -> lift $ B.circMul x y
-            "SUB" -> lift $ B.circSub x y
+    y <- Ref . Prelude.read <$> many1 digit
+    let gate = case opType of
+            "ADD" -> ArithAdd x y
+            "MUL" -> ArithMul x y
+            "SUB" -> ArithSub x y
             g     -> error ("[parser] unkonwn gate type " ++ g)
+    lift $ B.insertGate ref gate

@@ -54,18 +54,18 @@ setSymlen !n = bs_circ . circ_symlen .= n
 setBase :: Monad m => Integer -> BuilderT g m ()
 setBase !n = bs_circ . circ_base .= n
 
-insertOp :: (Ord g, Monad m) => Ref -> g -> BuilderT g m ()
-insertOp !ref !op = do
+insertGate :: (Ord g, Monad m) => Ref -> g -> BuilderT g m ()
+insertGate !ref !gate = do
     refs <- use $ bs_circ . circ_refmap
     when (IM.member (getRef ref) refs) $
         error ("redefinition of ref " ++ show ref)
-    bs_circ . circ_refmap . at (getRef ref) ?= op
-    bs_dedup . at op ?= ref
+    bs_circ . circ_refmap . at (getRef ref) ?= gate
+    bs_dedup . at gate ?= ref
 
 insertConst :: (GateEval g, Monad m) => Ref -> Id -> BuilderT g m ()
 insertConst !ref !id = do
     bs_circ . circ_consts . at ref ?= id
-    insertOp ref (gateConst id)
+    insertGate ref (gateConst id)
 
 insertConstVal :: Monad m => Id -> Integer -> BuilderT g m ()
 insertConstVal !id !val = do
@@ -76,15 +76,15 @@ insertConstVal !id !val = do
 insertInput :: (GateEval g, Monad m) => Ref -> Id -> BuilderT g m ()
 insertInput !ref !id = do
     bs_circ . circ_inputs %= (++[ref])
-    insertOp ref (gateInput id)
+    insertGate ref (gateInput id)
 
-newOp :: (Ord g, Monad m) => g -> BuilderT g m Ref
-newOp !op = do
+newGate :: (Ord g, Monad m) => g -> BuilderT g m Ref
+newGate !gate = do
     dedup <- use bs_dedup
-    case M.lookup op dedup of
+    case M.lookup gate dedup of
         Nothing -> do
             ref <- nextRef
-            insertOp ref op
+            insertGate ref gate
             return ref
         Just ref -> do
             return ref
