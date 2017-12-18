@@ -258,6 +258,7 @@ circDegree :: GateEval g => Circuit g -> Integer
 circDegree c = maximum $ foldCirc f c
   where
     f g [x,y] = if gateIsMul g then x + y else max x y
+    f g [x] = x
     f _ [] = 1 -- input or const
 
 zeroTest :: Integer -> Integer

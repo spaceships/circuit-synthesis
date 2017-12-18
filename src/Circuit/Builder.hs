@@ -114,9 +114,11 @@ circOrs :: (GateEval g, Monad m) => [Ref] -> BuilderT g m Ref
 circOrs = foldTreeM circOr
 
 circNot :: (GateEval g, Monad m) => Ref -> BuilderT g m Ref
-circNot x = do
-    one <- constant 1
-    circSub one x
+circNot x = case gateNot x of
+    Just g  -> newGate g
+    Nothing -> do
+        one <- constant 1
+        circSub one x
 
 outputs :: Monad m => [Ref] -> BuilderT g m ()
 outputs = mapM_ markOutput
