@@ -16,9 +16,11 @@ read :: GateEval g => FilePath -> IO (Circuit g)
 read file = fst <$> readNigel file
 
 readNigel :: GateEval g => FilePath -> IO (Circuit g, [TestCase])
-readNigel file = runCircParser parseCircuit <$> readFile file
+readNigel file = runCircParser IM.empty parseCircuit <$> readFile file
 
-parseCircuit :: GateEval g => ParseCirc g ()
+type ParseNigel g = ParseCirc g (IM.IntMap Ref)
+
+parseCircuit :: GateEval g => ParseNigel g ()
 parseCircuit = do
     ngates <- int
     spaces
@@ -43,7 +45,7 @@ parseCircuit = do
     acircOutputs <- mapM refLookup nigelOutputs
     lift $ B.outputs acircOutputs
 
-parseLine :: GateEval g => ParseCirc g ()
+parseLine :: GateEval g => ParseNigel g ()
 parseLine = do
     nargs <- int
     spaces

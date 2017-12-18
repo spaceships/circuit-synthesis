@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+
 module Circuit.Parser where
 
 import Circuit
@@ -7,52 +9,69 @@ import qualified Circuit.Builder.Internals as B
 import Control.Monad
 import Control.Monad.Trans (lift)
 import Control.Monad.Identity
+import Lens.Micro.Platform
 import Text.Parsec hiding (spaces, parseTest)
 import qualified Data.IntMap as IM
 import qualified Control.Monad.State.Strict as S
 
-type ParseCircT g m = ParsecT String [TestCase] (B.BuilderT g (S.StateT (IM.IntMap Ref) m))
-type ParseCirc g = ParseCircT g Identity
+type ParseCircT g s m = ParsecT String ([TestCase], s) (B.BuilderT g m)
+type ParseCirc g s = ParseCircT g s Identity
 
-addTest :: Monad m => TestCase -> ParseCircT g m ()
-addTest t = modifyState (t:)
+addTest :: Monad m => TestCase -> ParseCircT g s m ()
+addTest t = modifyState (over _1 (t:))
 
-runCircParser :: ParseCirc g a -> String -> (Circuit g, [TestCase])
-runCircParser p s = runIdentity $ runCircParserT p s
+runCircParser :: s -> ParseCirc g s a -> String -> (Circuit g, [TestCase])
+runCircParser st p s = runIdentity $ runCircParserT st p s
 
-runCircParserT :: Monad m => ParseCircT g m a -> String -> m (Circuit g, [TestCase])
-runCircParserT p s = flip S.evalStateT IM.empty $ do
-    (c, maybeTests) <- B.runCircuitT $ runParserT (p >> getState) [] "" s
-    case maybeTests of
+runCircParserT :: Monad m => s -> ParseCircT g s m a -> String -> m (Circuit g, [TestCase])
+runCircParserT initialState p str = do
+    (c, maybeSt) <- B.runCircuitT $ runParserT (p >> getState) ([],initialState) "" str
+    case maybeSt of
         Left err -> error (show err)
-        Right ts -> return (c, reverse ts)
+        Right (ts,_) -> return (c, reverse ts)
+
+execCircParser :: s -> ParseCirc g s a -> String -> (Circuit g, [TestCase], s)
+execCircParser st p str = runIdentity $ execCircParserT st p str
+
+execCircParserT :: Monad m => s -> ParseCircT g s m a -> String -> m (Circuit g, [TestCase], s)
+execCircParserT initialState p str = do
+    (c, maybeSt) <- B.runCircuitT $ runParserT (p >> getState) ([],initialState) "" str
+    case maybeSt of
+        Left err -> error (show err)
+        Right (ts,s) -> return (c, reverse ts, s)
 
 --------------------------------------------------------------------------------
 -- custom parsers
 
-oneOfStr :: Monad m => [String] -> ParseCircT g m String
+oneOfStr :: Monad m => [String] -> ParseCircT g s m String
 oneOfStr = foldr (\s m -> string s <|> m) (fail "no strings")
 
-spaces :: Monad m => ParseCircT g m ()
+spaces :: Monad m => ParseCircT g s m ()
 spaces = skipMany (oneOf " \t")
 
-endLine :: Monad m => ParseCircT g m ()
-endLine = do
-    skipMany (char ' ')
-    eof <|> void endOfLine
-    return ()
+endLine :: Monad m => ParseCircT g s m ()
+endLine = eof <|> void endOfLine
 
-int :: Monad m => ParseCircT g m Int
+int :: Monad m => ParseCircT g s m Int
 int = read <$> many1 digit
 
 --------------------------------------------------------------------------------
 -- state manipulation
 
-refUpdate :: Monad m => Int -> Ref -> ParseCircT g m ()
-refUpdate existingRef newRef = (lift.lift) $ S.modify (IM.insert existingRef newRef)
+getSt :: Monad m => ParseCircT g s m s
+getSt = snd <$> getState
 
-refMerge :: Monad m => IM.IntMap Ref -> ParseCircT g m ()
-refMerge map = (lift.lift) $ S.modify (IM.union map)
+modifySt :: Monad m => (s -> s) -> ParseCircT g s m ()
+modifySt f = modifyState (over _2 f)
 
-refLookup :: Monad m => Int -> ParseCircT g m Ref
-refLookup nigelRef = (lift.lift) $ S.gets (IM.! nigelRef)
+refUpdate :: Monad m => Int -> a -> ParseCircT g (IM.IntMap a) m ()
+refUpdate !key !val = modifySt (IM.insert key val)
+
+refMerge :: Monad m => IM.IntMap a -> ParseCircT g (IM.IntMap a) m ()
+refMerge !map = modifySt (IM.union map)
+
+refLookup :: Monad m => Int -> ParseCircT g (IM.IntMap a) m a
+refLookup !key = (IM.! key) <$> getSt
+
+refLookupSafe :: Monad m => Int -> ParseCircT g (IM.IntMap a) m (Maybe a)
+refLookupSafe !key = IM.lookup key <$> getSt

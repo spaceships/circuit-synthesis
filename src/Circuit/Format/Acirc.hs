@@ -90,20 +90,22 @@ showTest (inp, out) = printf ":test %s %s" (showInts (reverse inp)) (showInts (r
 --------------------------------------------------------------------------------
 -- parser
 
+type AcircParser = ParseCirc ArithGate ()
+
 parseCirc :: String -> (Acirc, [TestCase])
-parseCirc s = runCircParser circParser s
+parseCirc s = runCircParser () parser s
   where
-    circParser = preamble >> lines >> end >> eof
+    parser   = preamble >> lines >> end >> eof
     preamble = many $ (char ':' >> (parseTest <|> parseSymlen <|> parseBase <|> skipParam))
     lines    = many parseRefLine
     end      = parseOutputs >> optional parseSecrets
 
-skipParam :: ParseCirc ArithGate ()
+skipParam :: AcircParser ()
 skipParam = do
     skipMany (oneOf " \t" <|> alphaNum)
     endLine
 
-parseTest :: ParseCirc ArithGate ()
+parseTest :: AcircParser ()
 parseTest = do
     string "test"
     spaces
@@ -115,7 +117,7 @@ parseTest = do
     addTest (reverse inp, reverse res)
     endLine
 
-parseBase :: ParseCirc ArithGate ()
+parseBase :: AcircParser ()
 parseBase = do
     string "base"
     spaces
@@ -123,7 +125,7 @@ parseBase = do
     lift (B.setBase n)
     endLine
 
-parseSymlen :: ParseCirc ArithGate ()
+parseSymlen :: AcircParser ()
 parseSymlen = do
     string "symlen"
     spaces
@@ -131,7 +133,7 @@ parseSymlen = do
     lift $ B.setSymlen n
     endLine
 
-parseOutputs :: ParseCirc ArithGate ()
+parseOutputs :: AcircParser ()
 parseOutputs = do
     string ":outputs"
     spaces
@@ -139,32 +141,32 @@ parseOutputs = do
     lift $ mapM_ B.markOutput refs
     endLine
 
-parseSecrets :: ParseCirc ArithGate ()
+parseSecrets :: AcircParser ()
 parseSecrets = do
     string ":secrets"
     spaces
-    secs <- many (do { ref <- parseRef; spaces; refLookup (getRef ref) })
+    secs <- many (do { ref <- parseRef; spaces; return ref })
     lift $ mapM B.markSecret secs
     endLine
 
-parseRef :: ParseCirc g Ref
+parseRef :: AcircParser Ref
 parseRef = Ref <$> Prelude.read <$> many1 digit
 
-parseRefLine :: ParseCirc ArithGate ()
+parseRefLine :: AcircParser ()
 parseRefLine = do
     ref <- parseRef
     spaces
     choice [parseConst ref, parseInput ref, parseGate ref]
     endLine
 
-parseInput :: Ref -> ParseCirc ArithGate ()
+parseInput :: Ref -> AcircParser ()
 parseInput ref = do
     string "input"
     spaces
     id <- Id <$> Prelude.read <$> many1 digit
     lift $ B.insertInput ref id
 
-parseConst :: Ref -> ParseCirc ArithGate ()
+parseConst :: Ref -> AcircParser ()
 parseConst ref = do
     string "const"
     spaces
@@ -173,7 +175,7 @@ parseConst ref = do
     lift $ B.insertConst ref id
     lift $ B.insertConstVal id val
 
-parseGate :: Ref -> ParseCirc ArithGate ()
+parseGate :: Ref -> AcircParser ()
 parseGate ref = do
     opType <- oneOfStr ["ADD", "SUB", "MUL"]
     spaces

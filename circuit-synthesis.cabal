@@ -21,6 +21,7 @@ library
                         , Circuit.Utils
                         , Circuit.Format.Acirc
                         , Circuit.Format.Graphviz
+                        , Circuit.Format.Netlist
                         , Circuit.Format.Nigel
                         , Circuit.Format.Sexp
                         , Examples.Aes

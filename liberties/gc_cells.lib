@@ -27,15 +27,4 @@ library(gc) {
             function: "A*B";
         }
     }
-
-    cell(OR) {
-        area: 10000;
-        pin(A) { direction: input; }
-        pin(B) { direction: input; }
-        pin(Y) {
-            direction: output;
-            function: "A+B";
-        }
-    }
-
 }
