@@ -14,7 +14,6 @@ import Control.Parallel.Strategies
 import Crypto.Random
 import Crypto.Random.DRBG
 import Crypto.Util (bs2i)
-import Data.Bits ((.&.))
 import Data.Bits ((.&.), shift)
 import Data.List.Split (chunksOf)
 import GHC.Types

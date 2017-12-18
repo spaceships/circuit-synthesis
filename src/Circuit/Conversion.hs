@@ -1,7 +1,6 @@
 module Circuit.Conversion where
 
 import Circuit
-import Circuit.Builder
 
 class ToAcirc g where
     toAcirc :: Circuit g -> Acirc

@@ -2,7 +2,7 @@
 
 module Examples.Point where
 
-import Circuit
+import Circuit hiding (ninputs, symlen)
 import Circuit.Builder
 import Circuit.Utils
 

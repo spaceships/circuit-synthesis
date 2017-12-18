@@ -16,8 +16,6 @@ import Control.Monad
 import Control.Monad.Trans
 import Data.List.Split
 
-import Debug.Trace
-
 makePRG :: IO [(Maybe String, Acirc)]
 makePRG = sequence
     [ (Just "prg_xormaj_32_32.dsl.acirc"   ,) <$> prg'  32  32 5 xorMaj

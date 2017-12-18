@@ -1,14 +1,12 @@
 module Circuit.Format.Nigel where
 
-import Circuit
+import Circuit hiding (ngates, ninputs, nsecrets, noutputs)
 import Circuit.Parser
-import Circuit.Utils
 import qualified Circuit.Builder as B
 
 import Control.Monad
 import Control.Monad.Trans (lift)
 import Text.Parsec hiding (spaces, parseTest)
-import Text.Printf
 import Prelude hiding (lookup)
 import qualified Data.IntMap as IM
 
@@ -22,7 +20,7 @@ type ParseNigel g = ParseCirc g (IM.IntMap Ref)
 
 parseCircuit :: GateEval g => ParseNigel g ()
 parseCircuit = do
-    ngates <- int
+    _ <- int
     spaces
     nwires <- int
     endLine
@@ -39,7 +37,7 @@ parseCircuit = do
     refMerge (IM.fromList (zip [0..] xs))       -- update refs for inputs
     refMerge (IM.fromList (zip [ninputs..] ys)) -- update refs for secrets
 
-    many parseLine -- parse the gates
+    void $ many parseLine -- parse the gates
 
     let nigelOutputs = reverse (take noutputs [nwires-1, nwires-2..])
     acircOutputs <- mapM refLookup nigelOutputs
@@ -69,5 +67,6 @@ parseLine = do
         "INV" -> do
             [x] <- mapM refLookup args
             lift $ B.circNot x
+        g -> error $ "[parseLine] unknown gate " ++ g
     refUpdate out z
     endLine

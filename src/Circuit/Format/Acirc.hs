@@ -12,7 +12,6 @@ import Circuit.Utils
 import qualified Circuit.Builder           as B
 import qualified Circuit.Builder.Internals as B
 
-import Control.Monad
 import Control.Monad.Trans (lift)
 import Lens.Micro.Platform
 import Text.Parsec hiding (spaces, parseTest)

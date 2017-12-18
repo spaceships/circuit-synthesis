@@ -4,7 +4,6 @@ module Circuit.Optimizer (Optimize(..)) where
 
 import Circuit
 import qualified Circuit.Builder as B
-import qualified Circuit.Builder.Internals as B
 
 import Control.Monad.Identity
 import Control.Monad.State

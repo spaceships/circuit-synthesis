@@ -7,12 +7,10 @@ import qualified Circuit.Builder as B
 import qualified Circuit.Builder.Internals as B
 
 import Control.Monad
-import Control.Monad.Trans (lift)
 import Control.Monad.Identity
 import Lens.Micro.Platform
 import Text.Parsec hiding (spaces, parseTest)
 import qualified Data.IntMap as IM
-import qualified Control.Monad.State.Strict as S
 
 type ParseCircT g s m = ParsecT String ([TestCase], s) (B.BuilderT g m)
 type ParseCirc g s = ParseCircT g s Identity

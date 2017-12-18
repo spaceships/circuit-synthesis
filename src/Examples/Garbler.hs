@@ -12,7 +12,6 @@ import Circuit.Utils
 import Examples.Goldreich
 
 import Control.Monad
-import Control.Monad.Trans (lift)
 import Data.List.Split
 import qualified Data.IntMap as IntMap
 
