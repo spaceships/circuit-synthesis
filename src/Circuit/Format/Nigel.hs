@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Circuit.Format.Nigel
     ( Circuit.Format.Nigel.read
@@ -15,14 +16,17 @@ import qualified Circuit.Builder as B
 
 import Control.Monad
 import Control.Monad.Trans (lift)
+import Formatting ((%))
 import Lens.Micro.Platform
-import Text.Parsec hiding (spaces, parseTest)
-import Text.Printf
 import Prelude hiding (lookup)
+import Text.Parsec hiding (spaces, parseTest)
 import qualified Data.IntMap as IM
 import qualified Data.Map as M
+import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import qualified Control.Monad.State.Strict as S
 import qualified Control.Monad.Writer.Strict as W
+import qualified Formatting as F
 
 read :: GateEval g => FilePath -> IO (Circuit g)
 read file = fst <$> readNigel file
@@ -31,41 +35,41 @@ readNigel :: GateEval g => FilePath -> IO (Circuit g, [TestCase])
 readNigel file = parseNigel <$> readFile file
 
 write :: ToCirc g => FilePath -> Circuit g -> IO ()
-write fp c = writeFile fp (showCirc (toCirc c))
+write fp c = T.writeFile fp (showCirc (toCirc c))
 
 --------------------------------------------------------------------------------
 -- write
 
-showCirc :: Circ -> String
+showCirc :: Circ -> T.Text
 showCirc c = W.execWriter $ flip S.runStateT initial $ do
-    W.tell (header1 ++ "\n")
-    W.tell (header2 ++ "\n\n")
+    W.tell (T.append header1 (T.pack "\n"))
+    W.tell (T.append header2 (T.pack "\n\n"))
     foldCircM eval c
   where
-    header1 = unwords $ map show [ngates c - ninputs c, ngates c]
-    header2 = unwords $ map show [ninputs c, nconsts c, noutputs c]
+    header1 = T.unwords $ map (T.pack . show) [ngates c - ninputs c, ngates c]
+    header2 = T.unwords $ map (T.pack . show) [ninputs c, nconsts c, noutputs c]
 
     inputMappings  = M.fromList (zip (c^.circ_inputs ++ c^.circ_consts.to M.keys) [0..])
     outputMappings = M.fromList (zip (c^.circ_outputs) [ngates c - noutputs c..])
     initial = (M.union inputMappings outputMappings, ninputs c + nconsts c)
 
-    eval :: BoolGate -> Ref -> a -> S.StateT (M.Map Ref Int, Int) (W.Writer String) ()
+    eval :: BoolGate -> Ref -> a -> S.StateT (M.Map Ref Int, Int) (W.Writer T.Text) ()
     eval gate ref _ = do
         w <- getWire ref
         case gate of
             (BoolXor x y) -> do
                 a <- use (_1 . at x . non (error "oops"))
                 b <- use (_1 . at y . non (error "oops"))
-                W.tell $ printf "2 1 %d %d %d XOR\n" a b w
+                W.tell $ F.sformat ("2 1 " % F.int % " " % F.int % " " % F.int % " XOR\n") a b w
                 _1 . at ref ?= w
             (BoolAnd x y) -> do
                 a <- use (_1 . at x . non (error "oops"))
                 b <- use (_1 . at y . non (error "oops"))
-                W.tell $ printf "2 1 %d %d %d AND\n" a b w
+                W.tell $ F.sformat ("2 1 " % F.int % " " % F.int % " " % F.int % " AND\n") a b w
                 _1 . at ref ?= w
             (BoolNot x) -> do
                 a <- use (_1 . at x . non (error "oops"))
-                W.tell $ printf "1 1 %d %d INV\n" a w
+                W.tell $ F.sformat ("1 1 " % F.int % " " % F.int % " INV\n") a w
                 _1 . at ref ?= w
             _ -> return ()
 

@@ -22,6 +22,8 @@ import Options
 import System.Exit
 import System.FilePath.Posix (takeExtension)
 import Text.Printf
+import qualified Data.Text as T
+import qualified Data.Text.IO as T
 
 data MainOptions = MainOptions { opt_info       :: Bool
                                , opt_verbose    :: Bool
@@ -175,13 +177,13 @@ circuitMain opts ts (outputName, c) = do
     case outputName of
         Nothing -> return ()
         Just fn -> do
-            let s = case takeExtension fn of
+            let t = case takeExtension fn of
                     ".acirc" -> Acirc.showWithTests (toAcirc c) ts
                     ".nigel" -> Nigel.showCirc (toCirc c)
                     ".dot"   -> Graphviz.showGraphviz c
                     other    -> error (printf "[main] unknown output format \"%s\"" other)
             printf "writing %s\n" fn
-            writeFile fn s
+            T.writeFile fn t
 
 evalTests :: GateEval g => MainOptions -> Circuit g -> [TestCase] -> IO ()
 evalTests opts c ts = do

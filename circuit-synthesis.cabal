@@ -56,6 +56,8 @@ library
                         , text
                         , directory
                         , IfElse
+                        , text
+                        , formatting
 
     default-extensions:   DoAndIfThenElse
     ghc-options: -fwarn-unused-imports
@@ -69,3 +71,5 @@ executable cxs
                         , options
                         , filepath
                         , microlens-platform
+                        , text
+    ghc-options: -O2

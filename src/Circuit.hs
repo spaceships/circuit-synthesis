@@ -78,6 +78,7 @@ class (Eq g, Ord g) => GateEval g where
     gateInput :: Id -> g
     gateConst :: Id -> g
     gateIsMul :: g -> Bool
+    gateIsGate :: g -> Bool
 
 instance GateEval ArithGate where
     gateArgs (ArithAdd x y)  = [x,y]
@@ -103,6 +104,10 @@ instance GateEval ArithGate where
     gateIsMul (ArithMul _ _) = True
     gateIsMul _ = False
 
+    gateIsGate (ArithInput _) = False
+    gateIsGate (ArithConst _) = False
+    gateIsGate _ = True
+
 instance GateEval BoolGate where
     gateArgs (BoolXor x y) = [x,y]
     gateArgs (BoolAnd x y) = [x,y]
@@ -126,6 +131,10 @@ instance GateEval BoolGate where
 
     gateIsMul (BoolAnd _ _) = True
     gateIsMul _ = False
+
+    gateIsGate (BoolInput _) = False
+    gateIsGate (BoolConst _) = False
+    gateIsGate _ = True
 
 --------------------------------------------------------------------------------
 -- Generic circuit functions
@@ -377,6 +386,9 @@ gates c = filter (f.snd) $ map (\ref -> (ref, getGate c ref)) (topologicalOrder 
 
 gateRefs :: GateEval gate => Circuit gate -> [Ref]
 gateRefs = map fst . gates
+
+nonInputGateRefs :: GateEval gate => Circuit gate -> [Ref]
+nonInputGateRefs = map fst . filter (gateIsGate.snd) . gates
 
 sortedNonInputGates :: GateEval gate => Circuit gate -> [Ref]
 sortedNonInputGates c = filter notInput (sortGates c)

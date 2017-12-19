@@ -1,22 +1,29 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
+
 module Circuit.Format.Acirc
   ( Circuit.Format.Acirc.read
   , Circuit.Format.Acirc.write
   , readWithTests
   , showWithTests
+  , showCirc
+  , parseCirc
   ) where
 
 import Circuit
 import Circuit.Parser
-import Circuit.Utils
+import Circuit.Utils hiding ((%))
 import qualified Circuit.Builder           as B
 import qualified Circuit.Builder.Internals as B
 
 import Control.Monad.Trans (lift)
+import Formatting ((%))
 import Lens.Micro.Platform
 import Text.Parsec hiding (spaces, parseTest)
-import Text.Printf
-import qualified Data.Map as M
-import qualified Control.Monad.State as S
+import qualified Data.Text as T
+import qualified Data.Text.IO as T
+import qualified Data.Map.Strict as M
+import qualified Formatting as F
 
 read :: FilePath -> IO Acirc
 read = fmap fst . readWithTests
@@ -25,65 +32,51 @@ readWithTests :: FilePath -> IO (Acirc, [TestCase])
 readWithTests fp = parseCirc <$> readFile fp
 
 write :: FilePath -> Acirc -> IO ()
-write fp c = writeFile (showCirc c) fp
+write fp c = T.writeFile fp (showCirc c)
 
-showWithTests :: Acirc -> [TestCase] -> String
+showWithTests :: Acirc -> [TestCase] -> T.Text
 showWithTests c ts = let s = showCirc c
-                         t = unlines (map showTest ts)
-                     in t ++ s
+                         t = T.unlines (map showTest ts)
+                     in T.append t s
 
-showCirc :: Acirc -> String
-showCirc c = unlines (header ++ gateLines)
+showCirc :: Acirc -> T.Text
+showCirc !c = T.unlines (header ++ gateLines)
   where
-    header = [ printf ":symlen %d" (_circ_symlen c)
-             , printf ":base %d" (_circ_base c)
+    header = [ F.sformat (":symlen " % F.int) (_circ_symlen c)
+             , F.sformat (":base "   % F.int) (_circ_base c)
              ]
 
-    inputs = mapM gateStr (_circ_inputs c)
-    consts = mapM gateStr (M.keys (_circ_consts c))
-    gates  = mapM gateStr (gateRefs c)
+    inputs = map gateStr (_circ_inputs c)
+    consts = map gateStr (M.keys (_circ_consts c))
+    gates  = map gateStr (nonInputGateRefs c)
 
-    output = do
-        outs <- map show <$> mapM tr (_circ_outputs c)
-        secs <- map show <$> mapM tr (secretRefs c)
-        return [ printf ":outputs %s" (unwords outs)
-               , printf ":secrets %s" (unwords secs)
-               ]
+    output = [ F.sformat (":outputs " % F.string) (unwords (map show (c^.circ_outputs)))
+             , F.sformat (":secrets " % F.string) (unwords (map show (secretRefs c)))
+             ]
 
-    gateLines = concat $ S.evalState (sequence [inputs, consts, gates, output]) (M.empty, 0)
+    gateLines = concat [inputs, consts, gates, output]
 
-    -- we need to minimize the number of refs we use since we may not output them all
-    tr :: Ref -> S.State (M.Map Ref Int, Int) Int
-    tr ref = do
-        (m,i) <- S.get
-        case M.lookup ref m of
-            Just j  -> return j
-            Nothing -> do
-                S.put (M.insert ref i m, i+1)
-                return i
-
-    gateStr :: Ref -> S.State (M.Map Ref Int, Int) String
-    gateStr ref = do
-        ref' <- tr ref
+    gateStr :: Ref -> T.Text
+    gateStr !ref = do
         case c ^. circ_refmap . at (getRef ref) . non (error "[gateStr] unknown ref") of
-            (ArithInput  id) -> return $ printf "%d input %d" ref' (getId id)
-            (ArithConst id) -> do
+            (ArithInput id) -> F.sformat (F.int % " input " % F.int) (getRef ref) (getId id)
+            (ArithConst id) ->
                 let val = case c ^. circ_const_vals . at id  of
                                 Nothing -> ""
                                 Just y  -> show y
-                return $ printf "%d const %s" ref' val
-            (ArithAdd x y) -> pr ref' "ADD" x y
-            (ArithSub x y) -> pr ref' "SUB" x y
-            (ArithMul x y) -> pr ref' "MUL" x y
+                in F.sformat (F.int % " const " % F.string) (getRef ref) val
+            (ArithAdd x y) -> pr ref "ADD" x y
+            (ArithSub x y) -> pr ref "SUB" x y
+            (ArithMul x y) -> pr ref "MUL" x y
 
-    pr :: Int -> String -> Ref -> Ref -> S.State (M.Map Ref Int, Int) String
-    pr ref' gateTy x y = do
-        x' <- tr x
-        y' <- tr y
-        return $ printf "%d %s %d %d" ref' gateTy x' y'
+    pr :: Ref -> String -> Ref -> Ref -> T.Text
+    pr !ref !gateTy !x !y =
+        F.sformat (F.int % " " % F.string % " " % F.int % " " % F.int)
+                  (getRef ref) gateTy (getRef x) (getRef y)
 
-showTest :: TestCase -> String
-showTest (inp, out) = printf ":test %s %s" (showInts (reverse inp)) (showInts (reverse out))
+showTest :: TestCase -> T.Text
+showTest (!inp, !out) = F.sformat (":test " % F.string % " " % F.string)
+                                  (showInts (reverse inp)) (showInts (reverse out))
 
 --------------------------------------------------------------------------------
 -- parser
