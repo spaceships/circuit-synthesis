@@ -12,14 +12,13 @@ import Data.IntMap.Strict ((!))
 
 import Text.PrettyPrint.Leijen.Text hiding (group)
 import Data.Text.Lazy (Text, unpack)
-import qualified Data.Text as Strict
 
 class Graphviz g where
-    showGraphviz :: Circuit g -> Strict.Text
+    showGraphviz :: Circuit g -> Text
     showGraphviz = error "graphviz undefined for this circuit type"
 instance Graphviz BoolGate where
 instance Graphviz ArithGate where
-    showGraphviz = showCircuitS
+    showGraphviz = showCircuitT
 
 -- Toplevel rendering of a circuit with 80 characters width default
 showCircuitT :: Circuit ArithGate -> Text
@@ -32,10 +31,6 @@ pprCircuit width c = displayT $ renderPretty 1.0 width $ pprCircuit' c
 -- Same as showCircuitT but resulting in a String
 showCircuit :: Circuit ArithGate -> String
 showCircuit = unpack . showCircuitT
-
--- Same as showCircuitT but resulting in a Strict Text
-showCircuitS :: Circuit ArithGate -> Strict.Text
-showCircuitS = Strict.pack . unpack . showCircuitT
 
 -- Pretty print a circuit by following its edges from the set of outputs.
 pprCircuit' :: Circuit ArithGate -> Doc

@@ -22,8 +22,7 @@ import Options
 import System.Exit
 import System.FilePath.Posix (takeExtension)
 import Text.Printf
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
+import qualified Data.Text.Lazy.IO as T
 
 data MainOptions = MainOptions { opt_info       :: Bool
                                , opt_verbose    :: Bool

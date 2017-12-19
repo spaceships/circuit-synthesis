@@ -20,8 +20,8 @@ import Control.Monad.Trans (lift)
 import Formatting ((%))
 import Lens.Micro.Platform
 import Text.Parsec hiding (spaces, parseTest)
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
+import qualified Data.Text.Lazy as T
+import qualified Data.Text.Lazy.IO as T
 import qualified Data.Map.Strict as M
 import qualified Formatting as F
 
@@ -42,16 +42,16 @@ showWithTests c ts = let s = showCirc c
 showCirc :: Acirc -> T.Text
 showCirc !c = T.unlines (header ++ gateLines)
   where
-    header = [ F.sformat (":symlen " % F.int) (_circ_symlen c)
-             , F.sformat (":base "   % F.int) (_circ_base c)
+    header = [ F.format (":symlen " % F.int) (_circ_symlen c)
+             , F.format (":base "   % F.int) (_circ_base c)
              ]
 
     inputs = map gateStr (_circ_inputs c)
     consts = map gateStr (M.keys (_circ_consts c))
     gates  = map gateStr (nonInputGateRefs c)
 
-    output = [ F.sformat (":outputs " % F.string) (unwords (map show (c^.circ_outputs)))
-             , F.sformat (":secrets " % F.string) (unwords (map show (secretRefs c)))
+    output = [ F.format (":outputs " % F.string) (unwords (map show (c^.circ_outputs)))
+             , F.format (":secrets " % F.string) (unwords (map show (secretRefs c)))
              ]
 
     gateLines = concat [inputs, consts, gates, output]
@@ -59,24 +59,24 @@ showCirc !c = T.unlines (header ++ gateLines)
     gateStr :: Ref -> T.Text
     gateStr !ref = do
         case c ^. circ_refmap . at (getRef ref) . non (error "[gateStr] unknown ref") of
-            (ArithInput id) -> F.sformat (F.int % " input " % F.int) (getRef ref) (getId id)
+            (ArithInput id) -> F.format (F.int % " input " % F.int) (getRef ref) (getId id)
             (ArithConst id) ->
                 let val = case c ^. circ_const_vals . at id  of
                                 Nothing -> ""
                                 Just y  -> show y
-                in F.sformat (F.int % " const " % F.string) (getRef ref) val
+                in F.format (F.int % " const " % F.string) (getRef ref) val
             (ArithAdd x y) -> pr ref "ADD" x y
             (ArithSub x y) -> pr ref "SUB" x y
             (ArithMul x y) -> pr ref "MUL" x y
 
     pr :: Ref -> String -> Ref -> Ref -> T.Text
     pr !ref !gateTy !x !y =
-        F.sformat (F.int % " " % F.string % " " % F.int % " " % F.int)
+        F.format (F.int % " " % F.string % " " % F.int % " " % F.int)
                   (getRef ref) gateTy (getRef x) (getRef y)
 
 showTest :: TestCase -> T.Text
-showTest (!inp, !out) = F.sformat (":test " % F.string % " " % F.string)
-                                  (showInts (reverse inp)) (showInts (reverse out))
+showTest (!inp, !out) = F.format (":test " % F.string % " " % F.string)
+                                 (showInts (reverse inp)) (showInts (reverse out))
 
 --------------------------------------------------------------------------------
 -- parser
