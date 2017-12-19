@@ -4,6 +4,7 @@ module Circuit.Format.Nigel
     ( Circuit.Format.Nigel.read
     , readNigel
     , write
+    , showCirc
     )
 where
 

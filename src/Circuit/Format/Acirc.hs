@@ -6,7 +6,6 @@ module Circuit.Format.Acirc
   ) where
 
 import Circuit
-import Circuit.Conversion
 import Circuit.Parser
 import Circuit.Utils
 import qualified Circuit.Builder           as B
@@ -25,11 +24,11 @@ read = fmap fst . readWithTests
 readWithTests :: FilePath -> IO (Acirc, [TestCase])
 readWithTests fp = parseCirc <$> readFile fp
 
-write :: ToAcirc g => FilePath -> Circuit g -> IO ()
-write fp c = writeFile (showCirc (toAcirc c)) fp
+write :: FilePath -> Acirc -> IO ()
+write fp c = writeFile (showCirc c) fp
 
-showWithTests :: ToAcirc g => Circuit g -> [TestCase] -> String
-showWithTests c ts = let s = showCirc (toAcirc c)
+showWithTests :: Acirc -> [TestCase] -> String
+showWithTests c ts = let s = showCirc c
                          t = unlines (map showTest ts)
                      in t ++ s
 

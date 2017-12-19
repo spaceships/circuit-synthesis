@@ -3,10 +3,11 @@ module Main where
 import Circuit
 import Circuit.Conversion
 import Circuit.Optimizer
-import Circuit.Format.Graphviz
 import Circuit.Utils
 import qualified Circuit.Format.Acirc as Acirc
 import qualified Circuit.Format.Nigel as Nigel
+import qualified Circuit.Format.Netlist as Netlist
+import qualified Circuit.Format.Graphviz as Graphviz
 
 import qualified Examples.Aes        as Aes
 import qualified Examples.Comparison as Comparison
@@ -16,10 +17,11 @@ import qualified Examples.Point      as Point
 import qualified Examples.Tribes     as Tribes
 
 import Control.Monad
+import Lens.Micro.Platform
 import Options
-import Text.Printf
 import System.Exit
 import System.FilePath.Posix (takeExtension)
+import Text.Printf
 
 data MainOptions = MainOptions { opt_info       :: Bool
                                , opt_verbose    :: Bool
@@ -29,7 +31,6 @@ data MainOptions = MainOptions { opt_info       :: Bool
                                , opt_randomize_secrets  :: Bool
                                , opt_write_to_file      :: Maybe String
                                , opt_optimize           :: Maybe Int
-                               , opt_graphviz           :: Bool
                                , opt_circuit_type       :: String
                                }
 
@@ -73,19 +74,15 @@ instance Options MainOptions where
         <*> defineOption (optionType_maybe optionType_string)
             (\o -> o { optionShortFlags  = "o"
                      , optionLongFlags   = ["output"]
-                     , optionDescription = "Write the circuit to file FILE"
+                     , optionDescription = "Write the circuit to file FILE. Supported filetypes:\
+                                           \ *.dot, *.acirc, *.nigel"
                      })
 
         <*> defineOption (optionType_maybe optionType_int)
             (\o -> o { optionShortFlags  = "O"
                      , optionLongFlags   = ["optimize"]
-                     , optionDescription = "Post-compilation optimization level: 1=FoldConsts, 2=FoldConsts&FlattenRec, 3=FoldConsts&Flatten"
-                     })
-
-        <*> defineOption optionType_bool
-            (\o -> o { optionShortFlags  = "d"
-                     , optionLongFlags   = ["dot"]
-                     , optionDescription = "Output the circuit in Graphviz dot format"
+                     , optionDescription = "Post-compilation optimization level: 1=FoldConsts,\
+                                           \ 2=FoldConsts&FlattenRec, 3=FoldConsts&Flatten"
                      })
 
         <*> defineOption optionType_string
@@ -128,24 +125,24 @@ main = runCommand $ \opts args -> do
 
             case opt_circuit_type opts of
                 "a" -> do
-                    putStrLn "arithmetic circuit mode"
+                    putStrLn "* arithmetic circuit mode"
                     (c,ts) <- case takeExtension inputFile of
-                        ".acirc" -> Acirc.readWithTests inputFile
-                        ".nigel" -> Nigel.readNigel inputFile
+                        ".acirc"   -> Acirc.readWithTests inputFile
+                        ".nigel"   -> Nigel.readNigel inputFile
+                        ".netlist" -> Netlist.readNetlist inputFile
                         s -> error (printf "[main] unkown extension: %s!" s)
                     circuitMain opts ts (opt_write_to_file opts, c :: Acirc)
-
                 "b" -> do
-                    putStrLn "binary circuit mode"
+                    putStrLn "* binary circuit mode"
                     (c,ts) <- case takeExtension inputFile of
-                        ".acirc" -> Acirc.readWithTests inputFile
-                        ".nigel" -> Nigel.readNigel inputFile
+                        ".acirc"   -> over _1 toCirc <$> Acirc.readWithTests inputFile
+                        ".nigel"   -> Nigel.readNigel inputFile
+                        ".netlist" -> Netlist.readNetlist inputFile
                         s -> error (printf "[main] unkown extension: %s!" s)
                     circuitMain opts ts (opt_write_to_file opts, c :: Circ)
-
                 other -> error (printf "[main] unknown circuit type %s!" other)
 
-circuitMain :: (Graphviz g, Optimize g, GateEval g, ToAcirc g)
+circuitMain :: (Graphviz.Graphviz g, Optimize g, GateEval g, ToAcirc g, ToCirc g)
             => MainOptions -> [TestCase] -> (Maybe String, Circuit g) -> IO ()
 circuitMain opts ts (outputName, c) = do
     let old_symlen = _circ_symlen c
@@ -175,15 +172,16 @@ circuitMain opts ts (outputName, c) = do
     when (opt_test opts) $ do
         evalTests opts c ts
 
-    let s = if opt_graphviz opts
-            then showGraphviz c
-            else Acirc.showWithTests c ts
-
     case outputName of
+        Nothing -> return ()
         Just fn -> do
+            let s = case takeExtension fn of
+                    ".acirc" -> Acirc.showWithTests (toAcirc c) ts
+                    ".nigel" -> Nigel.showCirc (toCirc c)
+                    ".dot"   -> Graphviz.showGraphviz c
+                    other    -> error (printf "[main] unknown output format \"%s\"" other)
             printf "writing %s\n" fn
             writeFile fn s
-        Nothing -> return ()
 
 evalTests :: GateEval g => MainOptions -> Circuit g -> [TestCase] -> IO ()
 evalTests opts c ts = do

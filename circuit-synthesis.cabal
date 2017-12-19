@@ -68,3 +68,4 @@ executable cxs
                         , circuit-synthesis
                         , options
                         , filepath
+                        , microlens-platform
