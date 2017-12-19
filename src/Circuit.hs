@@ -48,11 +48,11 @@ data BoolGate =
 data Circuit gate = Circuit
     { _circ_outputs     :: ![Ref]
     , _circ_inputs      :: ![Ref]
-    , _circ_consts      :: !(M.Map Ref Id)
+    , _circ_consts      :: !(IM.IntMap Id)
     , _circ_secret_refs :: !(IS.IntSet)
     , _circ_secret_ids  :: !(IS.IntSet)
     , _circ_refmap      :: !(IM.IntMap gate)
-    , _circ_const_vals  :: !(M.Map Id Integer)
+    , _circ_const_vals  :: !(IM.IntMap Integer)
     , _circ_symlen      :: !Int
     , _circ_base        :: !Integer
     } deriving (Show)
@@ -140,10 +140,10 @@ instance GateEval BoolGate where
 -- Generic circuit functions
 
 emptyCirc :: Circuit a
-emptyCirc = Circuit [] [] M.empty IS.empty IS.empty IM.empty M.empty 1 2
+emptyCirc = Circuit [] [] IM.empty IS.empty IS.empty IM.empty IM.empty 1 2
 
 getConst :: Circuit gate -> Id -> Integer
-getConst c id = case c^.circ_const_vals.at id of
+getConst c id = case c^.circ_const_vals.at (getId id) of
     Just x  -> x
     Nothing -> error ("[getConst] no const known for y" ++ show id)
 
@@ -161,8 +161,8 @@ getGate c ref = case c^.circ_refmap.at (getRef ref) of
 randomizeSecrets :: Circuit gate -> IO (Circuit gate)
 randomizeSecrets c = do
     key <- replicateM (nsecrets c) $ randIntegerModIO (fromIntegral (_circ_base c))
-    let newSecrets = M.fromList $ zip (map Id $ IS.toAscList (c^.circ_secret_ids)) key
-    return $ c & circ_const_vals %~ M.union newSecrets
+    let newSecrets = IM.fromList $ zip (IS.toAscList (c^.circ_secret_ids)) key
+    return $ c & circ_const_vals %~ IM.union newSecrets
 
 genTest :: GateEval gate => Circuit gate -> IO TestCase
 genTest c

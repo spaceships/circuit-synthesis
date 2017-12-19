@@ -34,15 +34,14 @@ library
 
     build-depends:        base
                         , DRBG
-                        , IfElse
                         , bytestring
                         , containers
                         , crypto-api
                         , deepseq
+                        , formatting
                         , ghc-prim
                         , integer-gmp
                         , microlens-platform
-                        , monad-par
                         , monad-parallel
                         , mtl
                         , parallel
@@ -50,14 +49,9 @@ library
                         , parsec
                         , process
                         , split
-                        , stm
+                        , text
                         , vector
                         , wl-pprint-text
-                        , text
-                        , directory
-                        , IfElse
-                        , text
-                        , formatting
 
     default-extensions:   DoAndIfThenElse
     ghc-options: -fwarn-unused-imports
@@ -68,8 +62,8 @@ executable cxs
     main-is: Main.hs
     build-depends:        base
                         , circuit-synthesis
-                        , options
                         , filepath
                         , microlens-platform
+                        , options
                         , text
     ghc-options: -O2

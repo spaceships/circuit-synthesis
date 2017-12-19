@@ -22,7 +22,7 @@ import Lens.Micro.Platform
 import Text.Parsec hiding (spaces, parseTest)
 import qualified Data.Text.Lazy as T
 import qualified Data.Text.Lazy.IO as T
-import qualified Data.Map.Strict as M
+import qualified Data.IntMap.Strict as IM
 import qualified Formatting as F
 
 read :: FilePath -> IO Acirc
@@ -47,7 +47,7 @@ showCirc !c = T.unlines (header ++ gateLines)
              ]
 
     inputs = map gateStr (_circ_inputs c)
-    consts = map gateStr (M.keys (_circ_consts c))
+    consts = map gateStr (map Ref (IM.keys (_circ_consts c)))
     gates  = map gateStr (nonInputGateRefs c)
 
     output = [ F.format (":outputs " % F.string) (unwords (map show (c^.circ_outputs)))
@@ -61,7 +61,7 @@ showCirc !c = T.unlines (header ++ gateLines)
         case c ^. circ_refmap . at (getRef ref) . non (error "[gateStr] unknown ref") of
             (ArithInput id) -> F.format (F.int % " input " % F.int) (getRef ref) (getId id)
             (ArithConst id) ->
-                let val = case c ^. circ_const_vals . at id  of
+                let val = case c ^. circ_const_vals . at (getId id)  of
                                 Nothing -> ""
                                 Just y  -> show y
                 in F.format (F.int % " const " % F.string) (getRef ref) val

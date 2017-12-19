@@ -4,7 +4,6 @@
 module Circuit.Builder.Internals where
 
 import Circuit
-import Circuit.Utils
 
 import Control.Monad.State.Strict
 import Control.Monad.Identity
@@ -64,14 +63,11 @@ insertGate !ref !gate = do
 
 insertConst :: (GateEval g, Monad m) => Ref -> Id -> BuilderT g m ()
 insertConst !ref !id = do
-    bs_circ . circ_consts . at ref ?= id
+    bs_circ . circ_consts . at (getRef ref) ?= id
     insertGate ref (gateConst id)
 
 insertConstVal :: Monad m => Id -> Integer -> BuilderT g m ()
-insertConstVal !id !val = do
-    ys <- use $ bs_circ . circ_const_vals
-    let ys' = safeInsert ("reassignment of y" ++ show id) id val ys
-    bs_circ . circ_const_vals .= ys'
+insertConstVal !id !val = bs_circ . circ_const_vals . at (getId id) ?= val
 
 insertInput :: (GateEval g, Monad m) => Ref -> Id -> BuilderT g m ()
 insertInput !ref !id = do
@@ -112,7 +108,7 @@ markOutput !ref = bs_circ . circ_outputs %= (++[ref])
 
 markSecret :: Monad m => Ref -> BuilderT g m ()
 markSecret !ref = do
-    id <- use $ bs_circ . circ_consts . at ref
+    id <- use $ bs_circ . circ_consts . at (getRef ref)
     case id of
         Nothing  -> error $ printf "[markSecret] ref %s is not a const!" (show ref)
         Just id' -> do
@@ -123,4 +119,4 @@ markConstant :: Monad m => Integer -> Ref -> BuilderT g m ()
 markConstant !x !ref = bs_constants . at x ?= ref
 
 existingConstant :: Monad m => Integer -> BuilderT g m (Maybe Ref)
-existingConstant !x = gets (M.lookup x . _bs_constants)
+existingConstant !x = use (bs_constants . at x)

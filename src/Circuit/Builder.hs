@@ -16,6 +16,7 @@ import Control.Monad
 import Lens.Micro.Platform
 import Text.Printf
 import qualified Data.Map.Strict as M
+import qualified Data.IntMap.Strict as IM
 
 input :: (GateEval g, Monad m) => BuilderT g m Ref
 input = do
@@ -152,7 +153,7 @@ subcircuit c xs = do
 
 exportConsts :: (GateEval g, Monad m) => Circuit g -> BuilderT g m [Ref]
 exportConsts c = do
-    forM (M.toAscList (c^.circ_consts)) $ \(_, id) -> do
+    forM (IM.toAscList (c^.circ_consts)) $ \(_, id) -> do
         let x = getConst c id
         if secretConst c id then do
             secret x
