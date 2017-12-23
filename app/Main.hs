@@ -99,9 +99,7 @@ chooseMode opts = do
                 , ("size_test"     , compile opts Garbler.makeSizeTest)
                 ]
         case M.lookup (source opts) m of
-            Just c  -> do
-                printf "found %s!\n" (source opts)
-                c
+            Just c  -> c
             Nothing -> do
                 printf "[main] unknown circuit generation mode \"%s\"!\nknown modes:\n" (source opts)
                 mapM_ (printf "\t%s\n") (M.keys m)
