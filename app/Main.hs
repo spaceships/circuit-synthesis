@@ -39,7 +39,7 @@ data Opts = Opts { source             :: String
                  , target             :: Maybe String
                  , optimization_level :: Int
                  , coerce             :: Maybe String
-                 }
+                 } deriving (Show)
 
 parseArgs :: IO Opts
 parseArgs = execParser $ info (parser <**> helper)
@@ -79,6 +79,7 @@ main = chooseMode =<< parseArgs
 
 chooseMode :: Opts -> IO ()
 chooseMode opts = do
+    when (verbose opts) (print opts)
     if compile_circuit opts then do
         let m = M.fromList
                 [ ("goldreich"     , compile opts Goldreich.make)
@@ -98,9 +99,11 @@ chooseMode opts = do
                 , ("size_test"     , compile opts Garbler.makeSizeTest)
                 ]
         case M.lookup (source opts) m of
-            Just c  -> c
+            Just c  -> do
+                printf "found %s!\n" (source opts)
+                c
             Nothing -> do
-                printf "[main] unknown circuit generation mode \"%s\"!\nknown modes:\n"
+                printf "[main] unknown circuit generation mode \"%s\"!\nknown modes:\n" (source opts)
                 mapM_ (printf "\t%s\n") (M.keys m)
                 exitFailure
     else do
@@ -144,9 +147,11 @@ chooseMode opts = do
                     ".netlist" -> run opts (Netlist.readNetlist inp :: IO (Circ, [TestCase]))
                     other      -> error "[main] supported input formats for netlist output: [nigel, netlist]"
   where
-    compile opts = mapM_ (\(f,c) -> circuitMain opts (Just f) <$> c <*> pure [])
-    run opts comp = uncurry (circuitMain opts (target opts)) =<< comp
+    compile opts tups = forM tups $ \(fname, comp) -> do
+        c <- comp
+        circuitMain opts (Just fname) c []
 
+    run opts comp = uncurry (circuitMain opts (target opts)) =<< comp
 
 circuitMain :: (Graphviz.Graphviz g, Optimize g, Gate g, ToAcirc g, ToCirc g, ToAcirc2 g)
             => Opts -> Maybe FilePath -> Circuit g -> [TestCase] -> IO ()
