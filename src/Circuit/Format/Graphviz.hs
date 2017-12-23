@@ -2,6 +2,7 @@
 module Circuit.Format.Graphviz (Graphviz(..)) where
 
 import Circuit
+import Circuit.Conversion
 
 import Control.Monad.Reader
 import Control.Monad.State
@@ -19,6 +20,8 @@ class Graphviz g where
 instance Graphviz BoolGate where
 instance Graphviz ArithGate where
     showGraphviz = showCircuitT
+instance Graphviz ArithGate2 where
+    showGraphviz = showCircuitT . toAcirc
 
 -- Toplevel rendering of a circuit with 80 characters width default
 showCircuitT :: Circuit ArithGate -> Text

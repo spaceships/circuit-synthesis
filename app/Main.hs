@@ -1,3 +1,5 @@
+{-# LANGUAGE RankNTypes #-}
+
 module Main where
 
 import Circuit
@@ -19,160 +21,106 @@ import qualified Examples.Tribes          as Tribes
 
 import Control.Monad
 import Lens.Micro.Platform
-import Options
 import System.Exit
 import System.FilePath.Posix (takeExtension)
 import Text.Printf
 import qualified Data.Text.Lazy.IO as T
 
-data MainOptions = MainOptions { opt_info       :: Bool
-                               , opt_verbose    :: Bool
-                               , opt_test       :: Bool
-                               , opt_gentests   :: Maybe Int
-                               , opt_gencirc    :: Maybe String
-                               , opt_randomize_secrets  :: Bool
-                               , opt_write_to_file      :: Maybe String
-                               , opt_optimize           :: Maybe Int
-                               , opt_circuit_type       :: String
-                               }
+import Options.Applicative
+import Data.Semigroup ((<>))
 
-instance Options MainOptions where
-    defineOptions = pure MainOptions
-        <*> defineOption optionType_bool
-            (\o -> o { optionLongFlags   = ["info"]
-                     , optionShortFlags  = "i"
-                     , optionDescription = "Show circuit info."
-                     })
+data Source = Compile String
+            | ReadFile String
 
-        <*> defineOption optionType_bool
-            (\o -> o { optionShortFlags  = "v"
-                     , optionLongFlags   = ["verbose"]
-                     , optionDescription = "Be verbose."
-                     })
+data Opts = Opts { source    :: String
+                 , compile   :: Bool
+                 , verbose   :: Bool
+                 , show_info :: Bool
+                 , target    :: Maybe String
+                 , optimization_level :: Int
+                 , coerce :: Maybe String
+                 }
 
-        <*> defineOption optionType_bool
-            (\o -> o { optionShortFlags  = "T"
-                     , optionLongFlags   = ["test"]
-                     , optionDescription = "Run the circuit on tests (random if none exist)."
-                     })
+parseArgs :: IO Opts
+parseArgs = execParser $ info (parser <**> helper)
+    (fullDesc <> progDesc "cxs is a tool to compile, convert, and optimize circuits")
+  where
+    parser = Opts
+            <$> strArgument
+                ( metavar "SOURCE"
+                <> help "The source circuit file or circuit to compile")
+            <*> switch
+                ( short 'c'
+                <> help "Compile a DSL circuit from the examples")
+            <*> switch
+                ( short 'v'
+                <> help "Verbose mode")
+            <*> switch
+                ( short 'i'
+                <> help "Print circuit info")
+            <*> (optional $ strOption
+                ( short 'o'
+                <> metavar "FILE"
+                <> help "Write to file FILE"))
+            <*> option auto
+                ( short 'O'
+                <> showDefault
+                <> value 0
+                <> metavar "INT"
+                <> help "Optimization level")
+            <*> (optional $ strOption
+                ( short 't'
+                <> metavar "TYPE"
+                <> help "Coerce circuit to type TYPE [a,a2,b]"))
 
-        <*> defineOption (optionType_maybe optionType_int)
-            (\o -> o { optionLongFlags   = ["gen-tests"]
-                     , optionDescription = "Generate tests."
-                     })
-
-        <*> defineOption (optionType_maybe optionType_string)
-            (\o -> o { optionLongFlags   = ["gen-circuit"]
-                     , optionShortFlags  = "C"
-                     , optionDescription = "Generate a circuit"
-                     })
-
-        <*> defineOption optionType_bool
-            (\o -> o { optionShortFlags  = "r"
-                     , optionLongFlags   = ["randomize-secrets"]
-                     , optionDescription = "Randomize the key"
-                     })
-
-        <*> defineOption (optionType_maybe optionType_string)
-            (\o -> o { optionShortFlags  = "o"
-                     , optionLongFlags   = ["output"]
-                     , optionDescription = "Write the circuit to file FILE. Supported filetypes:\
-                                           \ *.dot, *.acirc, *.nigel"
-                     })
-
-        <*> defineOption (optionType_maybe optionType_int)
-            (\o -> o { optionShortFlags  = "O"
-                     , optionLongFlags   = ["optimize"]
-                     , optionDescription = "Post-compilation optimization level: 1=FoldConsts,\
-                                           \ 2=FoldConsts&FlattenRec, 3=FoldConsts&Flatten"
-                     })
-
-        <*> defineOption optionType_string
-            (\o -> o { optionLongFlags   = ["type"]
-                     , optionShortFlags  = "t"
-                     , optionDescription = "type of circuit [a,b]"
-                     , optionDefault = "a"
-                     })
 
 main :: IO ()
-main = runCommand $ \opts args -> do
-    case opt_gencirc opts of
-        Just "aes"           -> mapM_ (circuitMain opts []) =<< Aes.make
-        Just "aes1r"         -> mapM_ (circuitMain opts []) =<< Aes.makeAes1r
-        Just "aes10r"        -> mapM_ (circuitMain opts []) =<< Aes.makeAes10r
-        Just "goldreich"     -> mapM_ (circuitMain opts []) =<< Goldreich.makePRG
-        Just "ggm"           -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGM
-        Just "ggmSigma"      -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMSigma
-        Just "ggmNoPrg"      -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMNoPrg
-        Just "ggmNoPrgSigma" -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMNoPrg
-        Just "applebaum"     -> mapM_ (circuitMain opts []) =<< AR.makeApplebaum
-        Just "tribes"        -> mapM_ (circuitMain opts []) =<< Tribes.make
-        Just "point"         -> mapM_ (circuitMain opts []) =<< Point.make
-        Just "comparison"    -> mapM_ (circuitMain opts []) =<< Comparison.make
-        Just "ggmSigma256"   -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMSigma256
-        Just "ggmSigma1024"  -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMSigma1024
-        Just "size_test"     -> mapM_ (circuitMain opts []) =<< Garbler.makeSizeTest
-        Just _ -> do
-            putStrLn "[error] known circuit generation modes: aes, aes1r, aes10r, goldreich, ggm,\
-                     \ ggmSigma, ggmSigma256, ggmSigma1024, ggmNoPrg, ggmNoPrgSigma, applebaum,\
-                     \ tribes, gf28Mult, point, comparison, size_test"
-            exitFailure
+main = do
+    opts <- parseArgs
 
-        Nothing -> do
-            when (null args) $ do
-                putStrLn "[error] input circuit or compilation mode required"
+    if compile opts then
+        case source opts of
+            "aes"           -> mapM_ (circuitMain opts []) =<< Aes.make
+            "aes1r"         -> mapM_ (circuitMain opts []) =<< Aes.makeAes1r
+            "aes10r"        -> mapM_ (circuitMain opts []) =<< Aes.makeAes10r
+            "goldreich"     -> mapM_ (circuitMain opts []) =<< Goldreich.makePRG
+            "ggm"           -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGM
+            "ggmSigma"      -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMSigma
+            "ggmNoPrg"      -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMNoPrg
+            "ggmNoPrgSigma" -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMNoPrg
+            "applebaum"     -> mapM_ (circuitMain opts []) =<< AR.makeApplebaum
+            "tribes"        -> mapM_ (circuitMain opts []) =<< Tribes.make
+            "point"         -> mapM_ (circuitMain opts []) =<< Point.make
+            "comparison"    -> mapM_ (circuitMain opts []) =<< Comparison.make
+            "ggmSigma256"   -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMSigma256
+            "ggmSigma1024"  -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMSigma1024
+            "size_test"     -> mapM_ (circuitMain opts []) =<< Garbler.makeSizeTest
+            _ -> do
+                putStrLn "[error] known circuit generation modes: aes, aes1r, aes10r, goldreich, ggm,\
+                        \ ggmSigma, ggmSigma256, ggmSigma1024, ggmNoPrg, ggmNoPrgSigma, applebaum,\
+                        \ tribes, gf28Mult, point, comparison, size_test"
                 exitFailure
+    else
+        processCircuit opts
 
-            let inputFile = head args
-
-            case opt_circuit_type opts of
-                "a" -> do
-                    putStrLn "* arithmetic circuit mode"
-                    (c,ts) <- case takeExtension inputFile of
-                        ".acirc"   -> Acirc.readWithTests inputFile
-                        ".nigel"   -> Nigel.readNigel inputFile
-                        ".netlist" -> Netlist.readNetlist inputFile
-                        s -> error (printf "[main] unkown extension: %s!" s)
-                    circuitMain opts ts (opt_write_to_file opts, c :: Acirc)
-                "b" -> do
-                    putStrLn "* binary circuit mode"
-                    (c,ts) <- case takeExtension inputFile of
-                        ".acirc"   -> over _1 toCirc <$> Acirc.readWithTests inputFile
-                        ".nigel"   -> Nigel.readNigel inputFile
-                        ".netlist" -> Netlist.readNetlist inputFile
-                        s -> error (printf "[main] unkown extension: %s!" s)
-                    circuitMain opts ts (opt_write_to_file opts, c :: Circ)
-                other -> error (printf "[main] unknown circuit type %s!" other)
-
-circuitMain :: (Graphviz.Graphviz g, Optimize g, Gate g, ToAcirc g, ToCirc g)
-            => MainOptions -> [TestCase] -> (Maybe String, Circuit g) -> IO ()
+circuitMain :: (Graphviz.Graphviz g, Optimize g, Gate g, ToAcirc g, ToCirc g, ToAcirc2 g)
+            => Opts -> [TestCase] -> (Maybe FilePath, Circuit g) -> IO ()
 circuitMain opts ts (outputName, c) = do
     let old_symlen = _circ_symlen c
 
-    c' <- case opt_optimize opts of
-        Nothing -> return c
-        Just 1  -> optimizeO1 c
-        Just 2  -> optimizeO2 c
-        Just 3  -> optimizeO3 c
-        Just x  -> do
+    c' <- case optimization_level opts of
+        0 -> return c
+        1 -> optimizeO1 c
+        2 -> optimizeO2 c
+        3 -> optimizeO3 c
+        x -> do
             printf "[error] unknown optimization level %d\n" x
             exitFailure
 
-    let c = c' { _circ_symlen = old_symlen }
+    let c = c' & circ_symlen .~ old_symlen
 
-    c <- if opt_randomize_secrets opts
-            then randomizeSecrets c
-            else return c
-
-    when (opt_info opts) $ do
+    when (show_info opts) $ do
         printCircInfo c
-
-    ts <- case opt_gentests opts of
-        Nothing -> return ts
-        Just i  -> replicateM i (genTest c)
-
-    when (opt_test opts) $ do
-        evalTests opts c ts
 
     case outputName of
         Nothing -> return ()
@@ -185,11 +133,55 @@ circuitMain opts ts (outputName, c) = do
             printf "writing %s\n" fn
             T.writeFile fn t
 
-evalTests :: Gate g => MainOptions -> Circuit g -> [TestCase] -> IO ()
+circuitMain' :: (Graphviz.Graphviz g, Optimize g, Gate g, ToAcirc g, ToCirc g, ToAcirc2 g)
+            => Opts -> (Circuit g, [TestCase]) -> IO ()
+circuitMain' opts (c,ts) = circuitMain opts ts (target opts, c)
+
+processCircuit :: Opts -> IO ()
+processCircuit opts = do
+    let inp = source opts
+        ext = takeExtension inp
+
+    when (ext `notElem` [".acirc", ".nigel", ".netlist"]) $
+        error (printf "[main] unknown input extension \"%s\"!" ext)
+
+    case target opts of
+        Nothing -> case ext of
+            ".acirc" -> case coerce opts of
+                Just "a"  -> circuitMain' opts =<< Acirc.readAcirc inp
+                Just "a2" -> circuitMain' opts =<< over _1 toAcirc2 <$> Acirc.readAcirc inp
+                Just _    -> error "[main] supported types for acirc: [a,a2]"
+                Nothing   -> circuitMain' opts =<< Acirc.readAcirc inp
+            ".nigel" -> case coerce opts of
+                Just "a"   -> circuitMain' opts =<< (Nigel.readNigel inp :: IO (Acirc, [TestCase]))
+                Just "a2"  -> circuitMain' opts =<< (Nigel.readNigel inp :: IO (Acirc2, [TestCase]))
+                Just "b"   -> circuitMain' opts =<< (Nigel.readNigel inp :: IO (Acirc2, [TestCase]))
+                Nothing    -> circuitMain' opts =<< (Nigel.readNigel inp :: IO (Circ, [TestCase]))
+                Just other -> error "[main] supported coersion types for nigel: [a, a2, b]"
+            ".netlist" -> case coerce opts of
+                Just "a"   -> circuitMain' opts =<< (Netlist.readNetlist inp :: IO (Acirc, [TestCase]))
+                Just "a2"  -> circuitMain' opts =<< (Netlist.readNetlist inp :: IO (Acirc2, [TestCase]))
+                Just "b"   -> circuitMain' opts =<< (Netlist.readNetlist inp :: IO (Circ, [TestCase]))
+                Nothing    -> circuitMain' opts =<< (Netlist.readNetlist inp :: IO (Circ, [TestCase]))
+                Just other -> error "[main] supported coersion types for netlist: [a, a2, b]"
+
+        Just outputFile -> case takeExtension outputFile of
+            ".acirc" -> case ext of
+                ".acirc"   -> circuitMain' opts =<< Acirc.readAcirc inp
+                ".nigel"   -> circuitMain' opts =<< (Nigel.readNigel inp :: IO (Acirc, [TestCase]))
+                ".netlist" -> circuitMain' opts =<< (Netlist.readNetlist inp :: IO (Acirc, [TestCase]))
+            ".nigel" -> case ext of
+                ".nigel"   -> circuitMain' opts =<< (Nigel.readNigel inp :: IO (Circ, [TestCase]))
+                ".netlist" -> circuitMain' opts =<< (Netlist.readNetlist inp :: IO (Circ, [TestCase]))
+                other      -> error "[main] supported input formats for nigel output: [nigel, netlist]"
+            ".netlist" -> case ext of
+                ".nigel"   -> circuitMain' opts =<< (Nigel.readNigel inp :: IO (Circ, [TestCase]))
+                ".netlist" -> circuitMain' opts =<< (Netlist.readNetlist inp :: IO (Circ, [TestCase]))
+                other      -> error "[main] supported input formats for netlist output: [nigel, netlist]"
+
+evalTests :: Gate g => Opts -> Circuit g -> [TestCase] -> IO ()
 evalTests opts c ts = do
     pr "evaluating plaintext circuit tests"
-    ok <- ensure (opt_verbose opts) c ts
+    ok <- ensure (verbose opts) c ts
     if ok then pr "ok" else pr "failed"
 
-dirName :: FilePath -> Int -> FilePath
-dirName fp λ = fp ++ "." ++ show λ

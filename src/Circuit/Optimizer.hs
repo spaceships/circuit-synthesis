@@ -3,6 +3,7 @@
 module Circuit.Optimizer (Optimize(..)) where
 
 import Circuit
+import Circuit.Conversion
 import qualified Circuit.Builder as B
 
 import Control.Monad.Identity
@@ -30,6 +31,10 @@ instance Optimize ArithGate where
     optimizeO1 = return . foldConsts
     optimizeO2 = flattenRec . foldConsts
     optimizeO3 = flatten . foldConsts
+instance Optimize ArithGate2 where
+    optimizeO1 = fmap toAcirc2 . optimizeO1 . toAcirc
+    optimizeO2 = fmap toAcirc2 . optimizeO1 . toAcirc
+    optimizeO3 = fmap toAcirc2 . optimizeO1 . toAcirc
 
 circToSage :: Circuit ArithGate -> [String]
 circToSage c = foldCirc eval c

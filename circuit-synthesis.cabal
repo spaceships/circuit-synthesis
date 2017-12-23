@@ -66,6 +66,6 @@ executable cxs
                         , circuit-synthesis
                         , filepath
                         , microlens-platform
-                        , options
+                        , optparse-applicative
                         , text
     ghc-options: -O2

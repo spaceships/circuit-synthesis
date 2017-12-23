@@ -15,20 +15,20 @@ import Control.Monad
 import Data.List.Split
 import qualified Data.IntMap as IntMap
 
-makeSizeTest :: IO [(Maybe String, Acirc)]
+makeSizeTest :: IO [(Maybe String, Acirc2)]
 makeSizeTest = sequence
     [ (Just "size_test.acirc",) <$> sizeTest ]
 
 --------------------------------------------------------------------------------
 -- a circuit for the garbler of a garbled circuit scheme
 
-garbler :: Circ -> IO Acirc
+garbler :: Circ -> IO Acirc2
 garbler c = buildCircuitT $ do
     let k = 80 -- security parameter
 
     s <- inputs k -- the seed to the PRGs
 
-    let g1 = fmap (chunksOf k) . prgBuilder k (2 * ngates c * k) 5 xorMaj -- prg for generating wires
+    let g1 = fmap (chunksOf k) . prgBuilder k (2 * ngates c * k) 5 xorAnd -- prg for generating wires
     -- let g2 = fmap (chunksOf k) . prgBuilder k (2*k) 5 xorAnd -- prg for encrypting table entries
 
     -- generate pairs of wirelabels for every wire in c
@@ -84,7 +84,7 @@ garbler c = buildCircuitT $ do
 --------------------------------------------------------------------------------
 -- test to see how well we can evaluate extra large circuits
 
-sizeTest :: IO Acirc
+sizeTest :: IO Acirc2
 sizeTest = buildCircuitT $ do
     let n = 80
     xs <- inputs n

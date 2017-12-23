@@ -127,12 +127,12 @@ makeGGMNoPrgSigma = sequence
 --------------------------------------------------------------------------------
 -- predicates
 
-majority :: Monad m => [Ref] -> BuilderT ArithGate m Ref
+majority :: (Gate g, Monad m) => [Ref] -> BuilderT g m Ref
 majority xs = lookupTable maj xs
   where
     maj xs = sum (map b2i xs) >= (length xs `div` 2)
 
-xorMaj :: Monad m => [Ref] -> BuilderT ArithGate m Ref
+xorMaj :: (Gate g, Monad m) => [Ref] -> BuilderT g m Ref
 xorMaj xs = do
     let n = length xs `div` 2
     wl <- circXors (take n xs)

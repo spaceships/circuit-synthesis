@@ -4,7 +4,7 @@
 module Circuit.Format.Acirc
   ( Circuit.Format.Acirc.read
   , Circuit.Format.Acirc.write
-  , readWithTests
+  , readAcirc
   , showWithTests
   , showCirc
   , parseCirc
@@ -26,10 +26,10 @@ import qualified Data.IntMap.Strict as IM
 import qualified Formatting as F
 
 read :: FilePath -> IO Acirc
-read = fmap fst . readWithTests
+read = fmap fst . readAcirc
 
-readWithTests :: FilePath -> IO (Acirc, [TestCase])
-readWithTests fp = parseCirc <$> readFile fp
+readAcirc :: FilePath -> IO (Acirc, [TestCase])
+readAcirc fp = parseCirc <$> readFile fp
 
 write :: FilePath -> Acirc -> IO ()
 write fp c = T.writeFile fp (showCirc c)
