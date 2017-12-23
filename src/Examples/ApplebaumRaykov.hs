@@ -16,32 +16,18 @@ import Control.Monad
 import Control.Monad.Trans
 import Data.List.Split
 
-makeApplebaum :: IO [(Maybe String, Acirc)]
-makeApplebaum = sequence
-    [ (Just "f1_16.dsl.acirc"    ,) <$> f1 16 1
-    , (Just "f1_32.dsl.acirc"    ,) <$> f1 32 1
-    , (Just "f1_64.dsl.acirc"    ,) <$> f1 64 1
-    , (Just "f1_128_1.dsl.acirc" ,) <$> f1 128 1
-    , (Just "f1_128_2.dsl.acirc" ,) <$> f1 128 2
-    -- , (Just "f3_4.dsl.acirc"     ,) <$> f3 4 1
+makeApplebaum :: [(String, IO Acirc)]
+makeApplebaum =
+    [ ("f1_16.dsl.acirc"    , f1 16 1)
+    , ("f1_32.dsl.acirc"    , f1 32 1)
+    , ("f1_64.dsl.acirc"    , f1 64 1)
+    , ("f1_128_1.dsl.acirc" , f1 128 1)
+    , ("f1_128_2.dsl.acirc" , f1 128 2)
+    -- , ("f3_4.dsl.acirc"     , f3 4 1)
     ]
 
 --------------------------------------------------------------------------------
 -- f1
-
-
--- f1 :: Int -> Int -> IO Circuit
--- f1 n m = do
---     keyBits <- randKeyIO n
---     return $ buildCircuit $ do
---         let l = ceiling (logBase 2 (fromIntegral n) :: Double)
---             d = l
---         key <- secrets keyBits
---         zs  <- replicateM m $ do
---             xs <- replicateM d (inputs l)
---             bs <- selects key xs
---             xorMaj bs
---         outputs zs
 
 perfectSquare :: Int -> Bool
 perfectSquare x = whole (sqrt (fromIntegral x :: Float))

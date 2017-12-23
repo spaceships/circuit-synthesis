@@ -1,8 +1,7 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE ParallelListComp #-}
-{-# LANGUAGE TupleSections #-}
 
-module Examples.Aes where
+module Examples.AES where
 
 import Circuit
 import Circuit.Builder
@@ -14,26 +13,24 @@ import Control.Monad.Trans (lift)
 import Data.List.Split
 import qualified Data.Vector as V
 
-make :: IO [(Maybe String, Circuit ArithGate)]
-make = sequence
-    [ (Just "aes1r.dsl.acirc"      ,) <$> buildAesRound 128
-    , (Just "aes1r_128_1.dsl.acirc",) <$> aes1Bit 128
-    , (Just "aes1r_64_1.dsl.acirc" ,) <$> aes1Bit 64
-    , (Just "aes1r_32_1.dsl.acirc" ,) <$> aes1Bit 32
-    , (Just "aes1r_16_1.dsl.acirc" ,) <$> aes1Bit 16
-    , (Just "aes1r_8_1.dsl.acirc"  ,) <$> aes1Bit 8
-    , (Just "aes1r_4_1.dsl.acirc"  ,) <$> aes1Bit 4
-    , (Just "aes1r_2_1.dsl.acirc"  ,) <$> aes1Bit 2
-    , return (Just "sbox.dsl.acirc", subByte)
+make :: [(String, IO Acirc)]
+make =
+    [ ("aes1r.dsl.acirc"      , buildAesRound 128)
+    , ("aes1r_128_1.dsl.acirc", aes1Bit 128)
+    , ("aes1r_64_1.dsl.acirc" , aes1Bit 64)
+    , ("aes1r_32_1.dsl.acirc" , aes1Bit 32)
+    , ("aes1r_16_1.dsl.acirc" , aes1Bit 16)
+    , ("aes1r_8_1.dsl.acirc"  , aes1Bit 8)
+    , ("aes1r_4_1.dsl.acirc"  , aes1Bit 4)
+    , ("aes1r_2_1.dsl.acirc"  , aes1Bit 2)
+    , ("sbox.dsl.acirc", return subByte)
     ]
 
-makeAes1r :: IO [(Maybe String, Circuit ArithGate)]
-makeAes1r = sequence
-    [ (Just "aes1r.dsl.acirc",) <$> buildAesRound 128 ]
+makeAes1r :: [(String, IO Acirc)]
+makeAes1r = [ ("aes1r.dsl.acirc", buildAesRound 128) ]
 
-makeAes10r :: IO [(Maybe String, Circuit ArithGate)]
-makeAes10r = sequence
-    [ (Just "aes.dsl.acirc",) <$> buildAes 10 128 ]
+makeAes10r :: [(String, IO Acirc)]
+makeAes10r = [ ("aes.dsl.acirc", buildAes 10 128) ]
 
 sbox :: V.Vector (V.Vector Bool)-- {{{
 sbox =

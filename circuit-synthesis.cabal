@@ -25,12 +25,13 @@ library
                         , Circuit.Format.Netlist
                         , Circuit.Format.Nigel
                         , Circuit.Format.Sexp
-                        , Examples.Aes
+                        , Examples.AES
                         , Examples.ApplebaumRaykov
                         , Examples.BBKK
                         , Examples.Comparison
                         , Examples.Garbler
                         , Examples.Goldreich
+                        , Examples.GGM
                         , Examples.Point
                         , Examples.Tribes
 
@@ -64,6 +65,7 @@ executable cxs
     main-is: Main.hs
     build-depends:        base
                         , circuit-synthesis
+                        , containers
                         , filepath
                         , microlens-platform
                         , optparse-applicative

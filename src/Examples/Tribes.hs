@@ -1,10 +1,3 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE TupleSections #-}
-#if __GLASGOW_HASKELL__ >= 800
-{-# LANGUAGE Strict #-}
-#endif
-
 module Examples.Tribes where
 
 import Circuit
@@ -14,13 +7,13 @@ import Circuit.Utils
 import Control.Monad.Trans (lift)
 import Data.List.Split
 
-make :: IO [(Maybe String, Acirc)]
-make = sequence
-    [ (Just "fa_8.dsl.acirc"   ,) <$> fa 8 4
-    , (Just "fa_16.dsl.acirc"  ,) <$> fa 16 4
-    , (Just "fa_32.dsl.acirc"  ,) <$> fa 32 4
-    , (Just "fa_64.dsl.acirc"  ,) <$> fa 64 4
-    , (Just "fa_128.dsl.acirc" ,) <$> fa 128 4
+make :: [(String, IO Acirc)]
+make =
+    [ ("fa_8.dsl.acirc"   , fa 8 4)
+    , ("fa_16.dsl.acirc"  , fa 16 4)
+    , ("fa_32.dsl.acirc"  , fa 32 4)
+    , ("fa_64.dsl.acirc"  , fa 64 4)
+    , ("fa_128.dsl.acirc" , fa 128 4)
     ]
 
 tribes :: Monad m => Int -> [Ref] -> Ref -> BuilderT ArithGate m Ref

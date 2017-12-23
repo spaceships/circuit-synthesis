@@ -15,9 +15,9 @@ import Control.Monad
 import Data.List.Split
 import qualified Data.IntMap as IntMap
 
-makeSizeTest :: IO [(Maybe String, Acirc2)]
-makeSizeTest = sequence
-    [ (Just "size_test.acirc",) <$> sizeTest ]
+makeSizeTest :: [(String, IO Acirc2)]
+makeSizeTest =
+    [ ("size_test.acirc", sizeTest ) ]
 
 --------------------------------------------------------------------------------
 -- a circuit for the garbler of a garbled circuit scheme
