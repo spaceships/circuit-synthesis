@@ -31,10 +31,10 @@ type ParseNetlist g = ParseCirc g NetlistSt
 
 --------------------------------------------------------------------------------
 
-read :: GateEval g => FilePath -> IO (Circuit g)
+read :: Gate g => FilePath -> IO (Circuit g)
 read file = fst <$> readNetlist file
 
-readNetlist :: GateEval g => FilePath -> IO (Circuit g, [TestCase])
+readNetlist :: Gate g => FilePath -> IO (Circuit g, [TestCase])
 readNetlist file = do
     s <- readFile file
     let (_,_,st) = execCircParser (NetlistSt IM.empty IM.empty IM.empty) parseNetlist s
@@ -44,14 +44,14 @@ readNetlist file = do
 -- read the netlist file first: parse it into a NetlistSt, then translate it into
 -- a circuit.
 
-buildNetlist :: GateEval g => NetlistSt -> Circuit g
+buildNetlist :: Gate g => NetlistSt -> Circuit g
 buildNetlist st = flip S.evalState IM.empty $ buildCircuitT $ do
     inpRefs <- inputs (length (st^.nl_inputs))
     lift $ S.put (IM.fromList (zip (IM.elems (st^.nl_inputs)) inpRefs))
     outRefs <- mapM buildRec (IM.elems (st^.nl_outputs))
     outputs outRefs
   where
-    buildRec :: GateEval g => Int -> BuilderT g (S.State (IM.IntMap Ref)) Ref
+    buildRec :: Gate g => Int -> BuilderT g (S.State (IM.IntMap Ref)) Ref
     buildRec !w = lift (use (at w)) >>= \case
         Just ref -> return ref
         Nothing  -> do

@@ -1,6 +1,5 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE CPP #-}
 #if __GLASGOW_HASKELL__ >= 800
 {-# LANGUAGE Strict #-}
 #endif
@@ -10,7 +9,6 @@ module Examples.Goldreich where
 import Circuit
 import Circuit.Builder
 import Circuit.Utils
-import qualified Circuit.Format.Acirc as Acirc
 
 import Control.Monad
 import Control.Monad.Trans
@@ -126,24 +124,8 @@ makeGGMNoPrgSigma = sequence
     , (Just "ggm_sigma_noprg_4_128.dsl.acirc" ,) <$> ggmSigmaNoPrg 64 128 16
     ]
 
-makeApplebaum :: IO [(Maybe String, Acirc)]
-makeApplebaum = sequence
-    [ (Just "f1_16.dsl.acirc"    ,) <$> f1 16 1
-    , (Just "f1_32.dsl.acirc"    ,) <$> f1 32 1
-    , (Just "f1_64.dsl.acirc"    ,) <$> f1 64 1
-    , (Just "f1_128_1.dsl.acirc" ,) <$> f1 128 1
-    , (Just "f1_128_2.dsl.acirc" ,) <$> f1 128 2
-    -- , (Just "f3_4.dsl.acirc"     ,) <$> f3 4 1
-    ]
-
 --------------------------------------------------------------------------------
--- f1
-
-majorityNaive :: Monad m => [Ref] -> BuilderT ArithGate m Ref
-majorityNaive xs = do
-    let cs = combinations (length xs `div` 2) xs
-    zs <- mapM circProd cs
-    circOrs zs
+-- predicates
 
 majority :: Monad m => [Ref] -> BuilderT ArithGate m Ref
 majority xs = lookupTable maj xs
@@ -158,168 +140,32 @@ xorMaj xs = do
     wr <- majority (drop n xs)
     circXor wl wr
 
--- select the ix'th bit from x
-select :: Monad m => [Ref] -> [Ref] -> BuilderT ArithGate m Ref
-select xs ix = do
-    sel <- selectionVector ix
-    zs  <- zipWithM (circMul) sel xs
-    circSum zs
-
-selects :: Monad m => [Ref] -> [[Ref]] -> BuilderT ArithGate m [Ref]
-selects xs ixs = mapM (select xs) ixs
-
--- f1 :: Int -> Int -> IO Circuit
--- f1 n m = do
---     keyBits <- randKeyIO n
---     return $ buildCircuit $ do
---         let l = ceiling (logBase 2 (fromIntegral n) :: Double)
---             d = l
---         key <- secrets keyBits
---         zs  <- replicateM m $ do
---             xs <- replicateM d (inputs l)
---             bs <- selects key xs
---             xorMaj bs
---         outputs zs
-
-perfectSquare :: Int -> Bool
-perfectSquare x = whole (sqrt (fromIntegral x :: Float))
-  where
-    whole :: Float -> Bool
-    whole x = x - (fromIntegral (floor x :: Int) :: Float) == 0.0
-
-f1 :: Int -> Int -> IO Acirc
-f1 ninputs noutputs
-    | not (perfectSquare ninputs) = error "ninputs should be a perfect square"
-    | otherwise = buildCircuitT $ do
-        let l = ceiling (sqrt (fromIntegral ninputs / fromIntegral noutputs :: Float))
-        keyBits <- lift $ randKeyIO (2^l)
-        key <- secrets keyBits
-        zs  <- replicateM noutputs $ do
-            xs <- replicateM l (inputs l)
-            bs <- selects key xs
-            xorMaj bs
-        outputs zs
-
-f1_rachel :: Int -> Int -> IO Acirc
-f1_rachel n m = buildCircuitT $ do
-    keyBits <- lift $ randKeyIO n
-    let d = ceiling (logBase 2 (fromIntegral n) :: Double)
-    key <- secrets keyBits
-    zs  <- replicateM m $ do
-        xs <- replicateM d (inputs n)
-        bs <- mapM (zipWithM circMul key) xs
-        zs <- mapM circSum bs
-        xorMaj zs
-    outputs zs
-
-maj8n :: Acirc
-maj8n = buildCircuit (output =<< majorityNaive =<< inputs 8)
-
-maj8 :: Acirc
-maj8 = buildCircuit (output =<< majority =<< inputs 8)
-
-xormaj16 :: Acirc
-xormaj16 = buildCircuit (output =<< xorMaj =<< inputs 16)
-
-f1_128 :: IO Acirc
-f1_128 = f1 128 1
-
---------------------------------------------------------------------------------
--- f2
-
-f2 :: Int -> Int -> IO Acirc
-f2 n m = buildCircuitT $ do
-    keyBits <- lift $ randKeyIO n
-    let l = ceiling (logBase 2 (fromIntegral n) :: Double)
-        d = l
-    ext <- lift $ genExt (2*m) m
-    kf <- secrets keyBits
-    zs <- replicateM (2*m) $ do
-        xs <- replicateM d (inputs l)
-        bs <- selects kf xs
-        xorMaj bs
-    ws <- subcircuit ext zs
-    outputs ws
-
-genExt :: Int -> Int -> IO Acirc
-genExt ninputs noutputs = buildCircuitT $ do
-    key <- lift $ randKeyIO (ninputs * noutputs)
-    x <- inputs ninputs
-    a <- chunksOf ninputs <$> secrets key
-    z <- matrixTimesVect a x
-    outputs z
-
---------------------------------------------------------------------------------
--- f3
-
-f3 :: Int -> Int -> IO Acirc
-f3 n m = buildCircuitT $ do
-    -- n is K_f size
-    keyBits <- lift $ randKeyIO n
-    let l = ceiling (logBase 2 (fromIntegral n) :: Double)
-        ninputs = 2*m*(l^(2 :: Int))
-    ext <- lift $ genExt (2*m) m -- goes from m output bits to m/2 output bits
-    mapper <- lift $ loadMapper ninputs
-    kf <- secrets keyBits
-    xs <- subcircuit mapper =<< inputs ninputs
-    zs <- forM (chunksOf (l^(2 :: Int)) xs) $ \x -> do
-        bs <- selects kf (chunksOf l x)
-        xorMaj bs
-    ws <- subcircuit ext zs
-    outputs ws
-
-loadMapper :: Int -> IO Acirc
-loadMapper n = buildCircuitT $ do
-    c  <- lift $ Acirc.read ("mappers/mapper_" ++ show n ++ ".c2v.acirc")
-    k1 <- lift $ randKeyIO n
-    k2 <- lift $ randKeyIO n
-    xs <- inputs n
-    ks <- secrets ([1] ++ k1 ++ k2)
-    zs <- subcircuit' c xs ks
-    outputs zs
-
-genMapper :: Int -> IO Acirc
-genMapper n = buildCircuitT $ do
-    k1 <- lift $ randKeyIO n
-    k2 <- lift $ randKeyIO n
-    let f n bs = polyDiv (take n bs) (zipWith xor (drop n bs) (drop (2*n) bs))
-    xs <- inputs n
-    k1 <- secrets k1
-    k2 <- secrets k2
-    zs <- lookupTableMultibit (f n) (k1 ++ k2 ++ xs)
-    outputs zs
-
-polyDiv :: [Bool] -> [Bool] -> [Bool]
-polyDiv _ _ = undefined
+xorAnd :: (Gate g, Monad m) => [Ref] -> BuilderT g m Ref
+xorAnd (x0:x1:xs) = do
+    y <- circMul x0 x1
+    circXors (y : xs)
+xorAnd _ = error "[xorAnd] need at least three inputs!"
 
 --------------------------------------------------------------------------------
 -- prg
 
-selectsPt :: Monad m => [Int] -> [Ref] -> BuilderT ArithGate m [Ref]
-selectsPt sels xs = return (map (xs!!) sels)
-
-prg :: Int -> Int -> IO Acirc
+prg :: Gate g => Int -> Int -> IO (Circuit g)
 prg n m = prg' n m 5 xorAnd
 
-prg' :: Int -> Int -> Int -> ([Ref] -> BuilderT ArithGate IO Ref) -> IO Acirc
+prg' :: Gate g => Int -> Int -> Int -> ([Ref] -> BuilderT g IO Ref) -> IO (Circuit g)
 prg' n m d predicate = buildCircuitT $ do
     xs <- inputs n
     zs <- prgBuilder n m d predicate xs
     outputs zs
 
-prgBuilder :: MonadIO m => Int -> Int -> Int -> ([Ref] -> BuilderT ArithGate m Ref) -> [Ref]
-           -> BuilderT ArithGate m [Ref]
+prgBuilder :: (Gate g, MonadIO m)
+           => Int -> Int -> Int -> ([Ref] -> BuilderT g m Ref) -> [Ref]
+           -> BuilderT g m [Ref]
 prgBuilder ninputs noutputs locality predicate xs = do
     selections <- liftIO $ replicateM noutputs $ replicateM locality (randIO (randIntMod ninputs))
     forM selections $ \s -> do
-        sel <- selectsPt s xs
+        sel <- selectsPT s xs
         predicate sel
-
-xorAnd :: Monad m => [Ref] -> BuilderT ArithGate m Ref
-xorAnd (x0:x1:xs) = do
-    y <- circMul x0 x1
-    circXors (y : xs)
-xorAnd _ = error "[xorAnd] need at least three inputs!"
 
 prgKey :: Int -> Int -> IO Acirc
 prgKey n m = buildCircuitT $ do
@@ -328,7 +174,7 @@ prgKey n m = buildCircuitT $ do
     keyBits <- lift $ randKeyIO n
     selections <- lift $ replicateM m $ replicateM d (randIO (randIntegerMod (fromIntegral n)))
     xs  <- secrets keyBits
-    zs  <- forM selections $ \s -> xorMaj =<< selectsPt (map fromIntegral s) xs
+    zs  <- forM selections $ \s -> xorMaj =<< selectsPT (map fromIntegral s) xs
     outputs zs
 
 --------------------------------------------------------------------------------

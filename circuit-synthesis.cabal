@@ -18,6 +18,7 @@ library
                         , Circuit.Conversion
                         , Circuit.Optimizer
                         , Circuit.Parser
+                        , Circuit.Types
                         , Circuit.Utils
                         , Circuit.Format.Acirc
                         , Circuit.Format.Graphviz
@@ -25,6 +26,7 @@ library
                         , Circuit.Format.Nigel
                         , Circuit.Format.Sexp
                         , Examples.Aes
+                        , Examples.ApplebaumRaykov
                         , Examples.BBKK
                         , Examples.Comparison
                         , Examples.Garbler

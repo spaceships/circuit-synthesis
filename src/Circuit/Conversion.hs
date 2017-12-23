@@ -1,6 +1,7 @@
 module Circuit.Conversion where
 
 import Circuit
+import Lens.Micro.Platform
 
 class ToAcirc g where
     toAcirc :: Circuit g -> Acirc
@@ -20,3 +21,5 @@ instance ToCirc ArithGate where
 instance ToCirc BoolGate where
     toCirc = id
 
+instance ToAcirc ArithGate2 where
+    toAcirc = circ_refmap . each %~ getArithGate

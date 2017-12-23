@@ -1,14 +1,15 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE CPP #-}
 #if __GLASGOW_HASKELL__ >= 800
 {-# LANGUAGE Strict #-}
 #endif
 
-module Circuit where
+module Circuit
+    ( module Circuit.Types
+    , module Circuit
+    ) where
 
+import Circuit.Types
 import Circuit.Utils
 
 import Control.Monad.Identity
@@ -19,122 +20,6 @@ import Text.Printf
 import qualified Data.Map.Strict as M
 import qualified Data.IntMap.Strict as IM
 import qualified Data.IntSet as IS
-
-newtype Ref = Ref { getRef :: Int } deriving (Eq, Ord, Num)
-newtype Id  = Id  { getId  :: Int } deriving (Eq, Ord, Num)
-
-instance Show Ref where
-    show ref = show (getRef ref)
-
-instance Show Id where
-    show id = show (getId id)
-
-data ArithGate =
-      ArithAdd !Ref !Ref
-    | ArithSub !Ref !Ref
-    | ArithMul !Ref !Ref
-    | ArithInput !Id
-    | ArithConst !Id
-    deriving (Eq, Ord, Show)
-
-data BoolGate =
-      BoolXor !Ref !Ref
-    | BoolAnd !Ref !Ref
-    | BoolNot !Ref
-    | BoolInput !Id
-    | BoolConst !Id
-    deriving (Eq, Ord, Show)
-
-data Circuit gate = Circuit
-    { _circ_outputs     :: ![Ref]
-    , _circ_inputs      :: ![Ref]
-    , _circ_consts      :: !(IM.IntMap Id)
-    , _circ_secret_refs :: !(IS.IntSet)
-    , _circ_secret_ids  :: !(IS.IntSet)
-    , _circ_refmap      :: !(IM.IntMap gate)
-    , _circ_const_vals  :: !(IM.IntMap Integer)
-    , _circ_symlen      :: !Int
-    , _circ_base        :: !Integer
-    } deriving (Show)
-
-makeLenses ''Circuit
-
-type TestCase = ([Integer], [Integer])
-
-type Acirc = Circuit ArithGate
-type Circ = Circuit BoolGate
-
----------------------------------------------------------------------------------------
--- GateEval class allows us to share boilerplate between binary and arithmetic circuits
-
-class (Eq g, Ord g) => GateEval g where
-    gateArgs :: g -> [Ref]
-    gateEval :: (Id -> Integer) -> (Id -> Integer) -> g -> [Integer] -> Integer
-    gateAdd :: Ref -> Ref -> g
-    gateSub :: Ref -> Ref -> g
-    gateMul :: Ref -> Ref -> g
-    gateXor :: Ref -> Ref -> Maybe g
-    gateNot :: Ref -> Maybe g
-    gateInput :: Id -> g
-    gateConst :: Id -> g
-    gateIsMul :: g -> Bool
-    gateIsGate :: g -> Bool
-
-instance GateEval ArithGate where
-    gateArgs (ArithAdd x y)  = [x,y]
-    gateArgs (ArithSub x y)  = [x,y]
-    gateArgs (ArithMul x y)  = [x,y]
-    gateArgs (ArithInput _) = []
-    gateArgs (ArithConst _) = []
-
-    gateEval _ _ (ArithAdd _ _) [x,y] = x + y
-    gateEval _ _ (ArithSub _ _) [x,y] = x - y
-    gateEval _ _ (ArithMul _ _) [x,y] = x * y
-    gateEval getInp _   (ArithInput i) [] = getInp i
-    gateEval _ getConst (ArithConst i) [] = getConst i
-
-    gateAdd x y = ArithAdd x y
-    gateSub x y = ArithSub x y
-    gateMul x y = ArithMul x y
-    gateXor _ _ = Nothing
-    gateNot _   = Nothing
-    gateInput i = ArithInput i
-    gateConst i = ArithConst i
-
-    gateIsMul (ArithMul _ _) = True
-    gateIsMul _ = False
-
-    gateIsGate (ArithInput _) = False
-    gateIsGate (ArithConst _) = False
-    gateIsGate _ = True
-
-instance GateEval BoolGate where
-    gateArgs (BoolXor x y) = [x,y]
-    gateArgs (BoolAnd x y) = [x,y]
-    gateArgs (BoolNot x)   = [x]
-    gateArgs (BoolInput _) = []
-    gateArgs (BoolConst _) = []
-
-    gateEval _ _ (BoolXor _ _) [x,y] = b2i (i2b x `xor` i2b y)
-    gateEval _ _ (BoolAnd _ _) [x,y] = x * y
-    gateEval _ _ (BoolNot _)   [x]   = 1 - x
-    gateEval getInp _   (BoolInput i) [] = getInp i
-    gateEval _ getConst (BoolConst i) [] = getConst i
-
-    gateAdd x y = BoolXor x y
-    gateSub x y = BoolXor x y
-    gateMul x y = BoolAnd x y
-    gateXor x y = Just (BoolXor x y)
-    gateNot x   = Just (BoolNot x)
-    gateInput i = BoolInput i
-    gateConst i = BoolConst i
-
-    gateIsMul (BoolAnd _ _) = True
-    gateIsMul _ = False
-
-    gateIsGate (BoolInput _) = False
-    gateIsGate (BoolConst _) = False
-    gateIsGate _ = True
 
 --------------------------------------------------------------------------------
 -- Generic circuit functions
@@ -164,7 +49,7 @@ randomizeSecrets c = do
     let newSecrets = IM.fromList $ zip (IS.toAscList (c^.circ_secret_ids)) key
     return $ c & circ_const_vals %~ IM.union newSecrets
 
-genTest :: GateEval gate => Circuit gate -> IO TestCase
+genTest :: Gate gate => Circuit gate -> IO TestCase
 genTest c
     | c^.circ_symlen == 1 = do
         let q = _circ_base c ^ (fromIntegral (ninputs c) :: Integer)
@@ -180,7 +65,7 @@ genTest c
         return (inp, plainEval c inp)
 
 
-printCircInfo :: GateEval g => Circuit g -> IO ()
+printCircInfo :: Gate g => Circuit g -> IO ()
 printCircInfo c = do
     let n = ninputs c
     printf "circuit info\n"
@@ -190,7 +75,7 @@ printCircInfo c = do
     printf "ngates=%d depth=%d\n" (ngates c) (depth c)
     printf "degree=%d\n" (circDegree c)
 
-printTruthTable :: GateEval gate => Circuit gate -> IO ()
+printTruthTable :: Gate gate => Circuit gate -> IO ()
 printTruthTable c = forM_ inputs $ \inp -> do
     let out = plainEval c inp
     printf "%s -> %s\n" (showInts inp) (showInts out)
@@ -201,7 +86,7 @@ printTruthTable c = forM_ inputs $ \inp -> do
         1 -> sequence (replicate (ninputs c) [(0::Integer)..fromIntegral (c^.circ_base - 1)])
         _ -> map concat $ sequence (replicate n (map sym [0..symlen c - 1]))
 
-circEq :: GateEval gate => Circuit gate -> Circuit gate -> IO Bool
+circEq :: Gate gate => Circuit gate -> Circuit gate -> IO Bool
 circEq c0 c1
   | ninputs  c0 /= ninputs  c1 = return False
   | noutputs c0 /= noutputs c1 = return False
@@ -242,7 +127,7 @@ degs c = map (varDegree c) ids
   where
     ids = ArithConst (Id (-1)) : map (ArithInput . Id) [0 .. ninputs c-1]
 
-depth :: GateEval gate => Circuit gate -> Integer
+depth :: Gate gate => Circuit gate -> Integer
 depth c = maximum $ foldCirc f c
   where
     f _ args = if null args then 0 else maximum args + 1
@@ -263,7 +148,7 @@ varDegree' c z = foldCirc f c
     eq (ArithConst _) (ArithConst _) = True
     eq _ _ = False
 
-circDegree :: GateEval g => Circuit g -> Integer
+circDegree :: Gate g => Circuit g -> Integer
 circDegree c = maximum $ foldCirc f c
   where
     f g [x,y] = if gateIsMul g then x + y else max x y
@@ -274,7 +159,7 @@ zeroTest :: Integer -> Integer
 zeroTest 0 = 0
 zeroTest _ = 1
 
-plainEval :: GateEval gate => Circuit gate -> [Integer] -> [Integer]
+plainEval :: Gate gate => Circuit gate -> [Integer] -> [Integer]
 plainEval c inps
     | ninputs c /= length inps =
         error (printf "[plainEval] incorrect number of inputs: expected %d, got %s" (ninputs c) (show inps))
@@ -282,7 +167,7 @@ plainEval c inps
   where
     getInp i = inps !! getId i
 
-ensure :: GateEval gate => Bool -> Circuit gate -> [TestCase] -> IO Bool
+ensure :: Gate gate => Bool -> Circuit gate -> [TestCase] -> IO Bool
 ensure verbose c ts = and <$> mapM ensure' (zip [(0::Integer)..] ts)
   where
     ensure' (i, (inps, outs)) = do
@@ -315,26 +200,26 @@ ensureIO verbose eval c ts = and <$> mapM ensureIO' (zip [(0::Integer)..] ts)
             putStrLn (red s)
             return False
 
-foldCirc :: GateEval gate => (gate -> [a] -> a) -> Circuit gate -> [a]
+foldCirc :: Gate gate => (gate -> [a] -> a) -> Circuit gate -> [a]
 foldCirc f c = runIdentity (foldCircM f' c)
   where
     f' op _ xs = return (f op xs)
 
-foldCircRef :: GateEval gate => (gate -> Ref -> [a] -> a) -> Circuit gate -> [a]
+foldCircRef :: Gate gate => (gate -> Ref -> [a] -> a) -> Circuit gate -> [a]
 foldCircRef f c = runIdentity (foldCircM f' c)
   where
     f' op ref xs = return (f op ref xs)
 
 -- evaluate the circuit
-foldCircM :: (GateEval g, Monad m) => (g -> Ref -> [a] -> m a) -> Circuit g -> m [a]
+foldCircM :: (Gate g, Monad m) => (g -> Ref -> [a] -> m a) -> Circuit g -> m [a]
 foldCircM f c = evalStateT (mapM (foldCircRec f c) (c^.circ_outputs)) M.empty
 
 -- evaluate the circuit for a particular ref as output
-foldCircRefM :: (GateEval g, Monad m) => (g -> Ref -> [a] -> m a) -> Circuit g -> Ref -> m a
+foldCircRefM :: (Gate g, Monad m) => (g -> Ref -> [a] -> m a) -> Circuit g -> Ref -> m a
 foldCircRefM !f !c !ref = evalStateT (foldCircRec f c ref) M.empty
 
 -- helper function for foldCircM and foldCircRefM
-foldCircRec :: (GateEval g, Monad m)
+foldCircRec :: (Gate g, Monad m)
             => (g -> Ref -> [a] -> m a) -> Circuit g -> Ref
             -> StateT (M.Map Ref a) m a
 foldCircRec f c !ref = do
@@ -350,14 +235,14 @@ foldCircRec f c !ref = do
             modify' (M.insert ref val)
             return val
 
-topologicalOrder :: GateEval gate => Circuit gate -> [Ref]
+topologicalOrder :: Gate gate => Circuit gate -> [Ref]
 topologicalOrder c = reverse $ execState (foldCircM eval c) []
   where
     eval :: gate -> Ref -> [a] -> State [Ref] ()
     eval _ ref _ = modify (ref:)
 
 -- Ugly and fast!
-topoLevels :: GateEval gate => Circuit gate -> [[Ref]]
+topoLevels :: Gate gate => Circuit gate -> [[Ref]]
 topoLevels c = nub $ map snd $ M.toAscList $ execState (foldCircM eval c) M.empty
   where
     eval :: gate -> Ref -> [Int] -> State (M.Map Int [Ref]) Int
@@ -367,7 +252,7 @@ topoLevels c = nub $ map snd $ M.toAscList $ execState (foldCircM eval c) M.empt
         modify (M.insertWith (++) d [ref])
         return d
 
-sortGates :: GateEval gate => Circuit gate -> [Ref]
+sortGates :: Gate gate => Circuit gate -> [Ref]
 sortGates c = concatMap (sortBy refDist) (topoLevels c)
   where
     refDist xref yref = let xargs = gateArgs (getGate c xref)
@@ -379,24 +264,24 @@ sortGates c = concatMap (sortBy refDist) (topoLevels c)
                             (xs, ys) -> let cs = zipWith compare xs ys
                                         in if any (== EQ) cs then EQ else maximum cs
 
-gates :: GateEval gate => Circuit gate -> [(Ref, gate)]
+gates :: Gate gate => Circuit gate -> [(Ref, gate)]
 gates c = filter (f.snd) $ map (\ref -> (ref, getGate c ref)) (topologicalOrder c)
   where
     f gate = not $ null (gateArgs gate)
 
-gateRefs :: GateEval gate => Circuit gate -> [Ref]
+gateRefs :: Gate gate => Circuit gate -> [Ref]
 gateRefs = map fst . gates
 
-nonInputGateRefs :: GateEval gate => Circuit gate -> [Ref]
+nonInputGateRefs :: Gate gate => Circuit gate -> [Ref]
 nonInputGateRefs = map fst . filter (gateIsGate.snd) . gates
 
-sortedNonInputGates :: GateEval gate => Circuit gate -> [Ref]
+sortedNonInputGates :: Gate gate => Circuit gate -> [Ref]
 sortedNonInputGates c = filter notInput (sortGates c)
   where
     notInput ref = notElem ref (_circ_inputs c) &&
                    IS.notMember (getRef ref) (_circ_secret_refs c)
 
-intermediateGates :: GateEval gate => Circuit gate -> [Ref]
+intermediateGates :: Gate gate => Circuit gate -> [Ref]
 intermediateGates c = filter intermediate (topologicalOrder c)
   where
     intermediate ref = notElem ref (_circ_inputs c) &&

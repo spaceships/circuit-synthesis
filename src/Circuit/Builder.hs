@@ -18,7 +18,7 @@ import Text.Printf
 import qualified Data.Map.Strict as M
 import qualified Data.IntMap.Strict as IM
 
-input :: (GateEval g, Monad m) => BuilderT g m Ref
+input :: (Gate g, Monad m) => BuilderT g m Ref
 input = do
     id   <- nextInputId
     ref  <- nextRef
@@ -26,7 +26,7 @@ input = do
     return ref
 
 -- get the ref of a particular input, even if it does not exist already.
-input_n :: (GateEval g, Monad m) => Id -> BuilderT g m Ref
+input_n :: (Gate g, Monad m) => Id -> BuilderT g m Ref
 input_n n = do
     dedup <- use bs_dedup
     case M.lookup (gateInput n) dedup of
@@ -35,10 +35,10 @@ input_n n = do
             cur <- use bs_next_inp
             last <$> replicateM (getId n - getId cur + 1) input
 
-inputs :: (GateEval g, Monad m) => Int -> BuilderT g m [Ref]
+inputs :: (Gate g, Monad m) => Int -> BuilderT g m [Ref]
 inputs n = replicateM n input
 
-secret :: (GateEval g, Monad m) => Integer -> BuilderT g m Ref
+secret :: (Gate g, Monad m) => Integer -> BuilderT g m Ref
 secret val = do
     id  <- nextConstId
     ref <- nextRef
@@ -48,7 +48,7 @@ secret val = do
     return ref
 
 -- get the ref of a particular secret, even if it does not exist already (inserts secret 0s)
-secret_n :: (GateEval g, Monad m) => Id -> BuilderT g m Ref
+secret_n :: (Gate g, Monad m) => Id -> BuilderT g m Ref
 secret_n n = do
     dedup <- use bs_dedup
     case M.lookup (gateConst n) dedup of
@@ -58,11 +58,11 @@ secret_n n = do
             last <$> replicateM (getId n - getId cur + 1) (secret 0)
 
 -- preserve duplication: there will be many gates for secret 0
-secrets :: (GateEval g, Monad m) => [Integer] -> BuilderT g m [Ref]
+secrets :: (Gate g, Monad m) => [Integer] -> BuilderT g m [Ref]
 secrets = mapM secret
 
 -- avoid duplication: there will be only one gate for const 0
-constant :: (GateEval g, Monad m) => Integer -> BuilderT g m Ref
+constant :: (Gate g, Monad m) => Integer -> BuilderT g m Ref
 constant val = do
     r <- existingConstant val
     case r of
@@ -75,25 +75,25 @@ constant val = do
             markConstant val ref
             return ref
 
-constants :: (GateEval g, Monad m) => [Integer] -> BuilderT g m [Ref]
+constants :: (Gate g, Monad m) => [Integer] -> BuilderT g m [Ref]
 constants = mapM constant
 
-circAdd :: (GateEval g, Monad m) => Ref -> Ref -> BuilderT g m Ref
+circAdd :: (Gate g, Monad m) => Ref -> Ref -> BuilderT g m Ref
 circAdd x y = newGate (gateAdd x y)
 
-circSub :: (GateEval g, Monad m) => Ref -> Ref -> BuilderT g m Ref
+circSub :: (Gate g, Monad m) => Ref -> Ref -> BuilderT g m Ref
 circSub x y = newGate (gateSub x y)
 
-circMul :: (GateEval g, Monad m) => Ref -> Ref -> BuilderT g m Ref
+circMul :: (Gate g, Monad m) => Ref -> Ref -> BuilderT g m Ref
 circMul x y = newGate (gateMul x y)
 
-circProd :: (GateEval g, Monad m) => [Ref] -> BuilderT g m Ref
+circProd :: (Gate g, Monad m) => [Ref] -> BuilderT g m Ref
 circProd = foldTreeM circMul
 
-circSum :: (GateEval g, Monad m) => [Ref] -> BuilderT g m Ref
+circSum :: (Gate g, Monad m) => [Ref] -> BuilderT g m Ref
 circSum = foldTreeM circAdd
 
-circXor :: (GateEval g, Monad m) => Ref -> Ref -> BuilderT g m Ref
+circXor :: (Gate g, Monad m) => Ref -> Ref -> BuilderT g m Ref
 circXor x y = case gateXor x y of
     Just g  -> newGate g
     Nothing -> do
@@ -102,19 +102,19 @@ circXor x y = case gateXor x y of
         c' <- circAdd c c
         circSub z c'
 
-circXors :: (GateEval g, Monad m) => [Ref] -> BuilderT g m Ref
+circXors :: (Gate g, Monad m) => [Ref] -> BuilderT g m Ref
 circXors = foldTreeM circXor
 
-circOr :: (GateEval g, Monad m) => Ref -> Ref -> BuilderT g m Ref
+circOr :: (Gate g, Monad m) => Ref -> Ref -> BuilderT g m Ref
 circOr x y = do
     z <- circAdd x y
     c <- circMul x y
     circSub z c
 
-circOrs :: (GateEval g, Monad m) => [Ref] -> BuilderT g m Ref
+circOrs :: (Gate g, Monad m) => [Ref] -> BuilderT g m Ref
 circOrs = foldTreeM circOr
 
-circNot :: (GateEval g, Monad m) => Ref -> BuilderT g m Ref
+circNot :: (Gate g, Monad m) => Ref -> BuilderT g m Ref
 circNot x = case gateNot x of
     Just g  -> newGate g
     Nothing -> do
@@ -151,7 +151,7 @@ subcircuit c xs = do
     ys <- exportConsts c
     subcircuit' c xs ys
 
-exportConsts :: (GateEval g, Monad m) => Circuit g -> BuilderT g m [Ref]
+exportConsts :: (Gate g, Monad m) => Circuit g -> BuilderT g m [Ref]
 exportConsts c = do
     forM (IM.toAscList (c^.circ_consts)) $ \(_, id) -> do
         let x = getConst c id
@@ -168,7 +168,20 @@ exportParams c = do
 --------------------------------------------------------------------------------
 -- extras!
 
-selectPT :: (GateEval g, Monad m) => [Ref] -> [Bool] -> BuilderT g m [Ref]
+-- select the ix'th bit from x
+select :: Monad m => [Ref] -> [Ref] -> BuilderT ArithGate m Ref
+select xs ix = do
+    sel <- selectionVector ix
+    zs  <- zipWithM (circMul) sel xs
+    circSum zs
+
+selects :: Monad m => [Ref] -> [[Ref]] -> BuilderT ArithGate m [Ref]
+selects xs ixs = mapM (select xs) ixs
+
+selectsPT :: (Gate g, Monad m) => [Int] -> [Ref] -> BuilderT g m [Ref]
+selectsPT sels xs = return (map (xs!!) sels)
+
+selectPT :: (Gate g, Monad m) => [Ref] -> [Bool] -> BuilderT g m [Ref]
 selectPT xs bs = do
     one <- constant 1
     when (length xs /= length bs) $ error "[select] unequal length inputs"
@@ -176,41 +189,41 @@ selectPT xs bs = do
         set one (x, False) = circSub one x
     mapM (set one) (zip xs bs)
 
-bitsSet :: (GateEval g, Monad m) => [Ref] -> [Bool] -> BuilderT g m Ref
+bitsSet :: (Gate g, Monad m) => [Ref] -> [Bool] -> BuilderT g m Ref
 bitsSet xs bs = circProd =<< selectPT xs bs
 
 -- transforms an input x into a vector [ 0 .. 1 .. 0 ] with a 1 in the xth place
-selectionVector :: (GateEval g, Monad m) => [Ref] -> BuilderT g m [Ref]
+selectionVector :: (Gate g, Monad m) => [Ref] -> BuilderT g m [Ref]
 selectionVector xs = mapM (bitsSet xs) (permutations (length xs) [False, True])
 
-lookupTable :: (GateEval g, Monad m) => ([Bool] -> Bool) -> [Ref] -> BuilderT g m Ref
+lookupTable :: (Gate g, Monad m) => ([Bool] -> Bool) -> [Ref] -> BuilderT g m Ref
 lookupTable f xs = do
     sel <- selectionVector xs
     let tt   = f <$> booleanPermutations (length xs)
         vars = snd <$> filter (\(i,_) -> tt !! i) (zip [0..] sel)
     circSum vars
 
-lookupTableMultibit :: (GateEval g, Monad m) => ([Bool] -> [Bool]) -> [Ref] -> BuilderT g m [Ref]
+lookupTableMultibit :: (Gate g, Monad m) => ([Bool] -> [Bool]) -> [Ref] -> BuilderT g m [Ref]
 lookupTableMultibit f xs =
     mapM (flip lookupTable xs) [ (\x -> f x !! i) | i <- [0..noutputs - 1] ]
   where
     noutputs = length (f (replicate (length xs) False))
 
-matrixTimesVect :: (GateEval g, Monad m) => [[Ref]] -> [Ref] -> BuilderT g m [Ref]
+matrixTimesVect :: (Gate g, Monad m) => [[Ref]] -> [Ref] -> BuilderT g m [Ref]
 matrixTimesVect rows vect
   | not $ all ((== length vect) . length) rows = error "[matrixTimesVect] bad dimensions"
   | otherwise = mapM (circXors <=< zipWithM circMul vect) rows
 
-matrixTimesVectPT :: (GateEval g, Monad m) => [[Bool]] -> [Ref] -> BuilderT g m [Ref]
+matrixTimesVectPT :: (Gate g, Monad m) => [[Bool]] -> [Ref] -> BuilderT g m [Ref]
 matrixTimesVectPT rows vect
   | not $ all ((== length vect) . length) rows = error "[matrixTimesVectPT] bad dimensions"
   | otherwise = mapM (circXors <=< selectPT vect) rows
 
-matrixMul :: (GateEval g, Monad m) => [[Ref]] -> [[Ref]] -> BuilderT g m [[Ref]]
+matrixMul :: (Gate g, Monad m) => [[Ref]] -> [[Ref]] -> BuilderT g m [[Ref]]
 matrixMul a b = mapM (matrixTimesVect a) b
 
 -- swap elements based on a bit in the circuit
-swap :: (GateEval g, Monad m) => Ref -> [Ref] -> [Ref] -> BuilderT g m [[Ref]]
+swap :: (Gate g, Monad m) => Ref -> [Ref] -> [Ref] -> BuilderT g m [[Ref]]
 swap b xs ys
  | length xs /= length ys = error "[swap] unequal length inputs!"
  | otherwise = do

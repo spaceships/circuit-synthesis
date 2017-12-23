@@ -4,17 +4,18 @@ import Circuit
 import Circuit.Conversion
 import Circuit.Optimizer
 import Circuit.Utils
-import qualified Circuit.Format.Acirc as Acirc
-import qualified Circuit.Format.Nigel as Nigel
-import qualified Circuit.Format.Netlist as Netlist
+import qualified Circuit.Format.Acirc    as Acirc
+import qualified Circuit.Format.Nigel    as Nigel
+import qualified Circuit.Format.Netlist  as Netlist
 import qualified Circuit.Format.Graphviz as Graphviz
 
-import qualified Examples.Aes        as Aes
-import qualified Examples.Comparison as Comparison
-import qualified Examples.Garbler    as Garbler
-import qualified Examples.Goldreich  as Goldreich
-import qualified Examples.Point      as Point
-import qualified Examples.Tribes     as Tribes
+import qualified Examples.Aes             as Aes
+import qualified Examples.ApplebaumRaykov as AR
+import qualified Examples.Comparison      as Comparison
+import qualified Examples.Garbler         as Garbler
+import qualified Examples.Goldreich       as Goldreich
+import qualified Examples.Point           as Point
+import qualified Examples.Tribes          as Tribes
 
 import Control.Monad
 import Lens.Micro.Platform
@@ -104,7 +105,7 @@ main = runCommand $ \opts args -> do
         Just "ggmSigma"      -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMSigma
         Just "ggmNoPrg"      -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMNoPrg
         Just "ggmNoPrgSigma" -> mapM_ (circuitMain opts []) =<< Goldreich.makeGGMNoPrg
-        Just "applebaum"     -> mapM_ (circuitMain opts []) =<< Goldreich.makeApplebaum
+        Just "applebaum"     -> mapM_ (circuitMain opts []) =<< AR.makeApplebaum
         Just "tribes"        -> mapM_ (circuitMain opts []) =<< Tribes.make
         Just "point"         -> mapM_ (circuitMain opts []) =<< Point.make
         Just "comparison"    -> mapM_ (circuitMain opts []) =<< Comparison.make
@@ -143,7 +144,7 @@ main = runCommand $ \opts args -> do
                     circuitMain opts ts (opt_write_to_file opts, c :: Circ)
                 other -> error (printf "[main] unknown circuit type %s!" other)
 
-circuitMain :: (Graphviz.Graphviz g, Optimize g, GateEval g, ToAcirc g, ToCirc g)
+circuitMain :: (Graphviz.Graphviz g, Optimize g, Gate g, ToAcirc g, ToCirc g)
             => MainOptions -> [TestCase] -> (Maybe String, Circuit g) -> IO ()
 circuitMain opts ts (outputName, c) = do
     let old_symlen = _circ_symlen c
@@ -184,7 +185,7 @@ circuitMain opts ts (outputName, c) = do
             printf "writing %s\n" fn
             T.writeFile fn t
 
-evalTests :: GateEval g => MainOptions -> Circuit g -> [TestCase] -> IO ()
+evalTests :: Gate g => MainOptions -> Circuit g -> [TestCase] -> IO ()
 evalTests opts c ts = do
     pr "evaluating plaintext circuit tests"
     ok <- ensure (opt_verbose opts) c ts

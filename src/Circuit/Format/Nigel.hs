@@ -28,10 +28,10 @@ import qualified Control.Monad.State.Strict as S
 import qualified Control.Monad.Writer.Strict as W
 import qualified Formatting as F
 
-read :: GateEval g => FilePath -> IO (Circuit g)
+read :: Gate g => FilePath -> IO (Circuit g)
 read file = fst <$> readNigel file
 
-readNigel :: GateEval g => FilePath -> IO (Circuit g, [TestCase])
+readNigel :: Gate g => FilePath -> IO (Circuit g, [TestCase])
 readNigel file = parseNigel <$> readFile file
 
 write :: ToCirc g => FilePath -> Circuit g -> IO ()
@@ -87,10 +87,10 @@ showCirc c = W.execWriter $ flip S.runStateT initial $ do
 
 type ParseNigel g = ParseCirc g (IM.IntMap Ref)
 
-parseNigel :: GateEval g => String -> (Circuit g, [TestCase])
+parseNigel :: Gate g => String -> (Circuit g, [TestCase])
 parseNigel s = runCircParser IM.empty parseCircuit s
 
-parseCircuit :: GateEval g => ParseNigel g ()
+parseCircuit :: Gate g => ParseNigel g ()
 parseCircuit = do
     _ <- int
     spaces
@@ -115,7 +115,7 @@ parseCircuit = do
     acircOutputs <- mapM refLookup nigelOutputs
     lift $ B.outputs acircOutputs
 
-parseLine :: GateEval g => ParseNigel g ()
+parseLine :: Gate g => ParseNigel g ()
 parseLine = do
     nargs <- int
     spaces
