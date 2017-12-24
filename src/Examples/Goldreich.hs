@@ -12,6 +12,7 @@ import Circuit.Utils
 
 import Control.Monad
 import Control.Monad.Trans
+import Data.List.Split (chunksOf)
 
 make :: [(String, IO Acirc)]
 make =
@@ -80,3 +81,15 @@ prgKey n m = buildCircuitT $ do
     xs  <- secrets keyBits
     zs  <- forM selections $ \s -> xorMaj =<< selectsPT (map fromIntegral s) xs
     outputs zs
+
+--------------------------------------------------------------------------------
+-- indexed prg
+
+-- naive version
+indexedPrg :: Gate g => Int -> Int -> Int -> IO (Circuit g)
+indexedPrg ninputs noutputs outputSize = buildCircuitT $ do
+    let prg = prgBuilder ninputs (noutputs * outputSize) 5 xorAnd
+    xs <- inputs ninputs
+    ix <- inputs (numBits noutputs)
+    zs <- chunksOf outputSize <$> prg xs
+    outputs =<< selectList zs ix

@@ -169,14 +169,22 @@ exportParams c = do
 -- extras!
 
 -- select the ix'th bit from x
-select :: Monad m => [Ref] -> [Ref] -> BuilderT ArithGate m Ref
+select :: (Gate g, Monad m) => [Ref] -> [Ref] -> BuilderT g m Ref
 select xs ix = do
     sel <- selectionVector ix
     zs  <- zipWithM (circMul) sel xs
     circSum zs
 
-selects :: Monad m => [Ref] -> [[Ref]] -> BuilderT ArithGate m [Ref]
+selects :: (Gate g, Monad m) => [Ref] -> [[Ref]] -> BuilderT g m [Ref]
 selects xs ixs = mapM (select xs) ixs
+
+-- select the ith list from a list of lists, ix is binary
+selectList :: (Gate g, Monad m) => [[Ref]] -> [Ref] -> BuilderT g m [Ref]
+selectList xs ix = do
+    sel <- selectionVector ix
+    let sels = map (replicate (length (head xs))) sel
+    masked <- zipWithM (zipWithM circMul) sels xs
+    foldM1 (zipWithM circAdd) masked
 
 selectsPT :: (Gate g, Monad m) => [Int] -> [Ref] -> BuilderT g m [Ref]
 selectsPT sels xs = return (map (xs!!) sels)
