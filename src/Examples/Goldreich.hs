@@ -12,7 +12,6 @@ import Circuit.Utils
 
 import Control.Monad
 import Control.Monad.Trans
-import Data.List.Split (chunksOf)
 
 make :: [(String, IO Acirc)]
 make =
@@ -85,11 +84,32 @@ prgKey n m = buildCircuitT $ do
 --------------------------------------------------------------------------------
 -- indexed prg
 
--- naive version
 indexedPrg :: Gate g => Int -> Int -> Int -> IO (Circuit g)
 indexedPrg ninputs noutputs outputSize = buildCircuitT $ do
-    let prg = prgBuilder ninputs (noutputs * outputSize) 5 xorAnd
     xs <- inputs ninputs
     ix <- inputs (numBits noutputs)
-    zs <- chunksOf outputSize <$> prg xs
-    outputs =<< selectList zs ix
+    sel <- selectionVector ix
+    outputs =<< indexedPrgSigmaBuilder noutputs outputSize xs sel
+
+-- use sigma vector indexing to reduce the degree, but size is still an issue
+indexedPrgSigma :: Gate g => Int -> Int -> Int -> IO (Circuit g)
+indexedPrgSigma ninputs noutputs outputSize = buildCircuitT $ do
+    xs <- inputs ninputs
+    ix <- inputs noutputs
+    outputs =<< indexedPrgSigmaBuilder noutputs outputSize xs ix
+
+-- TODO: do this more efficiently; lists are expensive
+indexedPrgSigmaBuilder :: (Gate g, MonadIO m) => Int -> Int -> [Ref] -> [Ref] -> BuilderT g m [Ref]
+indexedPrgSigmaBuilder noutputs outputSize xs ix = do
+    let ninputs = length xs
+    -- for each output, a list of 5 random input bits
+    selections <- liftIO $ replicateM (noutputs * outputSize) $
+                  replicateM 5 (randIO (randIntMod ninputs)) -- [m:[5:Int]]
+    -- for each bit of the ith output, a list of 5 random bits
+    inps <- forM [0..outputSize-1] $ \i -> do -- for each output bit i
+        forM [0..5-1] $ \j -> do              -- for each input bit of each output bit
+            sels <- forM [0..noutputs-1] $ \k -> do -- for each output group
+                let sel = selections !! (outputSize*k) !! j
+                circMul (ix!!k) (xs !! sel)
+            foldM1 circAdd sels
+    mapM xorAnd inps
