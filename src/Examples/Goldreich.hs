@@ -50,6 +50,16 @@ xorAnd (x0:x1:xs) = do
     circXors (y : xs)
 xorAnd _ = error "[xorAnd] need at least three inputs!"
 
+-- "Tri-sum-paired-and" from https://eprint.iacr.org/2017/277
+tspa :: (Gate g, Monad m) => [Ref] -> BuilderT g m Ref
+tspa [x1,x2,x3,x4,x5] = do
+    w0 <- circXors [x1,x2,x3]
+    w1 <- circXor x2 x4
+    w2 <- circXor x3 x5
+    w3 <- circMul w1 w2
+    circXor w0 w3
+tspa _ = error "[tspa] defined for locality 5"
+
 --------------------------------------------------------------------------------
 -- prg
 
