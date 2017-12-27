@@ -49,8 +49,8 @@ showCirc c = W.execWriter $ flip S.runStateT initial $ do
     header1 = T.unwords $ map (T.pack . show) [ngates c - ninputs c, ngates c]
     header2 = T.unwords $ map (T.pack . show) [ninputs c, nconsts c, noutputs c]
 
-    inputMappings  = M.fromList (zip (c^.circ_inputs ++ map Ref (IM.keys (c^.circ_consts))) [0..])
-    outputMappings = M.fromList (zip (c^.circ_outputs) [ngates c - noutputs c..])
+    inputMappings  = M.fromList (zip (inputRefs c ++ map Ref (IM.keys (c^.circ_consts))) [0..])
+    outputMappings = M.fromList (zip (outputRefs c) [ngates c - noutputs c..])
     initial = (M.union inputMappings outputMappings, ninputs c + nconsts c)
 
     eval :: BoolGate -> Ref -> a -> S.StateT (M.Map Ref Int, Int) (W.Writer T.Text) ()

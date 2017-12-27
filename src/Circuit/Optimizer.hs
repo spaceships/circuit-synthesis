@@ -16,6 +16,7 @@ import System.Process
 import Text.Printf
 import qualified Circuit.Format.Sexp as Sexp
 import qualified Data.Map as M
+import qualified Data.IntSet as IS
 
 class Optimize g where
     optimizeO1 :: Circuit g -> IO (Circuit g)
@@ -188,7 +189,7 @@ slice ref c = B.buildCircuit $ do
 
 -- get a slice without rebuilding!
 cheapSlice :: Ref -> Circuit ArithGate -> Circuit ArithGate
-cheapSlice root = circ_outputs .~ [root]
+cheapSlice root = circ_outputs .~ IS.singleton (getRef root)
 
 -- replace subcircuit ending at loc with c2 in c1
 patch :: Ref -> Circuit ArithGate -> Circuit ArithGate -> Circuit ArithGate

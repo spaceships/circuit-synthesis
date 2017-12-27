@@ -9,7 +9,7 @@ module Circuit.Format.Netlist
 
 import Circuit
 import Circuit.Parser
-import Circuit.Builder
+import Circuit.Builder as B
 
 import Control.Monad
 import Control.Monad.Trans
@@ -46,10 +46,10 @@ readNetlist file = do
 
 buildNetlist :: Gate g => NetlistSt -> Circuit g
 buildNetlist st = flip S.evalState IM.empty $ buildCircuitT $ do
-    inpRefs <- inputs (length (st^.nl_inputs))
+    inpRefs <- B.inputs (length (st^.nl_inputs))
     lift $ S.put (IM.fromList (zip (IM.elems (st^.nl_inputs)) inpRefs))
     outRefs <- mapM buildRec (IM.elems (st^.nl_outputs))
-    outputs outRefs
+    B.outputs outRefs
   where
     buildRec :: Gate g => Int -> BuilderT g (S.State (IM.IntMap Ref)) Ref
     buildRec !w = lift (use (at w)) >>= \case

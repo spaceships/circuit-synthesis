@@ -41,7 +41,7 @@ pprCircuit' c = text "digraph circ {" <> linebreak
                  <> indent 4 douts    <> linebreak
                  <> text "}"          <> linebreak
   where
-    outs  = _circ_outputs c
+    outs  = outputRefs c
     douts = vsep (runPrettyPr c S.empty (sequence $ fmap pprRef outs))
 
 

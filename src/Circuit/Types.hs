@@ -42,8 +42,8 @@ data BoolGate =
     deriving (Eq, Ord, Show)
 
 data Circuit gate = Circuit
-    { _circ_outputs     :: ![Ref]
-    , _circ_inputs      :: ![Ref]
+    { _circ_outputs     :: !IS.IntSet
+    , _circ_inputs      :: !IS.IntSet
     , _circ_consts      :: !(IM.IntMap Id)
     , _circ_secret_refs :: !(IS.IntSet)
     , _circ_secret_ids  :: !(IS.IntSet)

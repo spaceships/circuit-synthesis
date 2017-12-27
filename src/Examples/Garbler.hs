@@ -26,25 +26,39 @@ garbler :: Circ -> IO Acirc2
 garbler c = buildCircuitT $ do
     let k = 80 -- security parameter
 
-    s <- inputs k -- the seed to the PRGs
+    s  <- inputs k -- the seed to the PRGs
+    ix <- inputs (ngates c) -- the gate index
 
-    let g1 = fmap (chunksOf k) . prgBuilder k (2 * ngates c * k) 5 xorAnd -- prg for generating wires
-    -- let g2 = fmap (chunksOf k) . prgBuilder k (2*k) 5 xorAnd -- prg for encrypting table entries
+    -- XXX will these create a new PRG for every invocation????
+    let g1 = fmap (chunksOf (k+1)) . prgBuilder k (2*ngates c*k) 5 xorAnd -- prg for generating wires
+    let g2 i = fmap ((!!i) . chunksOf (k+1)) . prgBuilder k (2*(k+1)) 5 xorAnd -- prg for encrypting table entries
 
     -- generate pairs of wirelabels for every wire in c
-    rawWires  <- pairsOf <$> g1 s
-    withPbits <- forM rawWires $ \(xs,ys) -> do
-        -- set the permute bit of X1 according to the lsb of X0
-        z <- circNot (last xs)
-        return (xs, init ys ++ [z])
+    bits  <- pairsOf <$> g1 s
+    withPbits <- forM bits $ \(w0,w1) -> do
+        p1 <- circNot (head w0)
+        return (w0, p1:tail w1) -- permuation bit is FIRST bit of wires
     let wires = IntMap.fromList (zip [0..] withPbits) -- indexed by the refs of c
 
     -- generate garbled tables for every gate in c
-    tabs <- forM (gates c) $ \(zref, g) -> do
-        let [xref, yref] = gateArgs g
-            x = wires IntMap.! getRef xref
-            y = wires IntMap.! getRef yref
-            z = wires IntMap.! getRef zref
+    tabs <- forM (intermediateGates c) $ \(zref,g) -> do
+        let eval x y = fromIntegral (gateEval undefined undefined g [fromIntegral x, fromIntegral y])
+
+            [xref, yref] = gateArgs g
+            ((px:x0), (_:x1)) = wires IntMap.! getRef xref
+            ((py:y0), (_:y1)) = wires IntMap.! getRef yref
+            (z0, z1)          = wires IntMap.! getRef zref
+
+            xwire i = if i == 0 then x0 else z1
+            ywire i = if i == 0 then y0 else y1
+            zwire i = if i == 0 then z0 else z1
+
+        unpermuted <- forM (permutations 2 [0,1]) $ \[i,j] -> do
+            mx <- g2 j (xwire i)
+            my <- g2 i (ywire j)
+            wireXors [mx, my, zwire (eval 0 0)]
+
+        -- TODO: permute using swaps!!!
 
         -- let g = case op of { (OpMul _ _) -> (&&); _ -> xor }
 
@@ -80,6 +94,8 @@ garbler c = buildCircuitT $ do
 
     -- outputs (concat permuted_gate)
     undefined
+  where
+    wireXors = foldM1 (zipWithM circXor)
 
 --------------------------------------------------------------------------------
 -- test to see how well we can evaluate extra large circuits

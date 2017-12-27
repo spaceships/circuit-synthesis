@@ -14,7 +14,7 @@ import Circuit.Utils
 
 import Control.Monad.Identity
 import Control.Monad.State.Strict
-import Data.List (nub, sortBy)
+import Data.List (nub)
 import Lens.Micro.Platform
 import Text.Printf
 import qualified Data.Map.Strict as M
@@ -25,7 +25,30 @@ import qualified Data.IntSet as IS
 -- Generic circuit functions
 
 emptyCirc :: Circuit a
-emptyCirc = Circuit [] [] IM.empty IS.empty IS.empty IM.empty IM.empty 1 2
+emptyCirc = Circuit IS.empty IS.empty IM.empty IS.empty IS.empty IM.empty IM.empty 1 2
+
+gates :: Gate gate => Circuit gate -> [(Ref, gate)]
+gates c = filter (gateIsGate.snd) $ map (\ref -> (ref, getGate c ref)) (topologicalOrder c)
+
+gateRefs :: Gate gate => Circuit gate -> [Ref]
+gateRefs = map fst . gates
+
+outputRefs :: Gate gate => Circuit gate -> [Ref]
+outputRefs c = map Ref $ IS.toList (c^.circ_outputs)
+
+inputRefs :: Gate gate => Circuit gate -> [Ref]
+inputRefs c = map Ref $ IS.toList (c^.circ_inputs)
+
+constRefs :: Gate gate => Circuit gate -> [Ref]
+constRefs c = map Ref $ IM.keys (c^.circ_consts)
+
+nonInputGateRefs :: Gate gate => Circuit gate -> [Ref]
+nonInputGateRefs = map fst . filter (gateIsGate.snd) . gates
+
+intermediateGates :: Gate gate => Circuit gate -> [(Ref, gate)]
+intermediateGates c = filter intermediate (gates c)
+  where
+    intermediate (ref,_) = IS.notMember (getRef ref) (_circ_outputs c)
 
 getConst :: Circuit gate -> Id -> Integer
 getConst c id = case c^.circ_const_vals.at (getId id) of
@@ -102,7 +125,7 @@ ngates :: Circuit gate -> Int
 ngates = IM.size . _circ_refmap
 
 ninputs :: Circuit gate -> Int
-ninputs = length . _circ_inputs
+ninputs = IS.size . _circ_inputs
 
 nconsts :: Circuit gate -> Int
 nconsts = length . _circ_consts
@@ -111,7 +134,7 @@ nsecrets :: Circuit gate -> Int
 nsecrets = IS.size . _circ_secret_refs
 
 noutputs :: Circuit gate -> Int
-noutputs = length . _circ_outputs
+noutputs = IS.size . _circ_outputs
 
 symlen :: Circuit gate -> Int
 symlen = _circ_symlen
@@ -212,7 +235,7 @@ foldCircRef f c = runIdentity (foldCircM f' c)
 
 -- evaluate the circuit
 foldCircM :: (Gate g, Monad m) => (g -> Ref -> [a] -> m a) -> Circuit g -> m [a]
-foldCircM f c = evalStateT (mapM (foldCircRec f c) (c^.circ_outputs)) M.empty
+foldCircM f c = evalStateT (mapM (foldCircRec f c) (outputRefs c)) M.empty
 
 -- evaluate the circuit for a particular ref as output
 foldCircRefM :: (Gate g, Monad m) => (g -> Ref -> [a] -> m a) -> Circuit g -> Ref -> m a
@@ -252,38 +275,3 @@ topoLevels c = nub $ map snd $ M.toAscList $ execState (foldCircM eval c) M.empt
         modify (M.insertWith (++) d [ref])
         return d
 
-sortGates :: Gate gate => Circuit gate -> [Ref]
-sortGates c = concatMap (sortBy refDist) (topoLevels c)
-  where
-    refDist xref yref = let xargs = gateArgs (getGate c xref)
-                            yargs = gateArgs (getGate c yref)
-                        in case (xargs, yargs) of
-                            ([], []) -> EQ
-                            (_,  []) -> GT
-                            ([], _ ) -> LT
-                            (xs, ys) -> let cs = zipWith compare xs ys
-                                        in if any (== EQ) cs then EQ else maximum cs
-
-gates :: Gate gate => Circuit gate -> [(Ref, gate)]
-gates c = filter (f.snd) $ map (\ref -> (ref, getGate c ref)) (topologicalOrder c)
-  where
-    f gate = not $ null (gateArgs gate)
-
-gateRefs :: Gate gate => Circuit gate -> [Ref]
-gateRefs = map fst . gates
-
-nonInputGateRefs :: Gate gate => Circuit gate -> [Ref]
-nonInputGateRefs = map fst . filter (gateIsGate.snd) . gates
-
-sortedNonInputGates :: Gate gate => Circuit gate -> [Ref]
-sortedNonInputGates c = filter notInput (sortGates c)
-  where
-    notInput ref = notElem ref (_circ_inputs c) &&
-                   IS.notMember (getRef ref) (_circ_secret_refs c)
-
-intermediateGates :: Gate gate => Circuit gate -> [Ref]
-intermediateGates c = filter intermediate (topologicalOrder c)
-  where
-    intermediate ref = notElem ref (_circ_inputs c) &&
-                       notElem ref (_circ_outputs c) &&
-                       IS.notMember (getRef ref) (_circ_secret_refs c)

@@ -22,7 +22,6 @@ import Lens.Micro.Platform
 import Text.Parsec hiding (spaces, parseTest)
 import qualified Data.Text.Lazy as T
 import qualified Data.Text.Lazy.IO as T
-import qualified Data.IntMap.Strict as IM
 import qualified Formatting as F
 
 read :: FilePath -> IO Acirc
@@ -46,11 +45,11 @@ showCirc !c = T.unlines (header ++ gateLines)
              , F.format (":base "   % F.int) (_circ_base c)
              ]
 
-    inputs = map gateStr (_circ_inputs c)
-    consts = map gateStr (map Ref (IM.keys (_circ_consts c)))
-    gates  = map gateStr (nonInputGateRefs c)
+    inputs = map gateStr (inputRefs c)
+    consts = map gateStr (constRefs c)
+    gates  = map gateStr (gateRefs c)
 
-    output = [ F.format (":outputs " % F.string) (unwords (map show (c^.circ_outputs)))
+    output = [ F.format (":outputs " % F.string) (unwords (map show (outputRefs c)))
              , F.format (":secrets " % F.string) (unwords (map show (secretRefs c)))
              ]
 
