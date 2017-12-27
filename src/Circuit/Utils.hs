@@ -269,3 +269,11 @@ foldM1 f (x:xs) = foldM f x xs
 pairsOf :: [a] -> [(a,a)]
 pairsOf [] = []
 pairsOf (x:y:xs) = (x,y) : pairsOf xs
+
+safeChunksOf :: Int -> [a] -> [[a]]
+safeChunksOf _ [] = []
+safeChunksOf n xs = safeTake n xs : safeChunksOf n (drop n xs)
+  where
+    safeTake 0 xs = []
+    safeTake n (x:xs) = x : safeTake (n-1) xs
+    safeTake n [] = error "[safeChunksOf] not enough elements!"

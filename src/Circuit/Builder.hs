@@ -191,8 +191,12 @@ selectListSigma xs ix = do
     masked <- zipWithM (zipWithM circMul) sels xs
     foldM1 (zipWithM circAdd) masked
 
-selectsPT :: (Gate g, Monad m) => [Int] -> [Ref] -> BuilderT g m [Ref]
-selectsPT sels xs = return (map (xs!!) sels)
+selectsPT :: [a] -> [Int] -> [a]
+selectsPT xs sels = map lookup sels
+  where
+    lookup i | i < length xs = xs !! i
+             | otherwise = error (printf "[selectsPT] got index %d but list was length %d!\
+                                         \ perhaps not enough inputs?" i (length xs))
 
 selectPT :: (Gate g, Monad m) => [Ref] -> [Bool] -> BuilderT g m [Ref]
 selectPT xs bs = do

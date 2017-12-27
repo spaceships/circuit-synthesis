@@ -42,13 +42,19 @@ inputRefs c = map Ref $ IS.toList (c^.circ_inputs)
 constRefs :: Gate gate => Circuit gate -> [Ref]
 constRefs c = map Ref $ IM.keys (c^.circ_consts)
 
+isOutputRef :: Gate gate => Circuit gate -> Ref -> Bool
+isOutputRef c ref = IS.member (getRef ref) (c^.circ_outputs)
+
+nonInputGates :: Gate gate => Circuit gate -> [(Ref, gate)]
+nonInputGates = filter (gateIsGate.snd) . gates
+
 nonInputGateRefs :: Gate gate => Circuit gate -> [Ref]
-nonInputGateRefs = map fst . filter (gateIsGate.snd) . gates
+nonInputGateRefs = map fst . nonInputGates
 
 intermediateGates :: Gate gate => Circuit gate -> [(Ref, gate)]
 intermediateGates c = filter intermediate (gates c)
   where
-    intermediate (ref,_) = IS.notMember (getRef ref) (_circ_outputs c)
+    intermediate (ref,_) = not (isOutputRef c ref)
 
 getConst :: Circuit gate -> Id -> Integer
 getConst c id = case c^.circ_const_vals.at (getId id) of

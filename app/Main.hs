@@ -97,6 +97,7 @@ chooseMode opts = do
                 , ("point"         , compile opts Point.make)
                 , ("comparison"    , compile opts Comparison.make)
                 , ("size_test"     , compile opts Garbler.makeSizeTest)
+                , ("gband"         , compile opts Garbler.makeGarbledAnd)
                 ]
         case M.lookup (source opts) m of
             Just c  -> c
@@ -145,7 +146,7 @@ chooseMode opts = do
                     ".netlist" -> run opts (Netlist.readNetlist inp :: IO (Circ, [TestCase]))
                     other      -> error "[main] supported input formats for netlist output: [nigel, netlist]"
   where
-    compile opts tups = forM tups $ \(fname, comp) -> do
+    compile opts tups = forM_ tups $ \(fname, comp) -> do
         c <- comp
         circuitMain opts (Just fname) c []
 

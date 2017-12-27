@@ -69,27 +69,16 @@ prg n m = prg' n m 5 xorAnd
 prg' :: Gate g => Int -> Int -> Int -> ([Ref] -> BuilderT g IO Ref) -> IO (Circuit g)
 prg' n m d predicate = buildCircuitT $ do
     xs <- inputs n
-    zs <- prgBuilder n m d predicate xs
-    outputs zs
+    g  <- prgBuilder n m d predicate
+    outputs =<< g xs
 
 prgBuilder :: (Gate g, MonadIO m)
-           => Int -> Int -> Int -> ([Ref] -> BuilderT g m Ref) -> [Ref]
-           -> BuilderT g m [Ref]
-prgBuilder ninputs noutputs locality predicate xs = do
+           => Int -> Int -> Int -> ([Ref] -> BuilderT g m Ref)
+           -> BuilderT g m ([Ref] -> BuilderT g m [Ref])
+prgBuilder ninputs noutputs locality predicate = do
     selections <- liftIO $ replicateM noutputs $ replicateM locality (randIO (randIntMod ninputs))
-    forM selections $ \s -> do
-        sel <- selectsPT s xs
-        predicate sel
-
-prgKey :: Gate g => Int -> Int -> IO (Circuit g)
-prgKey n m = buildCircuitT $ do
-    let l = numBits n
-        d = l
-    keyBits <- lift $ randKeyIO n
-    selections <- lift $ replicateM m $ replicateM d (randIO (randIntegerMod (fromIntegral n)))
-    xs  <- secrets keyBits
-    zs  <- forM selections $ \s -> xorMaj =<< selectsPT (map fromIntegral s) xs
-    outputs zs
+    let g xs = mapM predicate (map (selectsPT xs) selections)
+    return g
 
 --------------------------------------------------------------------------------
 -- indexed prg
