@@ -15,43 +15,55 @@ makeSizeTest =
 
 makeGarbledAnd :: [(String, IO Acirc2)]
 makeGarbledAnd =
-    [ ("garble_and.acirc", garbler andCirc) ]
+    [ ("garble_and2.acirc", garbler (andCirc 2))
+    , ("garble_and3.acirc", garbler (andCirc 3))
+    , ("garble_and4.acirc", garbler (andCirc 4))
+    ]
 
 --------------------------------------------------------------------------------
 -- a circuit for the garbler of a garbled circuit scheme
 
+-- XXX: only fan out one is secure at the moment
 garbler :: Circ -> IO Acirc2
 garbler c = buildCircuitT $ do
-    let k = 80 -- security parameter
+    let k = 80 -- security parameter, wirelabel & prg seed size
 
     s  <- inputs k -- the seed to the PRGs
-    ix <- inputs (ngates c) -- the gate index in sigma vector form
-    -- TODO: index it!
+    ix <- inputs (nwires c) -- the gate index in sigma vector form
+
+    let numWirelabelsToGenerate = 2*(nwires c - noutputs c) -- the output wires get the actual value
 
     g1 <- do
-        g <- prgBuilder k (2*ngates c*(k+1)) 5 xorAnd -- prg for generating wires
+        g <- prgBuilder k (numWirelabelsToGenerate * (k+1)) 5 xorAnd -- prg for generating wires
         let g' xs = safeChunksOf (k+1) <$> g xs
         return g'
 
     g2 <- do
         g <- prgBuilder k (2*(k+1)) 5 xorAnd
-        let g' i xs = do ys <- g xs
-                         let zs = safeChunksOf (k+1) ys
-                         return (zs !! i)
+        let g' i xs = (!! i) . safeChunksOf (k+1) <$> g xs
         return g'
 
-    -- generate pairs of wirelabels for every wire in c
+    -- generate pairs of wirelabels for every intermediate wire in c
     bits <- pairsOf <$> g1 s
     withPbits <- forM bits $ \(w0,w1) -> do
         p1 <- circNot (head w0)
-        return (w0, p1:tail w1) -- permuation bit is FIRST bit of wires
-    let wires = IntMap.fromList (zip [0..] withPbits) -- indexed by the refs of c
+        return (w0, p1:tail w1) -- permuation bit is FIRST bit of wirelabels
+    let intermediateWirelabels = IntMap.fromList (zip (map getRef (intermediateWireRefs c)) withPbits)
+
+    -- output wirelabels are fixed here, so we dont have to branch in garble
+    -- this makes indexing easier since there is only one routine for garbling
+    zero <- mapM constant (replicate (k+1) 0)
+    one  <- mapM constant (1 : replicate k 0) -- truth value is FIRST bit of output wirelabels
+    let outputWirelabels = IntMap.fromList (zip (map getRef (outputRefs c)) (repeat (zero, one)))
+        wires = IntMap.union intermediateWirelabels outputWirelabels
+
+    -- TODO: index the wires so we dont have to loop over anything in the garbler.
+    -- TODO: annotate circuit: anything before this point will be reusable.
 
     -- generate garbled tables for every gate in c
-    tabs <- forM (nonInputGates c) $ \(zref,g) -> do
-        let eval x y = fromIntegral (gateEval (const $ error "FOO") (const $ error "BAR") g [fromIntegral x, fromIntegral y])
+    tabs <- forM (gates c) $ \(zref,g) -> do
 
-            [xref, yref] = gateArgs g
+        let [xref, yref] = gateArgs g
             ((px:x0), (_:x1)) = wires IntMap.! getRef xref
             ((py:y0), (_:y1)) = wires IntMap.! getRef yref
             (z0, z1)          = wires IntMap.! getRef zref
@@ -63,13 +75,7 @@ garbler c = buildCircuitT $ do
         [g0,g1,g2,g3] <- forM (permutations 2 [0,1]) $ \[i,j] -> do
             mx <- g2 j (xwire i)
             my <- g2 i (ywire j)
-            val <- if isOutputRef c zref then do
-                       c  <- constant (eval i j)
-                       cs <- constants (replicate k 0)
-                       return (c:cs)
-                   else do
-                       return (zwire (eval i j))
-            wireXors [mx, my, val]
+            foldM1 (zipWithM circXor) [mx, my, zwire (eval g i j)]
 
         -- swap the ys based on p1
         h0 <- swap py g0 g1
@@ -77,22 +83,18 @@ garbler c = buildCircuitT $ do
 
         -- swap the xs based on p0
         h3 <- swap px (concat h0) (concat h1)
-        let permuted_gate = concatMap (safeChunksOf (k+1)) h3 :: [[Ref]]
-        return permuted_gate
+        let permutedGate = concatMap (safeChunksOf (k+1)) h3 :: [[Ref]]
+        return permutedGate
 
     outputs ((concat.concat) tabs)
-
   where
-    wireXors = foldM1 (zipWithM circXor)
+    eval g x y = fromIntegral (gateEval (const $ error "FOO") (const $ error "BAR") g [fromIntegral x, fromIntegral y])
 
 --------------------------------------------------------------------------------
 -- simple circuit for testing garble
 
-andCirc :: Circ
-andCirc = buildCircuit $ do
-    x <- input
-    y <- input
-    output =<< circMul x y
+andCirc :: Int -> Circ
+andCirc n = buildCircuit (inputs n >>= circProd >>= output)
 
 --------------------------------------------------------------------------------
 -- test to see how well we can evaluate extra large circuits

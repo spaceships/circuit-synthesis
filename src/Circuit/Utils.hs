@@ -269,6 +269,7 @@ foldM1 f (x:xs) = foldM f x xs
 pairsOf :: [a] -> [(a,a)]
 pairsOf [] = []
 pairsOf (x:y:xs) = (x,y) : pairsOf xs
+pairsOf _ = error "[pairsOf] odd number of inputs!"
 
 safeChunksOf :: Int -> [a] -> [[a]]
 safeChunksOf _ [] = []

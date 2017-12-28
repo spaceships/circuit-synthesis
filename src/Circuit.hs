@@ -27,8 +27,16 @@ import qualified Data.IntSet as IS
 emptyCirc :: Circuit a
 emptyCirc = Circuit IS.empty IS.empty IM.empty IS.empty IS.empty IM.empty IM.empty 1 2
 
+-- all gates in c in topological order
+wires :: Gate gate => Circuit gate -> [(Ref, gate)]
+wires c = map (\ref -> (ref, getGate c ref)) (wireRefs c)
+
+wireRefs :: Gate gate => Circuit gate -> [Ref]
+wireRefs = topologicalOrder
+
+-- only non-input or non-const gates
 gates :: Gate gate => Circuit gate -> [(Ref, gate)]
-gates c = filter (gateIsGate.snd) $ map (\ref -> (ref, getGate c ref)) (topologicalOrder c)
+gates = filter (gateIsGate.snd) . wires
 
 gateRefs :: Gate gate => Circuit gate -> [Ref]
 gateRefs = map fst . gates
@@ -45,16 +53,16 @@ constRefs c = map Ref $ IM.keys (c^.circ_consts)
 isOutputRef :: Gate gate => Circuit gate -> Ref -> Bool
 isOutputRef c ref = IS.member (getRef ref) (c^.circ_outputs)
 
-nonInputGates :: Gate gate => Circuit gate -> [(Ref, gate)]
-nonInputGates = filter (gateIsGate.snd) . gates
-
-nonInputGateRefs :: Gate gate => Circuit gate -> [Ref]
-nonInputGateRefs = map fst . nonInputGates
-
 intermediateGates :: Gate gate => Circuit gate -> [(Ref, gate)]
 intermediateGates c = filter intermediate (gates c)
   where
     intermediate (ref,_) = not (isOutputRef c ref)
+
+intermediateGateRefs :: Gate gate => Circuit gate -> [Ref]
+intermediateGateRefs = map fst . intermediateGates
+
+intermediateWireRefs :: Gate gate => Circuit gate -> [Ref]
+intermediateWireRefs c = filter (not . isOutputRef c) (wireRefs c)
 
 getConst :: Circuit gate -> Id -> Integer
 getConst c id = case c^.circ_const_vals.at (getId id) of
@@ -101,7 +109,7 @@ printCircInfo c = do
     printf "============\n"
     printf "ninputs=%d noutputs=%d nconsts=%d nsecrets=%d\n" n (noutputs c) (nconsts c) (nsecrets c)
     printf "symlen=%d base=%d\n" (symlen c) (c^.circ_base)
-    printf "ngates=%d depth=%d\n" (ngates c) (depth c)
+    printf "nwires=%d depth=%d\n" (nwires c) (depth c)
     printf "degree=%d\n" (circDegree c)
 
 printTruthTable :: Gate gate => Circuit gate -> IO ()
@@ -127,8 +135,8 @@ circEq c0 c1
     y  <- ensure False c0 t1
     return (x && y)
 
-ngates :: Circuit gate -> Int
-ngates = IM.size . _circ_refmap
+nwires :: Circuit gate -> Int
+nwires = IM.size . _circ_refmap
 
 ninputs :: Circuit gate -> Int
 ninputs = IS.size . _circ_inputs
