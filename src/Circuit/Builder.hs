@@ -179,14 +179,16 @@ selects :: (Gate g, Monad m) => [Ref] -> [[Ref]] -> BuilderT g m [Ref]
 selects xs ixs = mapM (select xs) ixs
 
 -- select the ith list from a list of lists, ix is binary
-selectList :: (Gate g, Monad m) => [[Ref]] -> [Ref] -> BuilderT g m [Ref]
-selectList xs ix = do
+selectList :: (Gate g, Monad m) => [Ref] -> [[Ref]] -> BuilderT g m [Ref]
+selectList ix xs = do
     sel <- selectionVector ix
-    selectListSigma xs sel
+    selectListSigma sel xs
 
 -- select the ith list from a list of lists, ix is sigma vector
-selectListSigma :: (Gate g, Monad m) => [[Ref]] -> [Ref] -> BuilderT g m [Ref]
-selectListSigma xs ix = do
+selectListSigma :: (Gate g, Monad m) => [Ref] -> [[Ref]] -> BuilderT g m [Ref]
+selectListSigma ix xs
+  | length ix /= length xs = error "[selectListSigma] unequal list sizes!"
+  | otherwise = do
     let sels = map (replicate (length (head xs))) ix
     masked <- zipWithM (zipWithM circMul) sels xs
     foldM1 (zipWithM circAdd) masked

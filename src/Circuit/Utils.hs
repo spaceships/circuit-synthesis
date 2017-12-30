@@ -2,6 +2,7 @@
 {-# LANGUAGE ParallelListComp #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Circuit.Utils where
 
@@ -11,18 +12,21 @@ import Control.Monad.Parallel
 import Control.Monad.State.Strict
 import Control.Parallel
 import Control.Parallel.Strategies
-import Crypto.Random
-import Crypto.Random.DRBG
+import Crypto.Random (newGenIO, genBytes, splitGen)
+import Crypto.Random.DRBG (CtrDRBG)
 import Crypto.Util (bs2i)
 import Data.Bits ((.&.), shift)
+import Data.Binary.Get (runGet, getWord64host)
 import Data.List.Split (chunksOf)
 import GHC.Types
 import System.IO
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.Map as M
 import qualified GHC.Integer.GMP.Internals as GMP
 
 import Prelude hiding (truncate)
+
 sizeBase2 :: Integer -> Int
 sizeBase2 x = fromIntegral (W# (GMP.sizeInBaseInteger x 2#))
 
@@ -195,6 +199,19 @@ randInteger_ gen nbits = case genBytes nbytes gen of
             w'  = w .&. (2^(nbits `mod` 8) - 1)
             w'' = if overflow == 0 then w else w'
 
+randInt_ :: Rng -> (Int, Rng)
+randInt_ gen = case genBytes 16 gen of
+    Left err -> error ("[randInt_] " ++ show err)
+    Right (bs,g) -> (fromIntegral (runGet getWord64host (BL.fromStrict bs)), g)
+
+randInts_ :: Int -> Rng -> ([Int], Rng)
+randInts_ n g = case genBytes (16*n) g of
+    Left err -> error ("[randInt_] " ++ show err)
+    Right (bs,g') ->
+        let words = flip runGet (BL.fromStrict bs) $ do
+                Control.Monad.replicateM n getWord64host
+        in (map fromIntegral words, g')
+
 randInteger :: Int -> Rand Integer
 randInteger nbits = do
     rng <- get
@@ -223,8 +240,25 @@ randIntegerMod q = do
 randIntegerModIO :: Integer -> IO Integer
 randIntegerModIO q = randIO (randIntegerMod q)
 
+randInt :: Rand Int
+randInt = do
+    rng <- get
+    let (!x, !rng') = randInt_ rng
+    put rng'
+    return x
+
+randInts :: Int -> Rand [Int]
+randInts n = do
+    rng <- get
+    let (!xs, !rng') = randInts_ n rng
+    put rng'
+    return xs
+
+randIntsMod :: Int -> Int -> Rand [Int]
+randIntsMod n q = map (flip mod q) <$> randInts n
+
 randIntMod :: Int -> Rand Int
-randIntMod q = fromIntegral <$> randIntegerMod (fromIntegral q)
+randIntMod q = flip mod q <$> randInt
 
 randIntModIO :: Int -> IO Int
 randIntModIO q = randIO (randIntMod q)
@@ -262,6 +296,9 @@ splitRand n = do
             put g0
             rest <- splitRand (n-1)
             return (g1:rest)
+
+--------------------------------------------------------------------------------
+-- other helpers
 
 foldM1 :: Monad m => (a -> a -> m a) -> [a] -> m a
 foldM1 f (x:xs) = foldM f x xs

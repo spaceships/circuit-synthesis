@@ -76,7 +76,7 @@ prgBuilder :: (Gate g, MonadIO m)
            => Int -> Int -> Int -> ([Ref] -> BuilderT g m Ref)
            -> BuilderT g m ([Ref] -> BuilderT g m [Ref])
 prgBuilder ninputs noutputs locality predicate = do
-    selections <- liftIO $ replicateM noutputs $ replicateM locality (randIO (randIntMod ninputs))
+    selections <- safeChunksOf locality <$> (liftIO $ randIO $ randIntsMod (noutputs * locality) ninputs)
     let g xs = mapM predicate (map (selectsPT xs) selections)
     return g
 

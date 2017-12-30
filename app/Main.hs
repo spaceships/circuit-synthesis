@@ -24,7 +24,7 @@ import System.Exit
 import System.FilePath.Posix (takeExtension)
 import Text.Printf
 import qualified Data.Map as M
-import qualified Data.Text.Lazy.IO as T
+import qualified Data.Text.IO as T
 
 import Options.Applicative
 import Data.Semigroup ((<>))

@@ -18,6 +18,7 @@ makeGarbledAnd =
     [ ("garble_and2.acirc", garbler (andCirc 2))
     , ("garble_and3.acirc", garbler (andCirc 3))
     , ("garble_and4.acirc", garbler (andCirc 4))
+    , ("garble_and1000.acirc", garbler (andCirc 1000))
     ]
 
 --------------------------------------------------------------------------------
@@ -29,7 +30,7 @@ garbler c = buildCircuitT $ do
     let k = 80 -- security parameter, wirelabel & prg seed size
 
     s  <- inputs k -- the seed to the PRGs
-    ix <- inputs (nwires c) -- the gate index in sigma vector form
+    ix <- inputs (ngates c) -- the gate index in sigma vector form
 
     let numWirelabelsToGenerate = 2*(nwires c - noutputs c) -- the output wires get the actual value
 
@@ -57,38 +58,56 @@ garbler c = buildCircuitT $ do
     let outputWirelabels = IntMap.fromList (zip (map getRef (outputRefs c)) (repeat (zero, one)))
         wires = IntMap.union intermediateWirelabels outputWirelabels
 
-    -- TODO: index the wires so we dont have to loop over anything in the garbler.
     -- TODO: annotate circuit: anything before this point will be reusable.
 
-    -- generate garbled tables for every gate in c
-    tabs <- forM (gates c) $ \(zref,g) -> do
+    -- we index the wires so we dont have to loop over anything in the garbler.
+    -- z is the output wire for the ith gate
 
-        let [xref, yref] = gateArgs g
-            ((px:x0), (_:x1)) = wires IntMap.! getRef xref
-            ((py:y0), (_:y1)) = wires IntMap.! getRef yref
-            (z0, z1)          = wires IntMap.! getRef zref
+    let zs = flip map (gates c) $ \(ref, g) ->
+            let (z0,z1) = wires IntMap.! getRef ref
+            in flip map (permutations 2 [0,1]) $ \[i,j] ->
+                if eval g i j then z0 else z1
 
-            xwire i = if i == 0 then x0 else z1
-            ywire i = if i == 0 then y0 else y1
-            zwire i = if i == 0 then z0 else z1
+    z0 <- selectListSigma ix (map (!!0) zs)
+    z1 <- selectListSigma ix (map (!!1) zs)
+    z2 <- selectListSigma ix (map (!!2) zs)
+    z3 <- selectListSigma ix (map (!!3) zs)
 
-        [g0,g1,g2,g3] <- forM (permutations 2 [0,1]) $ \[i,j] -> do
-            mx <- g2 j (xwire i)
-            my <- g2 i (ywire j)
-            foldM1 (zipWithM circXor) [mx, my, zwire (eval g i j)]
+    let zwire 0 0 = z0
+        zwire 0 1 = z1
+        zwire 1 0 = z2
+        zwire 1 1 = z3
+        zwire _ _ = error "whoops"
 
-        -- swap the ys based on p1
-        h0 <- swap py g0 g1
-        h1 <- swap py g2 g3
+    -- x is the first input wire for the ith gate, y is the second input wire
+    let pairs = (map.map) ((wires IntMap.!) . getRef) (map gateArgs (map snd (gates c)))
+        xPairs = map head pairs
+        yPairs = map last pairs
 
-        -- swap the xs based on p0
-        h3 <- swap px (concat h0) (concat h1)
-        let permutedGate = concatMap (safeChunksOf (k+1)) h3 :: [[Ref]]
-        return permutedGate
+    (px:x0) <- selectListSigma ix (map fst xPairs)
+    (_ :x1) <- selectListSigma ix (map snd xPairs)
+    (py:y0) <- selectListSigma ix (map fst yPairs)
+    (_ :y1) <- selectListSigma ix (map snd yPairs)
 
-    outputs ((concat.concat) tabs)
+    let xwire i = if i == 0 then x0 else x1
+        ywire i = if i == 0 then y0 else y1
+
+    [g0,g1,g2,g3] <- forM (permutations 2 [0,1]) $ \[i,j] -> do
+        mx <- g2 j (xwire i)
+        my <- g2 i (ywire j)
+        foldM1 (zipWithM circXor) [mx, my, zwire i j]
+
+    -- swap the ys based on p1
+    h0 <- swap py g0 g1
+    h1 <- swap py g2 g3
+
+    -- swap the xs based on p0
+    h3 <- swap px (concat h0) (concat h1)
+    let permutedGate = concatMap (safeChunksOf (k+1)) h3 :: [[Ref]]
+    outputs (concat permutedGate)
+
   where
-    eval g x y = fromIntegral (gateEval (const $ error "FOO") (const $ error "BAR") g [fromIntegral x, fromIntegral y])
+    eval g x y = gateEval (const $ error "FOO") (const $ error "BAR") g [fromIntegral x, fromIntegral y] == 1
 
 --------------------------------------------------------------------------------
 -- simple circuit for testing garble

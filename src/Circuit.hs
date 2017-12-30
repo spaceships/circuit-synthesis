@@ -27,12 +27,11 @@ import qualified Data.IntSet as IS
 emptyCirc :: Circuit a
 emptyCirc = Circuit IS.empty IS.empty IM.empty IS.empty IS.empty IM.empty IM.empty 1 2
 
--- all gates in c in topological order
 wires :: Gate gate => Circuit gate -> [(Ref, gate)]
 wires c = map (\ref -> (ref, getGate c ref)) (wireRefs c)
 
 wireRefs :: Gate gate => Circuit gate -> [Ref]
-wireRefs = topologicalOrder
+wireRefs = map Ref . IM.keys . view circ_refmap
 
 -- only non-input or non-const gates
 gates :: Gate gate => Circuit gate -> [(Ref, gate)]
@@ -137,6 +136,9 @@ circEq c0 c1
 
 nwires :: Circuit gate -> Int
 nwires = IM.size . _circ_refmap
+
+ngates :: Circuit gate -> Int
+ngates c = nwires c - ninputs c - nconsts c
 
 ninputs :: Circuit gate -> Int
 ninputs = IS.size . _circ_inputs
@@ -249,18 +251,19 @@ foldCircRef f c = runIdentity (foldCircM f' c)
 
 -- evaluate the circuit
 foldCircM :: (Gate g, Monad m) => (g -> Ref -> [a] -> m a) -> Circuit g -> m [a]
-foldCircM f c = evalStateT (mapM (foldCircRec f c) (outputRefs c)) M.empty
+foldCircM f c = evalStateT (mapM (foldCircRec f c) (outputRefs c)) IM.empty
 
 -- evaluate the circuit for a particular ref as output
 foldCircRefM :: (Gate g, Monad m) => (g -> Ref -> [a] -> m a) -> Circuit g -> Ref -> m a
-foldCircRefM !f !c !ref = evalStateT (foldCircRec f c ref) M.empty
+foldCircRefM !f !c !ref = evalStateT (foldCircRec f c ref) IM.empty
 
 -- helper function for foldCircM and foldCircRefM
+-- TODO: replace with a mutable array in the ST monad to avoid paying for lookups
 foldCircRec :: (Gate g, Monad m)
             => (g -> Ref -> [a] -> m a) -> Circuit g -> Ref
-            -> StateT (M.Map Ref a) m a
+            -> StateT (IM.IntMap a) m a
 foldCircRec f c !ref = do
-    existingVal <- gets (M.lookup ref)
+    existingVal <- gets (IM.lookup (getRef ref))
     case existingVal of
         Just !val -> return val -- evaluated already
         Nothing   -> do
@@ -269,7 +272,7 @@ foldCircRec f c !ref = do
                     (error $ printf "[foldCircMRec] no gate for ref %s!" (show ref))
             argVals <- mapM (foldCircRec f c) (gateArgs g)
             val     <- lift (f g ref argVals)
-            modify' (M.insert ref val)
+            modify' (IM.insert (getRef ref) val)
             return val
 
 topologicalOrder :: Gate gate => Circuit gate -> [Ref]

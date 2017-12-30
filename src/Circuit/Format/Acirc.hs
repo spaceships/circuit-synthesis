@@ -17,12 +17,11 @@ import qualified Circuit.Builder           as B
 import qualified Circuit.Builder.Internals as B
 
 import Control.Monad.Trans (lift)
-import Formatting ((%))
 import Lens.Micro.Platform
 import Text.Parsec hiding (spaces, parseTest)
-import qualified Data.Text.Lazy as T
-import qualified Data.Text.Lazy.IO as T
-import qualified Formatting as F
+import qualified Data.Text as T
+import qualified Data.Text.IO as T
+import TextShow
 
 read :: FilePath -> IO Acirc
 read = fmap fst . readAcirc
@@ -41,41 +40,40 @@ showWithTests c ts = let s = showCirc c
 showCirc :: Acirc -> T.Text
 showCirc !c = T.unlines (header ++ gateLines)
   where
-    header = [ F.format (":symlen " % F.int) (_circ_symlen c)
-             , F.format (":base "   % F.int) (_circ_base c)
+    header = [ T.append ":symlen " (showt (_circ_symlen c))
+             , T.append ":base "   (showt (_circ_base c))
              ]
 
-    inputs = map gateStr (inputRefs c)
-    consts = map gateStr (constRefs c)
-    gates  = map gateStr (gateRefs c)
+    inputs = map gateTxt (inputRefs c)
+    consts = map gateTxt (constRefs c)
+    gates  = map gateTxt (gateRefs c)
 
-    output = [ F.format (":outputs " % F.string) (unwords (map show (outputRefs c)))
-             , F.format (":secrets " % F.string) (unwords (map show (secretRefs c)))
+    output = [ T.append ":outputs " (T.unwords (map (showt.getRef) (outputRefs c)))
+             , T.append ":secrets " (T.unwords (map (showt.getRef) (secretRefs c)))
              ]
 
     gateLines = concat [inputs, consts, gates, output]
 
-    gateStr :: Ref -> T.Text
-    gateStr !ref = do
-        case c ^. circ_refmap . at (getRef ref) . non (error "[gateStr] unknown ref") of
-            (ArithInput id) -> F.format (F.int % " input " % F.int) (getRef ref) (getId id)
+    gateTxt :: Ref -> T.Text
+    gateTxt !ref =
+        case c ^. circ_refmap . at (getRef ref) . non (error "[gateTxt] unknown ref") of
+            (ArithInput id) -> T.concat [ showt (getRef ref), " input ", showt (getId id) ]
             (ArithConst id) ->
                 let val = case c ^. circ_const_vals . at (getId id)  of
                                 Nothing -> ""
-                                Just y  -> show y
-                in F.format (F.int % " const " % F.string) (getRef ref) val
+                                Just y  -> showt y
+                in T.concat [ showt (getRef ref), " const ", val ]
             (ArithAdd x y) -> pr ref "ADD" x y
             (ArithSub x y) -> pr ref "SUB" x y
             (ArithMul x y) -> pr ref "MUL" x y
 
-    pr :: Ref -> String -> Ref -> Ref -> T.Text
+    pr :: Ref -> T.Text -> Ref -> Ref -> T.Text
     pr !ref !gateTy !x !y =
-        F.format (F.int % " " % F.string % " " % F.int % " " % F.int)
-                  (getRef ref) gateTy (getRef x) (getRef y)
+        T.concat [ showt (getRef ref), " ", gateTy, " ", showt (getRef x), " ", showt (getRef y) ]
 
 showTest :: TestCase -> T.Text
-showTest (!inp, !out) = F.format (":test " % F.string % " " % F.string)
-                                 (showInts (reverse inp)) (showInts (reverse out))
+showTest (!inp, !out) = T.concat [":test ", T.pack (showInts (reverse inp)), " "
+                                 , T.pack (showInts (reverse out)) ]
 
 --------------------------------------------------------------------------------
 -- parser

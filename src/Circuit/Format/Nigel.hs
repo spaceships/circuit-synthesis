@@ -22,8 +22,8 @@ import Prelude hiding (lookup)
 import Text.Parsec hiding (spaces, parseTest)
 import qualified Data.IntMap as IM
 import qualified Data.Map as M
-import qualified Data.Text.Lazy as T
-import qualified Data.Text.Lazy.IO as T
+import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import qualified Control.Monad.State.Strict as S
 import qualified Control.Monad.Writer.Strict as W
 import qualified Formatting as F
@@ -60,16 +60,16 @@ showCirc c = W.execWriter $ flip S.runStateT initial $ do
             (BoolXor x y) -> do
                 a <- use (_1 . at x . non (error "oops"))
                 b <- use (_1 . at y . non (error "oops"))
-                W.tell $ F.format ("2 1 " % F.int % " " % F.int % " " % F.int % " XOR\n") a b w
+                W.tell $ F.sformat ("2 1 " % F.int % " " % F.int % " " % F.int % " XOR\n") a b w
                 _1 . at ref ?= w
             (BoolAnd x y) -> do
                 a <- use (_1 . at x . non (error "oops"))
                 b <- use (_1 . at y . non (error "oops"))
-                W.tell $ F.format ("2 1 " % F.int % " " % F.int % " " % F.int % " AND\n") a b w
+                W.tell $ F.sformat ("2 1 " % F.int % " " % F.int % " " % F.int % " AND\n") a b w
                 _1 . at ref ?= w
             (BoolNot x) -> do
                 a <- use (_1 . at x . non (error "oops"))
-                W.tell $ F.format ("1 1 " % F.int % " " % F.int % " INV\n") a w
+                W.tell $ F.sformat ("1 1 " % F.int % " " % F.int % " INV\n") a w
                 _1 . at ref ?= w
             _ -> return ()
 

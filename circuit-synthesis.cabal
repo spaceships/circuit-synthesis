@@ -37,6 +37,7 @@ library
 
     build-depends:        base
                         , DRBG
+                        , binary
                         , bytestring
                         , containers
                         , crypto-api
@@ -53,6 +54,7 @@ library
                         , process
                         , split
                         , text
+                        , text-show
                         , vector
                         , wl-pprint-text
 
