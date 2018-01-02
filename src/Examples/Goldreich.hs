@@ -97,6 +97,15 @@ indexedPrgSigma ninputs noutputs outputSize = buildCircuitT $ do
     ix <- inputs noutputs
     outputs =<< indexedPrgSigmaBuilder noutputs outputSize xs ix
 
+-- use sigma vector indexing to reduce the degree, but size is still an issue
+indexedPrgNaiveSigma :: Gate g => Int -> Int -> Int -> IO (Circuit g)
+indexedPrgNaiveSigma ninputs noutputs outputSize = buildCircuitT $ do
+    xs <- inputs ninputs
+    ix <- inputs noutputs
+    g  <- prgBuilder ninputs (noutputs*outputSize) 5 xorAnd
+    zs <- g xs
+    outputs =<< selectListSigma ix (safeChunksOf outputSize zs)
+
 -- TODO: do this more efficiently; lists are expensive
 indexedPrgSigmaBuilder :: (Gate g, MonadIO m) => Int -> Int -> [Ref] -> [Ref] -> BuilderT g m [Ref]
 indexedPrgSigmaBuilder noutputs outputSize xs ix = do
