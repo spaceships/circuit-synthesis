@@ -7,19 +7,19 @@ import Examples.Goldreich
 
 import Control.Monad
 import Data.List.Split
+import System.IO
 import qualified Data.IntMap as IntMap
 
-makeSizeTest :: [(String, IO Acirc2)]
-makeSizeTest =
-    [ ("size_test.acirc", sizeTest ) ]
-
-makeGarbledAnd :: [(String, IO Acirc2)]
-makeGarbledAnd =
-    [ ("garble_and2.acirc", garbler (andCirc 2))
-    , ("garble_and3.acirc", garbler (andCirc 3))
-    , ("garble_and4.acirc", garbler (andCirc 4))
-    , ("garble_and1000.acirc", garbler (andCirc 1000))
+export :: [(String, [(String, IO Acirc2)])]
+export =
+    [ ("size_test", [("size_test.acirc", sizeTest )])
+    , ("garbled_and", [("garbled_andn.acirc", garbler =<< andCirc <$> query)])
     ]
+  where
+    query = do
+        putStr "How many and-gates? "
+        hFlush stdout
+        read <$> getLine
 
 --------------------------------------------------------------------------------
 -- a circuit for the garbler of a garbled circuit scheme

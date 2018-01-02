@@ -21,7 +21,7 @@ import qualified Examples.Tribes          as Tribes
 import Control.Monad
 import Lens.Micro.Platform
 import System.Exit
-import System.FilePath.Posix (takeExtension)
+import System.FilePath.Posix (takeBaseName, takeExtension)
 import Text.Printf
 import qualified Data.Map as M
 import qualified Data.Text.IO as T
@@ -29,11 +29,12 @@ import qualified Data.Text.IO as T
 import Options.Applicative
 import Data.Semigroup ((<>))
 
-data Source = Compile String
-            | ReadFile String
+data Mode = Compile String
+          | ReadCircuit FilePath
+          | Garble FilePath
+          deriving (Show)
 
-data Opts = Opts { source             :: String
-                 , compile_circuit    :: Bool
+data Opts = Opts { mode               :: Mode
                  , verbose            :: Bool
                  , show_info          :: Bool
                  , target             :: Maybe String
@@ -46,12 +47,9 @@ parseArgs = execParser $ info (parser <**> helper)
     (fullDesc <> progDesc "cxs is a tool to compile, convert, and optimize circuits")
   where
     parser = Opts
-            <$> strArgument
-                ( metavar "SOURCE"
-                <> help "The source circuit file or circuit to compile")
-            <*> switch
-                ( short 'c'
-                <> help "Compile a DSL circuit from the examples")
+            <$> subparser (command "read"    (info (readParser    <**> helper) (progDesc "read an existing circuit")) <>
+                           command "compile" (info (compileParser <**> helper) (progDesc "compile a DSL circuit")) <>
+                           command "garble"  (info (garbleParser  <**> helper) (progDesc "compile a garler for an existing boolean circuit")))
             <*> switch
                 ( short 'v'
                 <> help "Verbose mode")
@@ -61,7 +59,7 @@ parseArgs = execParser $ info (parser <**> helper)
             <*> (optional $ strOption
                 ( short 'o'
                 <> metavar "FILE"
-                <> help "Write to file FILE"))
+                <> help "Write output to file FILE in a known circuit format"))
             <*> option auto
                 ( short 'O'
                 <> showDefault
@@ -73,6 +71,10 @@ parseArgs = execParser $ info (parser <**> helper)
                 <> metavar "TYPE"
                 <> help "Coerce circuit to type TYPE [a,a2,b]"))
 
+    readParser    = ReadCircuit <$> strArgument (metavar "CIRCUIT" <> help "The source circuit")
+    compileParser = Compile <$> (switch (short 'c' <> help "Compile a DSL circuit from the examples")
+                             *> strArgument (metavar "NAME" <> help "The name of the compilation routine"))
+    garbleParser  = Garble <$> strArgument (metavar "CIRCUIT" <> help "The source circuit to garble (must be boolean)")
 
 main :: IO ()
 main = chooseMode =<< parseArgs
@@ -80,71 +82,80 @@ main = chooseMode =<< parseArgs
 chooseMode :: Opts -> IO ()
 chooseMode opts = do
     when (verbose opts) (print opts)
-    if compile_circuit opts then do
-        let m = M.fromList
-                [ ("goldreich"     , compile opts Goldreich.make)
-                , ("aes"           , compile opts AES.make)
-                , ("aes1r"         , compile opts AES.makeAes1r)
-                , ("aes10r"        , compile opts AES.makeAes10r)
-                , ("ggm"           , compile opts GGM.makeGGM)
-                , ("ggmSigma"      , compile opts GGM.makeGGMSigma)
-                , ("ggmNoPrg"      , compile opts GGM.makeGGMNoPrg)
-                , ("ggmNoPrgSigma" , compile opts GGM.makeGGMNoPrg)
-                , ("ggmSigma256"   , compile opts GGM.makeGGMSigma256)
-                , ("ggmSigma1024"  , compile opts GGM.makeGGMSigma1024)
-                , ("applebaum"     , compile opts AR.makeApplebaum)
-                , ("tribes"        , compile opts Tribes.make)
-                , ("point"         , compile opts Point.make)
-                , ("comparison"    , compile opts Comparison.make)
-                , ("size_test"     , compile opts Garbler.makeSizeTest)
-                , ("gband"         , compile opts Garbler.makeGarbledAnd)
-                ]
-        case M.lookup (source opts) m of
-            Just c  -> c
-            Nothing -> do
-                printf "[main] unknown circuit generation mode \"%s\"!\nknown modes:\n" (source opts)
-                mapM_ (printf "\t%s\n") (M.keys m)
-                exitFailure
-    else do
-        let inp = source opts
-            ext = takeExtension inp
+    case mode opts of
+        Compile name -> do
+            let m = M.union (fmap (compile opts) $ M.fromList Garbler.export) $ M.fromList
+                    [ ("goldreich"     , compile opts Goldreich.make)
+                    , ("aes"           , compile opts AES.make)
+                    , ("aes1r"         , compile opts AES.makeAes1r)
+                    , ("aes10r"        , compile opts AES.makeAes10r)
+                    , ("ggm"           , compile opts GGM.makeGGM)
+                    , ("ggmSigma"      , compile opts GGM.makeGGMSigma)
+                    , ("ggmNoPrg"      , compile opts GGM.makeGGMNoPrg)
+                    , ("ggmNoPrgSigma" , compile opts GGM.makeGGMNoPrg)
+                    , ("ggmSigma256"   , compile opts GGM.makeGGMSigma256)
+                    , ("ggmSigma1024"  , compile opts GGM.makeGGMSigma1024)
+                    , ("applebaum"     , compile opts AR.makeApplebaum)
+                    , ("tribes"        , compile opts Tribes.make)
+                    , ("point"         , compile opts Point.make)
+                    , ("comparison"    , compile opts Comparison.make)
+                    ]
+            case M.lookup name m of
+                Just c  -> c
+                Nothing -> do
+                    printf "[main] unknown circuit generation mode \"%s\"!\nknown modes:\n" name
+                    mapM_ (printf "\t%s\n") (M.keys m)
+                    exitFailure
+        ReadCircuit inp -> do
+            let ext = takeExtension inp
 
-        when (ext `notElem` [".acirc", ".nigel", ".netlist"]) $
-            error (printf "[main] unknown input extension \"%s\"!" ext)
+            when (ext `notElem` [".acirc", ".nigel", ".netlist"]) $
+                error (printf "[main] unknown input extension \"%s\"!" ext)
 
-        case target opts of
-            Nothing -> case ext of
-                ".acirc" -> case coerce opts of
-                    Just "a"  -> run opts (Acirc.readAcirc inp)
-                    Just "a2" -> run opts (over _1 toAcirc2 <$> Acirc.readAcirc inp)
-                    Just _    -> error "[main] supported types for acirc: [a,a2]"
-                    Nothing   -> run opts (Acirc.readAcirc inp)
-                ".nigel" -> case coerce opts of
-                    Just "a"   -> run opts (Nigel.readNigel inp :: IO (Acirc, [TestCase]))
-                    Just "a2"  -> run opts (Nigel.readNigel inp :: IO (Acirc2, [TestCase]))
-                    Just "b"   -> run opts (Nigel.readNigel inp :: IO (Acirc2, [TestCase]))
-                    Nothing    -> run opts (Nigel.readNigel inp :: IO (Circ, [TestCase]))
-                    Just other -> error "[main] supported coersion types for nigel: [a, a2, b]"
-                ".netlist" -> case coerce opts of
-                    Just "a"   -> run opts (Netlist.readNetlist inp :: IO (Acirc, [TestCase]))
-                    Just "a2"  -> run opts (Netlist.readNetlist inp :: IO (Acirc2, [TestCase]))
-                    Just "b"   -> run opts (Netlist.readNetlist inp :: IO (Circ, [TestCase]))
-                    Nothing    -> run opts (Netlist.readNetlist inp :: IO (Circ, [TestCase]))
-                    Just other -> error "[main] supported coersion types for netlist: [a, a2, b]"
+            case target opts of
+                Nothing -> case ext of
+                    ".acirc" -> case coerce opts of
+                        Just "a"  -> run opts (Acirc.readAcirc inp)
+                        Just "a2" -> run opts (over _1 toAcirc2 <$> Acirc.readAcirc inp)
+                        Just _    -> error "[main] supported types for acirc: [a,a2]"
+                        Nothing   -> run opts (Acirc.readAcirc inp)
+                    ".nigel" -> case coerce opts of
+                        Just "a"   -> run opts (Nigel.readNigel inp :: IO (Acirc, [TestCase]))
+                        Just "a2"  -> run opts (Nigel.readNigel inp :: IO (Acirc2, [TestCase]))
+                        Just "b"   -> run opts (Nigel.readNigel inp :: IO (Acirc2, [TestCase]))
+                        Nothing    -> run opts (Nigel.readNigel inp :: IO (Circ, [TestCase]))
+                        Just other -> error "[main] supported coersion types for nigel: [a, a2, b]"
+                    ".netlist" -> case coerce opts of
+                        Just "a"   -> run opts (Netlist.readNetlist inp :: IO (Acirc, [TestCase]))
+                        Just "a2"  -> run opts (Netlist.readNetlist inp :: IO (Acirc2, [TestCase]))
+                        Just "b"   -> run opts (Netlist.readNetlist inp :: IO (Circ, [TestCase]))
+                        Nothing    -> run opts (Netlist.readNetlist inp :: IO (Circ, [TestCase]))
+                        Just other -> error "[main] supported coersion types for netlist: [a, a2, b]"
 
-            Just outputFile -> case takeExtension outputFile of
-                ".acirc" -> case ext of
-                    ".acirc"   -> run opts (Acirc.readAcirc inp)
-                    ".nigel"   -> run opts (Nigel.readNigel inp :: IO (Acirc, [TestCase]))
-                    ".netlist" -> run opts (Netlist.readNetlist inp :: IO (Acirc, [TestCase]))
-                ".nigel" -> case ext of
-                    ".nigel"   -> run opts (Nigel.readNigel inp :: IO (Circ, [TestCase]))
-                    ".netlist" -> run opts (Netlist.readNetlist inp :: IO (Circ, [TestCase]))
-                    other      -> error "[main] supported input formats for nigel output: [nigel, netlist]"
-                ".netlist" -> case ext of
-                    ".nigel"   -> run opts (Nigel.readNigel inp :: IO (Circ, [TestCase]))
-                    ".netlist" -> run opts (Netlist.readNetlist inp :: IO (Circ, [TestCase]))
-                    other      -> error "[main] supported input formats for netlist output: [nigel, netlist]"
+                Just outputFile -> case takeExtension outputFile of
+                    ".acirc" -> case ext of
+                        ".acirc"   -> run opts (Acirc.readAcirc inp)
+                        ".nigel"   -> run opts (Nigel.readNigel inp :: IO (Acirc, [TestCase]))
+                        ".netlist" -> run opts (Netlist.readNetlist inp :: IO (Acirc, [TestCase]))
+                    ".nigel" -> case ext of
+                        ".nigel"   -> run opts (Nigel.readNigel inp :: IO (Circ, [TestCase]))
+                        ".netlist" -> run opts (Netlist.readNetlist inp :: IO (Circ, [TestCase]))
+                        other      -> error "[main] supported input formats for nigel output: [nigel, netlist]"
+                    ".netlist" -> case ext of
+                        ".nigel"   -> run opts (Nigel.readNigel inp :: IO (Circ, [TestCase]))
+                        ".netlist" -> run opts (Netlist.readNetlist inp :: IO (Circ, [TestCase]))
+                        other      -> error "[main] supported input formats for netlist output: [nigel, netlist]"
+
+        Garble inp -> do
+            let ext = takeExtension inp
+            when (ext `notElem` [".nigel", ".netlist"]) $
+                error (printf "[main] \"%s\" is not a known boolean circuit type!" ext)
+            c <- case ext of
+                ".nigel"   -> Nigel.read inp
+                ".netlist" -> Netlist.read inp
+            g <- Garbler.garbler c
+            circuitMain opts (Just (printf "garbled_%s.acirc" (takeBaseName inp))) g []
+
   where
     compile opts tups = forM_ tups $ \(fname, comp) -> do
         c <- comp
