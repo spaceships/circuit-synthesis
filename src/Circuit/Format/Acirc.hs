@@ -19,9 +19,9 @@ import qualified Circuit.Builder.Internals as B
 import Control.Monad.Trans (lift)
 import Lens.Micro.Platform
 import Text.Parsec hiding (spaces, parseTest)
+import TextShow
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import TextShow
 
 read :: FilePath -> IO Acirc
 read = fmap fst . readAcirc
@@ -40,19 +40,22 @@ showWithTests c ts = let s = showCirc c
 showCirc :: Acirc -> T.Text
 showCirc !c = T.unlines (header ++ gateLines)
   where
-    header = [ T.append ":symlen " (showt (_circ_symlen c))
-             , T.append ":base "   (showt (_circ_base c))
+    header = [ T.append ":symlen "  (showt (_circ_symlen c))
+             , T.append ":base "    (showt (_circ_base c))
+             , T.append ":ninputs " (showt (ninputs c))
+             , T.append ":nconsts " (showt (nconsts c))
+             , T.append ":outputs " (T.unwords (map (showt.getRef) (outputRefs c)))
+             , T.append ":secrets " (T.unwords (map (showt.getRef) (secretRefs c)))
+             , ":start"
              ]
 
     inputs = map gateTxt (inputRefs c)
     consts = map gateTxt (constRefs c)
     gates  = map gateTxt (gateRefs c)
 
-    output = [ T.append ":outputs " (T.unwords (map (showt.getRef) (outputRefs c)))
-             , T.append ":secrets " (T.unwords (map (showt.getRef) (secretRefs c)))
-             ]
+    gateLines = concat [inputs, consts, gates]
 
-    gateLines = concat [inputs, consts, gates, output]
+    usage = timesUsed c
 
     gateTxt :: Ref -> T.Text
     gateTxt !ref =
@@ -69,7 +72,9 @@ showCirc !c = T.unlines (header ++ gateLines)
 
     pr :: Ref -> T.Text -> Ref -> Ref -> T.Text
     pr !ref !gateTy !x !y =
-        T.concat [ showt (getRef ref), " ", gateTy, " ", showt (getRef x), " ", showt (getRef y) ]
+        T.concat [ showt (getRef ref), " ", gateTy, " ", showt (getRef x), " ", showt (getRef y)
+                 , " : ", showt (usage ^. at (getRef ref) . non 0) -- print times used
+                 ]
 
 showTest :: TestCase -> T.Text
 showTest (!inp, !out) = T.concat [":test ", T.pack (showInts (reverse inp)), " "
@@ -83,10 +88,10 @@ type AcircParser = ParseCirc ArithGate ()
 parseCirc :: String -> (Acirc, [TestCase])
 parseCirc s = runCircParser () parser s
   where
-    parser   = preamble >> lines >> end >> eof
-    preamble = many $ (char ':' >> (parseTest <|> parseSymlen <|> parseBase <|> skipParam))
+    parser   = preamble >> lines >> eof
+    preamble = many $ (char ':' >> (try parseTest <|> try parseSymlen <|> try parseBase <|>
+                                    try parseOutputs <|> try parseSecrets <|> skipParam))
     lines    = many parseRefLine
-    end      = parseOutputs >> optional parseSecrets
 
 skipParam :: AcircParser ()
 skipParam = do
@@ -123,7 +128,7 @@ parseSymlen = do
 
 parseOutputs :: AcircParser ()
 parseOutputs = do
-    string ":outputs"
+    string "outputs"
     spaces
     refs <- many (do ref <- parseRef; spaces; return ref)
     lift $ mapM_ B.markOutput refs
@@ -131,7 +136,7 @@ parseOutputs = do
 
 parseSecrets :: AcircParser ()
 parseSecrets = do
-    string ":secrets"
+    string "secrets"
     spaces
     secs <- many (do { ref <- parseRef; spaces; return ref })
     lift $ mapM B.markSecret secs
@@ -176,3 +181,4 @@ parseGate ref = do
             "SUB" -> ArithSub x y
             g     -> error ("[parser] unkonwn gate type " ++ g)
     lift $ B.insertGate ref gate
+    optional $ spaces >> char ':' >> spaces >> int -- times used annotation

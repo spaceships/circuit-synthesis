@@ -1,5 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleContexts #-}
 #if __GLASGOW_HASKELL__ >= 800
 {-# LANGUAGE Strict #-}
 #endif
@@ -292,3 +294,8 @@ topoLevels c = nub $ map snd $ M.toAscList $ execState (foldCircM eval c) M.empt
         modify (M.insertWith (++) d [ref])
         return d
 
+timesUsed :: Gate gate => Circuit gate -> IM.IntMap Int
+timesUsed c = foldr f init (gates c)
+  where
+    init = IM.fromList (zip (map getRef (outputRefs c)) (repeat 1))
+    f (_,g) m = foldr (\ref acc -> IM.insertWith (+) (getRef ref) 1 acc) m (gateArgs g)
