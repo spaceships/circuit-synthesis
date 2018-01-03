@@ -78,14 +78,21 @@ foldNots c = flip evalState IM.empty $ B.buildCircuitT $ do
     update ref newRef = lift $ at (getRef ref) ?= newRef
 
     tr :: Ref -> B.BuilderT g (State (IM.IntMap Ref)) Ref
-    tr ref = lift $ use $ at (getRef ref) . non (error "[tr] unknown ref!")
+    tr ref = lift $ use $ at (getRef ref) . non (error ("[tr] unknown ref " ++ show ref))
 
     eval (BoolXor x y) z [nx, ny] = do
-        B.newGate =<< Bool2Xor <$> tr x <*> pure nx <*> tr y <*> pure ny
+        z' <- B.newGate =<< Bool2Xor <$> tr x <*> pure nx <*> tr y <*> pure ny
+        update z z'
         return False
+
     eval (BoolAnd x y) z [nx, ny] = do
-        B.newGate =<< Bool2And <$> tr x <*> pure nx <*> tr y <*> pure ny
+        z' <- B.newGate =<< Bool2And <$> tr x <*> pure nx <*> tr y <*> pure ny
+        update z z'
         return False
-    eval (BoolNot _) _ [n] = return (not n)
+
+    eval (BoolNot x) z [n] = do
+        update z =<< tr x
+        return (not n)
+
     eval (BoolInput _) _ _ = return False
     eval (BoolConst _) _ _ = return False
