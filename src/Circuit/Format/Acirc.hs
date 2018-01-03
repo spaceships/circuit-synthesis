@@ -16,12 +16,14 @@ import Circuit.Utils hiding ((%))
 import qualified Circuit.Builder           as B
 import qualified Circuit.Builder.Internals as B
 
+import Control.Monad
 import Control.Monad.Trans (lift)
 import Lens.Micro.Platform
 import Text.Parsec hiding (spaces, parseTest)
 import TextShow
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import qualified Data.IntMap as IM
 
 read :: FilePath -> IO Acirc
 read = fmap fst . readAcirc
@@ -43,7 +45,7 @@ showCirc !c = T.unlines (header ++ gateLines)
     header = [ T.append ":symlen "  (showt (_circ_symlen c))
              , T.append ":base "    (showt (_circ_base c))
              , T.append ":ninputs " (showt (ninputs c))
-             , T.append ":nconsts " (showt (nconsts c))
+             , T.append ":consts "  (T.unwords (map showt (IM.elems (_circ_const_vals c))))
              , T.append ":outputs " (T.unwords (map (showt.getRef) (outputRefs c)))
              , T.append ":secrets " (T.unwords (map (showt.getRef) (secretRefs c)))
              , ":start"
@@ -59,11 +61,7 @@ showCirc !c = T.unlines (header ++ gateLines)
     gateTxt !ref =
         case c ^. circ_refmap . at (getRef ref) . non (error "[gateTxt] unknown ref") of
             (ArithInput id) -> T.append "input " (showt (getId id))
-            (ArithConst id) ->
-                let val = case c ^. circ_const_vals . at (getId id)  of
-                                Nothing -> ""
-                                Just y  -> showt y
-                in T.append "const " val
+            (ArithConst id) -> "const"
             (ArithAdd x y) -> pr ref "ADD" x y
             (ArithSub x y) -> pr ref "SUB" x y
             (ArithMul x y) -> pr ref "MUL" x y
@@ -139,7 +137,7 @@ parseOutputs :: AcircParser ()
 parseOutputs = do
     string "outputs"
     spaces
-    refs <- many (do ref <- parseRef; spaces; return ref)
+    refs <- many (parseRef <* spaces)
     lift $ mapM_ B.markOutput refs
     endLine
 
@@ -147,17 +145,22 @@ parseSecrets :: AcircParser ()
 parseSecrets = do
     string "secrets"
     spaces
-    secs <- many (do { ref <- parseRef; spaces; return ref })
+    secs <- many (parseRef <* spaces)
     lift $ mapM B.markSecret secs
     endLine
 
+parseConsts :: Ref -> AcircParser ()
+parseConsts ref = do
+    string "consts"
+    cs <- many (spaces >> int)
+    forM_ (zip [0..] cs) $ \(id, val) -> do
+        lift $ B.insertConstVal (Id id) (fromIntegral val)
+
 parseRef :: AcircParser Ref
-parseRef = Ref <$> Prelude.read <$> many1 digit
+parseRef = Ref <$> int
 
 parseRefLine :: AcircParser ()
 parseRefLine = do
-    -- ref <- parseRef
-    -- spaces
     ref <- nextRef
     choice [parseConst ref, parseInput ref, parseGate ref]
     endLine
@@ -166,17 +169,15 @@ parseInput :: Ref -> AcircParser ()
 parseInput ref = do
     string "input"
     spaces
-    id <- Id <$> Prelude.read <$> many1 digit
+    id <- Id <$> int
     lift $ B.insertInput ref id
 
 parseConst :: Ref -> AcircParser ()
 parseConst ref = do
     string "const"
     spaces
-    val <- Prelude.read <$> many1 digit
-    id  <- lift B.nextConstId
+    id <- lift B.nextConstId
     lift $ B.insertConst ref id
-    lift $ B.insertConstVal id val
 
 parseGate :: Ref -> AcircParser ()
 parseGate ref = do
