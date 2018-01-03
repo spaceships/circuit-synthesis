@@ -157,29 +157,28 @@ instance Gate BoolGate where
     gateIsGate (BoolConst _) = False
     gateIsGate _ = True
 
--- instance Gate BoolGate2 where
---     gateArgs (Bool2Xor x _ y _) = [x,y]
---     gateArgs (Bool2And x _ y _) = [x,y]
---     gateArgs (Bool2Input _) = []
---     gateArgs (Bool2Const _) = []
+instance Gate BoolGate2 where
+    gateArgs (Bool2Xor x _ y _) = [x,y]
+    gateArgs (Bool2And x _ y _) = [x,y]
+    gateArgs (Bool2Input _) = []
+    gateArgs (Bool2Const _) = []
 
-    -- gateEval _ _ (BoolXor _ negx _ negy) [x,y] = b2i ((i2b x `xor` negx) `xor` (i2b y `xor` negy))
-    -- gateEval _ _ (BoolAnd _ negx _ negy) [x,y] = b2i ((i2b x `xor` negx) && (i2b y `xor` negy))
-    -- gateEval getInp _   (BoolInput i) [] = getInp i
-    -- gateEval _ getConst (BoolConst i) [] = getConst i
+    gateEval _ _ (Bool2Xor _ negx _ negy) [x,y] = b2i ((i2b x `xor` negx) `xor` (i2b y `xor` negy))
+    gateEval _ _ (Bool2And _ negx _ negy) [x,y] = b2i ((i2b x `xor` negx) && (i2b y `xor` negy))
+    gateEval getInp _   (Bool2Input i) [] = getInp i
+    gateEval _ getConst (Bool2Const i) [] = getConst i
 
-    -- gateAdd x y = BoolXor x y
-    -- gateSub x y = BoolXor x y
-    -- gateMul x y = BoolAnd x y
-    -- gateXor x y = Just (BoolXor x y)
-    -- gateNot _   = Nothing
-    -- gateInput i = BoolInput i
-    -- gateConst i = BoolConst i
+    gateAdd x y = Bool2Xor x False y False
+    gateSub x y = Bool2Xor x False y False
+    gateMul x y = Bool2And x False y False
+    gateXor x y = Just (Bool2Xor x False y False)
+    gateNot _   = Nothing
+    gateInput i = Bool2Input i
+    gateConst i = Bool2Const i
 
-    -- gateIsMul (BoolAnd _ _ _ _) = True
-    -- gateIsMul _ = False
+    gateIsMul (Bool2And _ _ _ _) = True
+    gateIsMul _ = False
 
-    -- gateIsGate (BoolInput _) = False
-    -- gateIsGate (BoolConst _) = False
-    -- gateIsGate _ = True
-
+    gateIsGate (Bool2Input _) = False
+    gateIsGate (Bool2Const _) = False
+    gateIsGate _ = True

@@ -3,6 +3,7 @@ module Examples.Garbler where
 import Circuit
 import Circuit.Builder
 import Circuit.Utils
+import Circuit.Conversion
 import Examples.Goldreich
 
 import Control.Monad
@@ -27,8 +28,9 @@ export =
 
 -- XXX: only fan out one is secure at the moment
 garbler :: Circ -> IO Acirc2
-garbler c = buildCircuitT $ do
-    let k = 80 -- security parameter, wirelabel & prg seed size
+garbler c' = buildCircuitT $ do
+    let c = toCirc2 c'
+        k = 80 -- security parameter, wirelabel & prg seed size
 
     s  <- inputs k -- the seed to the PRGs
     ix <- inputs (ngates c) -- the gate index in sigma vector form

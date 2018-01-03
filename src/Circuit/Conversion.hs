@@ -1,7 +1,12 @@
 module Circuit.Conversion where
 
 import Circuit
+import qualified Circuit.Builder as B
+import qualified Circuit.Builder.Internals as B
+
+import Control.Monad.State.Strict
 import Lens.Micro.Platform
+import qualified Data.IntMap as IM
 
 --------------------------------------------------------------------------------
 
@@ -45,3 +50,42 @@ instance ToAcirc2 ArithGate where
 
 instance ToAcirc2 BoolGate where
     -- TODO: define me
+
+--------------------------------------------------------------------------------
+
+class ToCirc2 g where
+    toCirc2 :: Circuit g -> Circ2
+    toCirc2 = error "no conversion to Circ2 defined"
+
+instance ToCirc2 ArithGate where
+instance ToCirc2 ArithGate2 where
+
+instance ToCirc2 BoolGate where
+    toCirc2 = foldNots
+
+foldNots :: Circ -> Circ2
+foldNots c = flip evalState IM.empty $ B.buildCircuitT $ do
+    B.exportParams c
+    xs <- B.inputs (ninputs c)
+    ys <- B.exportConsts c
+    zipWithM update (inputRefs c) xs
+    zipWithM update (constRefs c) ys
+    ns <- foldCircM eval c
+    when (not (all (== False) ns)) (error "[foldNots] top level negations unsupported!")
+    B.outputs =<< mapM tr (outputRefs c)
+  where
+    update :: Ref -> Ref -> B.BuilderT g (State (IM.IntMap Ref)) ()
+    update ref newRef = lift $ at (getRef ref) ?= newRef
+
+    tr :: Ref -> B.BuilderT g (State (IM.IntMap Ref)) Ref
+    tr ref = lift $ use $ at (getRef ref) . non (error "[tr] unknown ref!")
+
+    eval (BoolXor x y) z [nx, ny] = do
+        B.newGate =<< Bool2Xor <$> tr x <*> pure nx <*> tr y <*> pure ny
+        return False
+    eval (BoolAnd x y) z [nx, ny] = do
+        B.newGate =<< Bool2And <$> tr x <*> pure nx <*> tr y <*> pure ny
+        return False
+    eval (BoolNot _) _ [n] = return (not n)
+    eval (BoolInput _) _ _ = return False
+    eval (BoolConst _) _ _ = return False

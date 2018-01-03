@@ -151,7 +151,7 @@ subcircuit c xs = do
     ys <- exportConsts c
     subcircuit' c xs ys
 
-exportConsts :: (Gate g, Monad m) => Circuit g -> BuilderT g m [Ref]
+exportConsts :: (Gate g, Gate g', Monad m) => Circuit g -> BuilderT g' m [Ref]
 exportConsts c = do
     forM (IM.toAscList (c^.circ_consts)) $ \(_, id) -> do
         let x = getConst c id
@@ -160,7 +160,7 @@ exportConsts c = do
         else
             constant x
 
-exportParams :: Monad m => Circuit g -> BuilderT g m ()
+exportParams :: Monad m => Circuit g -> BuilderT g' m ()
 exportParams c = do
     setSymlen (c^.circ_symlen)
     setBase (c^.circ_base)
