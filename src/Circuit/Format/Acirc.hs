@@ -55,26 +55,29 @@ showCirc !c = T.unlines (header ++ gateLines)
 
     gateLines = concat [inputs, consts, gates]
 
-    usage = timesUsed c
-
     gateTxt :: Ref -> T.Text
     gateTxt !ref =
         case c ^. circ_refmap . at (getRef ref) . non (error "[gateTxt] unknown ref") of
-            (ArithInput id) -> T.concat [ showt (getRef ref), " input ", showt (getId id) ]
+            (ArithInput id) -> T.append "input " (showt (getId id))
             (ArithConst id) ->
                 let val = case c ^. circ_const_vals . at (getId id)  of
                                 Nothing -> ""
                                 Just y  -> showt y
-                in T.concat [ showt (getRef ref), " const ", val ]
+                in T.append "const " val
             (ArithAdd x y) -> pr ref "ADD" x y
             (ArithSub x y) -> pr ref "SUB" x y
             (ArithMul x y) -> pr ref "MUL" x y
 
     pr :: Ref -> T.Text -> Ref -> Ref -> T.Text
     pr !ref !gateTy !x !y =
-        T.concat [ showt (getRef ref), " ", gateTy, " ", showt (getRef x), " ", showt (getRef y)
-                 , " : ", showt (usage ^. at (getRef ref) . non 0) -- print times used
+        T.concat [ gateTy, " ", showt (getRef x), " ", showt (getRef y)
+                 , " : ", showRefCount ref
                  ]
+
+    showRefCount !ref = let count = c ^. circ_refcount . at (getRef ref) . non 0
+                        in if count == -1
+                              then "inf"
+                              else showt count
 
 showTest :: TestCase -> T.Text
 showTest (!inp, !out) = T.concat [":test ", T.pack (showInts (reverse inp)), " "
@@ -83,15 +86,21 @@ showTest (!inp, !out) = T.concat [":test ", T.pack (showInts (reverse inp)), " "
 --------------------------------------------------------------------------------
 -- parser
 
-type AcircParser = ParseCirc ArithGate ()
+type AcircParser = ParseCirc ArithGate Int
 
 parseCirc :: String -> (Acirc, [TestCase])
-parseCirc s = runCircParser () parser s
+parseCirc s = runCircParser 0 parser s
   where
     parser   = preamble >> lines >> eof
     preamble = many $ (char ':' >> (try parseTest <|> try parseSymlen <|> try parseBase <|>
                                     try parseOutputs <|> try parseSecrets <|> skipParam))
     lines    = many parseRefLine
+
+nextRef :: AcircParser Ref
+nextRef = do
+    ref <- getSt
+    modifySt (succ)
+    return (Ref ref)
 
 skipParam :: AcircParser ()
 skipParam = do
@@ -147,8 +156,9 @@ parseRef = Ref <$> Prelude.read <$> many1 digit
 
 parseRefLine :: AcircParser ()
 parseRefLine = do
-    ref <- parseRef
-    spaces
+    -- ref <- parseRef
+    -- spaces
+    ref <- nextRef
     choice [parseConst ref, parseInput ref, parseGate ref]
     endLine
 

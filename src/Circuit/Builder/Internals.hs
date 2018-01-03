@@ -53,13 +53,14 @@ setSymlen !n = bs_circ . circ_symlen .= n
 setBase :: Monad m => Integer -> BuilderT g m ()
 setBase !n = bs_circ . circ_base .= n
 
-insertGate :: (Ord g, Monad m) => Ref -> g -> BuilderT g m ()
+insertGate :: (Gate g, Ord g, Monad m) => Ref -> g -> BuilderT g m ()
 insertGate !ref !gate = do
     refs <- use $ bs_circ . circ_refmap
     when (IM.member (getRef ref) refs) $
         error ("redefinition of ref " ++ show ref)
     bs_circ . circ_refmap . at (getRef ref) ?= gate
     bs_dedup . at gate ?= ref
+    mapM_ bumpRefCount (gateArgs gate)
 
 insertConst :: (Gate g, Monad m) => Ref -> Id -> BuilderT g m ()
 insertConst !ref !id = do
@@ -74,7 +75,7 @@ insertInput !ref !id = do
     bs_circ . circ_inputs %= IS.insert (getRef ref)
     insertGate ref (gateInput id)
 
-newGate :: (Ord g, Monad m) => g -> BuilderT g m Ref
+newGate :: (Ord g, Monad m, Gate g) => g -> BuilderT g m Ref
 newGate !gate = do
     dedup <- use bs_dedup
     case M.lookup gate dedup of
@@ -103,8 +104,19 @@ nextConstId = do
     bs_next_const += 1
     return id
 
+bumpRefCount :: Monad m => Ref -> BuilderT g m ()
+bumpRefCount ref = bs_circ . circ_refcount %= IM.insertWith add (getRef ref) 1
+  where
+    add (-1) y = -1 -- preserve -1 which marks inf
+    add x y  = x + y
+
+markPersistant :: Monad m => Ref -> BuilderT g m ()
+markPersistant ref = bs_circ . circ_refcount . at (getRef ref) ?= -1
+
 markOutput :: Monad m => Ref -> BuilderT g m ()
-markOutput !ref = bs_circ . circ_outputs %= IS.insert (getRef ref)
+markOutput !ref = do
+    bs_circ . circ_outputs %= IS.insert (getRef ref)
+    bumpRefCount ref
 
 markSecret :: Monad m => Ref -> BuilderT g m ()
 markSecret !ref = do

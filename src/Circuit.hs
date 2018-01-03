@@ -27,7 +27,18 @@ import qualified Data.IntSet as IS
 -- Generic circuit functions
 
 emptyCirc :: Circuit a
-emptyCirc = Circuit IS.empty IS.empty IM.empty IS.empty IS.empty IM.empty IM.empty 1 2
+emptyCirc = Circuit
+    { _circ_outputs     = IS.empty
+    , _circ_inputs      = IS.empty
+    , _circ_consts      = IM.empty
+    , _circ_secret_refs = IS.empty
+    , _circ_secret_ids  = IS.empty
+    , _circ_refmap      = IM.empty
+    , _circ_const_vals  = IM.empty
+    , _circ_symlen      = 1
+    , _circ_base        = 2
+    , _circ_refcount    = IM.empty
+    }
 
 wires :: Gate gate => Circuit gate -> [(Ref, gate)]
 wires c = map (\ref -> (ref, getGate c ref)) (wireRefs c)
@@ -294,8 +305,8 @@ topoLevels c = nub $ map snd $ M.toAscList $ execState (foldCircM eval c) M.empt
         modify (M.insertWith (++) d [ref])
         return d
 
-timesUsed :: Gate gate => Circuit gate -> IM.IntMap Int
-timesUsed c = foldr f init (gates c)
-  where
-    init = IM.fromList (zip (map getRef (outputRefs c)) (repeat 1))
-    f (_,g) m = foldr (\ref acc -> IM.insertWith (+) (getRef ref) 1 acc) m (gateArgs g)
+-- timesUsed :: Gate gate => Circuit gate -> IM.IntMap Int
+-- timesUsed c = foldr f init (gates c)
+--   where
+--     init = IM.fromList (zip (map getRef (outputRefs c)) (repeat 1))
+--     f (_,g) m = foldr (\ref acc -> IM.insertWith (+) (getRef ref) 1 acc) m (gateArgs g)

@@ -16,11 +16,28 @@ import Lens.Micro.Platform
 newtype Ref = Ref { getRef :: Int } deriving (Eq, Ord, Num)
 newtype Id  = Id  { getId  :: Int } deriving (Eq, Ord, Num)
 
-instance Show Ref where
-    show ref = show (getRef ref)
+instance Show Ref where show ref = show (getRef ref)
+instance Show Id where show id = show (getId id)
 
-instance Show Id where
-    show id = show (getId id)
+data Circuit gate = Circuit
+    { _circ_outputs     :: !IS.IntSet
+    , _circ_inputs      :: !IS.IntSet
+    , _circ_consts      :: !(IM.IntMap Id)
+    , _circ_secret_refs :: !(IS.IntSet)
+    , _circ_secret_ids  :: !(IS.IntSet)
+    , _circ_refmap      :: !(IM.IntMap gate)
+    , _circ_const_vals  :: !(IM.IntMap Integer)
+    , _circ_symlen      :: !Int
+    , _circ_base        :: !Integer
+    , _circ_refcount    :: !(IM.IntMap Int)
+    } deriving (Show)
+
+makeLenses ''Circuit
+
+type TestCase = ([Integer], [Integer])
+
+--------------------------------------------------------------------------------
+-- types of gates
 
 data ArithGate =
       ArithAdd !Ref !Ref
@@ -41,25 +58,18 @@ data BoolGate =
     | BoolConst !Id
     deriving (Eq, Ord, Show)
 
-data Circuit gate = Circuit
-    { _circ_outputs     :: !IS.IntSet
-    , _circ_inputs      :: !IS.IntSet
-    , _circ_consts      :: !(IM.IntMap Id)
-    , _circ_secret_refs :: !(IS.IntSet)
-    , _circ_secret_ids  :: !(IS.IntSet)
-    , _circ_refmap      :: !(IM.IntMap gate)
-    , _circ_const_vals  :: !(IM.IntMap Integer)
-    , _circ_symlen      :: !Int
-    , _circ_base        :: !Integer
-    } deriving (Show)
-
-makeLenses ''Circuit
-
-type TestCase = ([Integer], [Integer])
+-- Bool2 has no Not gates- they're folded into the Xor and And gates with negation flags
+data BoolGate2 =
+       Bool2Xor !Ref Bool !Ref Bool
+     | Bool2And !Ref Bool !Ref Bool
+     | Bool2Input !Id
+     | Bool2Const !Id
+     deriving (Eq, Ord, Show)
 
 type Acirc = Circuit ArithGate
 type Acirc2 = Circuit ArithGate2
 type Circ = Circuit BoolGate
+type Circ2 = Circuit BoolGate2
 
 ---------------------------------------------------------------------------------------
 -- Gate class allows us to share boilerplate between binary and arithmetic circuits
@@ -146,4 +156,30 @@ instance Gate BoolGate where
     gateIsGate (BoolInput _) = False
     gateIsGate (BoolConst _) = False
     gateIsGate _ = True
+
+-- instance Gate BoolGate2 where
+--     gateArgs (Bool2Xor x _ y _) = [x,y]
+--     gateArgs (Bool2And x _ y _) = [x,y]
+--     gateArgs (Bool2Input _) = []
+--     gateArgs (Bool2Const _) = []
+
+    -- gateEval _ _ (BoolXor _ negx _ negy) [x,y] = b2i ((i2b x `xor` negx) `xor` (i2b y `xor` negy))
+    -- gateEval _ _ (BoolAnd _ negx _ negy) [x,y] = b2i ((i2b x `xor` negx) && (i2b y `xor` negy))
+    -- gateEval getInp _   (BoolInput i) [] = getInp i
+    -- gateEval _ getConst (BoolConst i) [] = getConst i
+
+    -- gateAdd x y = BoolXor x y
+    -- gateSub x y = BoolXor x y
+    -- gateMul x y = BoolAnd x y
+    -- gateXor x y = Just (BoolXor x y)
+    -- gateNot _   = Nothing
+    -- gateInput i = BoolInput i
+    -- gateConst i = BoolConst i
+
+    -- gateIsMul (BoolAnd _ _ _ _) = True
+    -- gateIsMul _ = False
+
+    -- gateIsGate (BoolInput _) = False
+    -- gateIsGate (BoolConst _) = False
+    -- gateIsGate _ = True
 
