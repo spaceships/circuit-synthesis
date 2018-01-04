@@ -10,15 +10,13 @@ import Data.List.Split (chunksOf)
 import Control.Monad
 import Control.Monad.Trans (lift)
 
-make :: [(String, IO Acirc)]
-make =
-    [ ("point.dsl.acirc", point 25 10)
-    , ("point_base10.dsl.acirc", pointBaseN 25 10)
-    , ("point_base11.dsl.acirc", pointBaseN 24 11)
-    , ("point_base12.dsl.acirc", pointBaseN 23 12)
-    , ("point_base13.dsl.acirc", pointBaseN 22 13)
-    , ("point_base15.dsl.acirc", pointBaseN 21 15)
-    ]
+export = [("point", [ ("point.dsl.acirc", point 25 10)
+                    , ("point_base10.dsl.acirc", pointBaseN 25 10)
+                    , ("point_base11.dsl.acirc", pointBaseN 24 11)
+                    , ("point_base12.dsl.acirc", pointBaseN 23 12)
+                    , ("point_base13.dsl.acirc", pointBaseN 22 13)
+                    , ("point_base15.dsl.acirc", pointBaseN 21 15)
+                    ] )]
 
 point :: Int -> Int -> IO Acirc
 point ninputs symlen = buildCircuitT $ do
@@ -37,11 +35,11 @@ point ninputs symlen = buildCircuitT $ do
   where
     toSel n x = [ if i == x then 1 else 0 | i <- [0..n-1] ]
 
-pointBaseN :: Int -> Integer -> IO Acirc
+pointBaseN :: Int -> Int -> IO Acirc
 pointBaseN ndigits base = buildCircuitT $ do
     let q = (fromIntegral base :: Integer) ^ (fromIntegral ndigits :: Integer)
     thePoint <- lift $ randIntegerModIO q
-    let pointDigits = num2Base base ndigits thePoint
+    let pointDigits = map fromIntegral $ num2Base (fromIntegral base) ndigits thePoint
     setBase base
     xs <- inputs ndigits
     ys <- secrets pointDigits

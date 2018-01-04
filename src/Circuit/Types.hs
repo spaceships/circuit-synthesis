@@ -26,15 +26,15 @@ data Circuit gate = Circuit
     , _circ_consts      :: !(IM.IntMap Id)
     , _circ_secret_refs :: !(IS.IntSet)
     , _circ_refmap      :: !(IM.IntMap gate)
-    , _circ_const_vals  :: !(IM.IntMap Integer)
+    , _circ_const_vals  :: !(IM.IntMap Int)
     , _circ_symlen      :: !Int
-    , _circ_base        :: !Integer
+    , _circ_base        :: !Int
     , _circ_refcount    :: !(IM.IntMap Int) -- number of times each ref is used
     } deriving (Show)
 
 makeLenses ''Circuit
 
-type TestCase = ([Integer], [Integer])
+type TestCase = ([Int], [Int])
 
 --------------------------------------------------------------------------------
 -- types of gates
@@ -76,7 +76,7 @@ type Circ2 = Circuit BoolGate2
 
 class (Eq g, Ord g) => Gate g where
     gateArgs :: g -> [Ref]
-    gateEval :: (Id -> Integer) -> (Id -> Integer) -> g -> [Integer] -> Integer
+    gateEval :: (Id -> Int) -> (Id -> Int) -> g -> [Int] -> Int
     gateAdd :: Ref -> Ref -> g
     gateSub :: Ref -> Ref -> g
     gateMul :: Ref -> Ref -> g

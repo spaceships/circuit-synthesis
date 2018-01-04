@@ -78,7 +78,7 @@ intermediateGateRefs = map fst . intermediateGates
 intermediateWireRefs :: Gate gate => Circuit gate -> [Ref]
 intermediateWireRefs c = filter (not . isOutputRef c) (wireRefs c)
 
-getConst :: Circuit gate -> Id -> Integer
+getConst :: Circuit gate -> Id -> Int
 getConst c id = case c^.circ_const_vals.at (getId id) of
     Just x  -> x
     Nothing -> error ("[getConst] no const known for y" ++ show id)
@@ -101,15 +101,15 @@ getGate c ref = case c^.circ_refmap.at (getRef ref) of
 
 randomizeSecrets :: Circuit gate -> IO (Circuit gate)
 randomizeSecrets c = do
-    key <- replicateM (nsecrets c) $ randIntegerModIO (fromIntegral (_circ_base c))
+    key <- replicateM (nsecrets c) $ randIntModIO (_circ_base c)
     let newSecrets = IM.fromList $ zip (map getId (secretIds c)) key
     return $ c & circ_const_vals %~ IM.union newSecrets
 
 genTest :: Gate gate => Circuit gate -> IO TestCase
 genTest c
     | c^.circ_symlen == 1 = do
-        let q = _circ_base c ^ (fromIntegral (ninputs c) :: Integer)
-        inp <- num2Base (_circ_base c) (ninputs c) <$> randIO (randIntegerMod q)
+        let q = (fromIntegral (_circ_base c)) ^ (fromIntegral (ninputs c) :: Integer)
+        inp <- num2Base (fromIntegral (_circ_base c)) (ninputs c) <$> randIntegerModIO q
         return (inp, plainEval c inp)
     | otherwise = do
         when ((ninputs c `mod` _circ_symlen c) /= 0) $
@@ -137,9 +137,9 @@ printTruthTable c = forM_ inputs $ \inp -> do
     printf "%s -> %s\n" (showInts inp) (showInts out)
   where
     n = ninputs c `div` symlen c
-    sym x = [ if i == x then (1 :: Integer) else 0 | i <- [ 0 .. symlen c - 1 ] ]
+    sym x = [ if i == x then 1 else 0 | i <- [ 0 .. symlen c - 1 ] ]
     inputs = case symlen c of
-        1 -> sequence (replicate (ninputs c) [(0::Integer)..fromIntegral (c^.circ_base - 1)])
+        1 -> sequence (replicate (ninputs c) [0..c^.circ_base - 1])
         _ -> map concat $ sequence (replicate n (map sym [0..symlen c - 1]))
 
 circEq :: Gate gate => Circuit gate -> Circuit gate -> IO Bool
@@ -214,11 +214,11 @@ circDegree c = maximum $ foldCirc f c
     f g [x] = x
     f _ [] = 1 -- input or const
 
-zeroTest :: Integer -> Integer
+zeroTest :: Int -> Int
 zeroTest 0 = 0
 zeroTest _ = 1
 
-plainEval :: Gate gate => Circuit gate -> [Integer] -> [Integer]
+plainEval :: Gate gate => Circuit gate -> [Int] -> [Int]
 plainEval c inps
     | ninputs c /= length inps =
         error (printf "[plainEval] incorrect number of inputs: expected %d, got %s" (ninputs c) (show inps))
@@ -243,8 +243,8 @@ ensure verbose c ts = and <$> mapM ensure' (zip [(0::Integer)..] ts)
             return False
 
 
-ensureIO :: Bool -> (Circuit gate -> [Integer] -> IO [Integer]) -> Circuit gate -> [TestCase] -> IO Bool
-ensureIO verbose eval c ts = and <$> mapM ensureIO' (zip [(0::Integer)..] ts)
+ensureIO :: Bool -> (Circuit gate -> [Int] -> IO [Int]) -> Circuit gate -> [TestCase] -> IO Bool
+ensureIO verbose eval c ts = and <$> mapM ensureIO' (zip [0::Int ..] ts)
   where
     ensureIO' (i, (inps, outs)) = do
         res <- eval c inps

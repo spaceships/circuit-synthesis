@@ -66,7 +66,7 @@ pr s = do
     putStrLn s
     hFlush stdout
 
-num2Base :: Integer -> Int -> Integer -> [Integer]
+num2Base :: Integer -> Int -> Integer -> [Int]
 num2Base base ndigits x = map fromIntegral $ reverse (map snd (take ndigits (tail ds)))
   where
     ds = (x, 0) : [ (div y (fromIntegral base), mod y (fromIntegral base)) | (y, _) <- ds ]
@@ -79,13 +79,13 @@ num2Bits ndigits x = reverse bs
 bits2Num :: Integral a => [Bool] -> a
 bits2Num bs = fromIntegral $ sum [ if b then shift 1 i :: Integer else 0 | b <- reverse bs | i <- [0..] ]
 
-showInts :: [Integer] -> String
+showInts :: [Int] -> String
 showInts = map toAlpha
   where
     alphas = ['0'..'9'] ++ ['a'..'z'] ++ ['A'..'Z']
-    toAlpha n = alphas !! fromIntegral n
+    toAlpha n = alphas !! n
 
-readInts :: String -> [Integer]
+readInts :: String -> [Int]
 readInts = map fromAlpha
   where
     alphas = zip (['0'..'9'] ++ ['a'..'z'] ++ ['A'..'Z']) [0..]
@@ -225,7 +225,7 @@ randBits n = num2Bits n <$> randInteger n
 randBitsIO :: Int -> IO [Bool]
 randBitsIO n = randIO (randBits n)
 
-randKeyIO :: Int -> IO [Integer]
+randKeyIO :: Int -> IO [Int]
 randKeyIO n = map b2i <$> randBitsIO n
 
 randIntegerMod :: Integer -> Rand Integer

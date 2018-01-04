@@ -39,7 +39,7 @@ input_n n = do
 inputs :: (Gate g, Monad m) => Int -> BuilderT g m [Ref]
 inputs n = replicateM n input
 
-secret :: (Gate g, Monad m) => Integer -> BuilderT g m Ref
+secret :: (Gate g, Monad m) => Int -> BuilderT g m Ref
 secret val = do
     id  <- nextConstId
     ref <- nextRef
@@ -59,11 +59,11 @@ secret_n n = do
             last <$> replicateM (getId n - getId cur + 1) (secret 0)
 
 -- preserve duplication: there will be many gates for secret 0
-secrets :: (Gate g, Monad m) => [Integer] -> BuilderT g m [Ref]
+secrets :: (Gate g, Monad m) => [Int] -> BuilderT g m [Ref]
 secrets = mapM secret
 
 -- avoid duplication: there will be only one gate for const 0
-constant :: (Gate g, Monad m) => Integer -> BuilderT g m Ref
+constant :: (Gate g, Monad m) => Int -> BuilderT g m Ref
 constant val = do
     r <- existingConstant val
     case r of
@@ -76,7 +76,7 @@ constant val = do
             markConstant val ref
             return ref
 
-constants :: (Gate g, Monad m) => [Integer] -> BuilderT g m [Ref]
+constants :: (Gate g, Monad m) => [Int] -> BuilderT g m [Ref]
 constants = mapM constant
 
 circAdd :: (Gate g, Monad m) => Ref -> Ref -> BuilderT g m Ref

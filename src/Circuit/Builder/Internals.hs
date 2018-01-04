@@ -22,7 +22,7 @@ data BuildSt g = BuildSt
     , _bs_next_inp    :: !Id
     , _bs_next_const  :: !Id
     , _bs_dedup       :: !(M.Map g Ref)
-    , _bs_constants   :: !(M.Map Integer Ref)
+    , _bs_constants   :: !(M.Map Int Ref)
     }
 
 makeLenses ''BuildSt
@@ -50,7 +50,7 @@ buildCircuit = view bs_circ . flip execState emptyBuild
 setSymlen :: Monad m => Int -> BuilderT g m ()
 setSymlen !n = bs_circ . circ_symlen .= n
 
-setBase :: Monad m => Integer -> BuilderT g m ()
+setBase :: Monad m => Int -> BuilderT g m ()
 setBase !n = bs_circ . circ_base .= n
 
 insertGate :: (Gate g, Ord g, Monad m) => Ref -> g -> BuilderT g m ()
@@ -67,7 +67,7 @@ insertConst !ref !id = do
     bs_circ . circ_consts . at (getRef ref) ?= id
     insertGate ref (gateConst id)
 
-insertConstVal :: Monad m => Id -> Integer -> BuilderT g m ()
+insertConstVal :: Monad m => Id -> Int -> BuilderT g m ()
 insertConstVal !id !val = bs_circ . circ_const_vals . at (getId id) ?= val
 
 insertInput :: (Gate g, Monad m) => Ref -> Id -> BuilderT g m ()
@@ -121,8 +121,8 @@ markOutput !ref = do
 markSecret :: Monad m => Ref -> BuilderT g m ()
 markSecret !ref = bs_circ . circ_secret_refs %= IS.insert (getRef ref)
 
-markConstant :: Monad m => Integer -> Ref -> BuilderT g m ()
+markConstant :: Monad m => Int -> Ref -> BuilderT g m ()
 markConstant !x !ref = bs_constants . at x ?= ref
 
-existingConstant :: Monad m => Integer -> BuilderT g m (Maybe Ref)
+existingConstant :: Monad m => Int -> BuilderT g m (Maybe Ref)
 existingConstant !x = use (bs_constants . at x)
