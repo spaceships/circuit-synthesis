@@ -115,10 +115,10 @@ chooseMode opts = do
             case target opts of
                 Nothing -> case ext of
                     ".acirc" -> case coerce opts of
-                        Just "a"  -> run opts (Acirc.readAcirc inp)
-                        Just "a2" -> run opts (over _1 toAcirc2 <$> Acirc.readAcirc inp)
+                        Just "a"  -> run opts (Acirc.readWithTests inp)
+                        Just "a2" -> run opts (over _1 toAcirc2 <$> Acirc.readWithTests inp)
                         Just _    -> error "[main] supported types for acirc: [a,a2]"
-                        Nothing   -> run opts (Acirc.readAcirc inp)
+                        Nothing   -> run opts (Acirc.readWithTests inp)
                     ".nigel" -> case coerce opts of
                         Just "a"   -> run opts (Nigel.readNigel inp :: IO (Acirc, [TestCase]))
                         Just "a2"  -> run opts (Nigel.readNigel inp :: IO (Acirc2, [TestCase]))
@@ -134,7 +134,7 @@ chooseMode opts = do
 
                 Just outputFile -> case takeExtension outputFile of
                     ".acirc" -> case ext of
-                        ".acirc"   -> run opts (Acirc.readAcirc inp)
+                        ".acirc"   -> run opts (Acirc.readWithTests inp)
                         ".nigel"   -> run opts (Nigel.readNigel inp :: IO (Acirc, [TestCase]))
                         ".netlist" -> run opts (Netlist.readNetlist inp :: IO (Acirc, [TestCase]))
                     ".nigel" -> case ext of

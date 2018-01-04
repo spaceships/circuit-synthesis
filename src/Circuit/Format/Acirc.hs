@@ -4,11 +4,11 @@
 module Circuit.Format.Acirc
   ( Circuit.Format.Acirc.read
   , Circuit.Format.Acirc.write
+  , Circuit.Format.Acirc.show
   , writeWithTests
-  , readAcirc
+  , readWithTests
   , showWithTests
-  , showCirc
-  , parseCirc
+  , parse
   ) where
 
 import Circuit
@@ -16,74 +16,73 @@ import Circuit.Parser
 import Circuit.Utils hiding ((%))
 import qualified Circuit.Builder           as B
 import qualified Circuit.Builder.Internals as B
+import Prelude hiding (show)
 
 import Control.Monad
 import Control.Monad.Trans (lift)
+import Data.Maybe (mapMaybe)
 import Lens.Micro.Platform
-import Text.Parsec hiding (spaces, parseTest)
+import Text.Parsec hiding (spaces, parseTest, parse)
 import TextShow
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.IntMap as IM
 
 read :: FilePath -> IO Acirc
-read = fmap fst . readAcirc
+read = fmap fst . readWithTests
 
-readAcirc :: FilePath -> IO (Acirc, [TestCase])
-readAcirc fp = parseCirc <$> readFile fp
+readWithTests :: FilePath -> IO (Acirc, [TestCase])
+readWithTests fp = parse <$> readFile fp
 
 write :: FilePath -> Acirc -> IO ()
-write fp c = T.writeFile fp (showCirc c)
+write fp c = T.writeFile fp (show c)
 
 writeWithTests :: FilePath -> Acirc -> IO ()
 writeWithTests fp c = do
     ts <- replicateM 10 (genTest c)
     T.writeFile fp (showWithTests c ts)
 
-showWithTests :: Acirc -> [TestCase] -> T.Text
-showWithTests c ts = let s = showCirc c
-                         t = T.unlines (map showTest ts)
-                     in T.append t s
+show :: Acirc -> T.Text
+show c = showWithTests c []
 
-showCirc :: Acirc -> T.Text
-showCirc !c = T.unlines (header ++ gateLines)
+showWithTests :: Acirc -> [TestCase] -> T.Text
+showWithTests !c !ts = T.unlines (header ++ gateLines)
   where
-    header = [ T.append ":symlen "  (showt (_circ_symlen c))
-             , T.append ":base "    (showt (_circ_base c))
-             , T.append ":ninputs " (showt (ninputs c))
+    header = [ T.append ":ninputs " (showt (ninputs c))
              , T.append ":consts "  (T.unwords (map showt (IM.elems (_circ_const_vals c))))
              , T.append ":outputs " (T.unwords (map (showt.getRef) (outputRefs c)))
              , T.append ":secrets " (T.unwords (map (showt.getRef) (secretRefs c)))
-             , ":start"
-             ]
+             , T.append ":symlen "  (showt (_circ_symlen c))
+             , T.append ":base "    (showt (_circ_base c))
+             ] ++ map showTest ts
+               ++ [ ":start" ]
 
-    inputs = map gateTxt (inputRefs c)
-    consts = map gateTxt (constRefs c)
-    gates  = map gateTxt (gateRefs c)
+    inputs = mapMaybe gateTxt (inputRefs c)
+    consts = mapMaybe gateTxt (constRefs c)
+    gates  = mapMaybe gateTxt (gateRefs c)
 
     gateLines = concat [inputs, consts, gates]
 
     showRef = showt . getRef
 
-    gateTxt :: Ref -> T.Text
+    gateTxt :: Ref -> Maybe T.Text
     gateTxt !ref =
-        case c ^. circ_refmap . at (getRef ref) . non (error "[gateTxt] unknown ref") of
-            (ArithInput id) -> T.concat [showRef ref, " input ", showt (getId id)]
-            (ArithConst id) -> T.append (showRef ref) " const"
-            (ArithAdd x y) -> pr ref "ADD" x y
-            (ArithSub x y) -> pr ref "SUB" x y
-            (ArithMul x y) -> pr ref "MUL" x y
+        case c ^. circ_refcount . at (getRef ref) of
+            Nothing -> Nothing
+            Just ct -> Just $ case c ^. circ_refmap . at (getRef ref) . non (error "[gateTxt] unknown ref") of
+                (ArithInput id) -> T.concat [showRef ref, " input ", showt (getId id)]
+                (ArithConst id) -> T.append (showRef ref) " const"
+                (ArithAdd x y) -> pr ref "ADD" x y ct
+                (ArithSub x y) -> pr ref "SUB" x y ct
+                (ArithMul x y) -> pr ref "MUL" x y ct
 
-    pr :: Ref -> T.Text -> Ref -> Ref -> T.Text
-    pr !ref !gateTy !x !y =
+    pr :: Ref -> T.Text -> Ref -> Ref -> Int -> T.Text
+    pr !ref !gateTy !x !y ct =
         T.concat [ showRef ref, " ", gateTy, " ", showRef x, " ", showt (getRef y)
-                 , " : ", showRefCount ref
+                 , " : ", showCount ct
                  ]
 
-    showRefCount !ref = let count = c ^. circ_refcount . at (getRef ref) . non 0
-                        in if count == (-1)
-                              then "inf"
-                              else showt count
+    showCount ct = if ct == -1 then "inf" else showt ct
 
 showTest :: TestCase -> T.Text
 showTest (!inp, !out) = T.concat [":test ", T.pack (showInts (reverse inp)), " "
@@ -94,12 +93,13 @@ showTest (!inp, !out) = T.concat [":test ", T.pack (showInts (reverse inp)), " "
 
 type AcircParser = ParseCirc ArithGate Int
 
-parseCirc :: String -> (Acirc, [TestCase])
-parseCirc s = runCircParser 0 parser s
+parse :: String -> (Acirc, [TestCase])
+parse s = runCircParser 0 parser s
   where
     parser   = preamble >> lines >> eof
     preamble = many $ (char ':' >> (try parseTest <|> try parseSymlen <|> try parseBase <|>
-                                    try parseOutputs <|> try parseSecrets <|> skipParam))
+                                    try parseOutputs <|> try parseSecrets <|> try parseConsts <|>
+                                    skipParam))
     lines    = many parseRefLine
 
 nextRef :: AcircParser Ref
@@ -157,12 +157,13 @@ parseSecrets = do
     lift $ mapM B.markSecret secs
     endLine
 
-parseConsts :: Ref -> AcircParser ()
-parseConsts ref = do
+parseConsts :: AcircParser ()
+parseConsts = do
     string "consts"
     cs <- many (spaces >> int)
     forM_ (zip [0..] cs) $ \(id, val) -> do
         lift $ B.insertConstVal (Id id) (fromIntegral val)
+    endLine
 
 parseRef :: AcircParser Ref
 parseRef = Ref <$> int

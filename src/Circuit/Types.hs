@@ -24,7 +24,6 @@ data Circuit gate = Circuit
     , _circ_inputs      :: !IS.IntSet
     , _circ_consts      :: !(IM.IntMap Id)
     , _circ_secret_refs :: !(IS.IntSet)
-    , _circ_secret_ids  :: !(IS.IntSet)
     , _circ_refmap      :: !(IM.IntMap gate)
     , _circ_const_vals  :: !(IM.IntMap Integer)
     , _circ_symlen      :: !Int

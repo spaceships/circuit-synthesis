@@ -16,7 +16,7 @@ import Circuit.Utils
 
 import Control.Monad.Identity
 import Control.Monad.State.Strict
-import Data.List (nub)
+import Data.List (find,nub)
 import Lens.Micro.Platform
 import Text.Printf
 import qualified Data.Map.Strict as M
@@ -32,7 +32,7 @@ emptyCirc = Circuit
     , _circ_inputs      = IS.empty
     , _circ_consts      = IM.empty
     , _circ_secret_refs = IS.empty
-    , _circ_secret_ids  = IS.empty
+    -- , _circ_secret_ids  = IS.empty
     , _circ_refmap      = IM.empty
     , _circ_const_vals  = IM.empty
     , _circ_symlen      = 1
@@ -82,10 +82,15 @@ getConst c id = case c^.circ_const_vals.at (getId id) of
     Nothing -> error ("[getConst] no const known for y" ++ show id)
 
 secretConst :: Circuit gate -> Id -> Bool
-secretConst c id = IS.member (getId id) (_circ_secret_ids c)
+secretConst c id = case find ((==id) . snd) (IM.toList (c^.circ_consts)) of
+    Nothing    -> False
+    Just (r,_) -> IS.member r (c^.circ_secret_refs)
 
 secretRefs :: Circuit gate -> [Ref]
 secretRefs c = map Ref $ IS.toAscList (_circ_secret_refs c)
+
+secretIds :: Circuit gate -> [Id]
+secretIds c = map (((IM.!) (c^.circ_consts)) . getRef) (secretRefs c)
 
 getGate :: Circuit gate -> Ref -> gate
 getGate c ref = case c^.circ_refmap.at (getRef ref) of
@@ -95,7 +100,7 @@ getGate c ref = case c^.circ_refmap.at (getRef ref) of
 randomizeSecrets :: Circuit gate -> IO (Circuit gate)
 randomizeSecrets c = do
     key <- replicateM (nsecrets c) $ randIntegerModIO (fromIntegral (_circ_base c))
-    let newSecrets = IM.fromList $ zip (IS.toAscList (c^.circ_secret_ids)) key
+    let newSecrets = IM.fromList $ zip (map getId (secretIds c)) key
     return $ c & circ_const_vals %~ IM.union newSecrets
 
 genTest :: Gate gate => Circuit gate -> IO TestCase
