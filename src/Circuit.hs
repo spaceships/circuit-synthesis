@@ -2,6 +2,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedLists #-}
 #if __GLASGOW_HASKELL__ >= 800
 {-# LANGUAGE Strict #-}
@@ -17,9 +18,7 @@ import Circuit.Utils
 
 import Control.Monad.Identity
 import Control.Monad.State.Strict
-import Control.Monad.ST
 import Data.List (find,nub)
-import Data.Array.ST
 import Lens.Micro.Platform
 import Text.Printf
 import qualified Data.Map.Strict as M
@@ -272,44 +271,53 @@ foldCircRef f c = runIdentity (foldCircM f' c)
 
 -- evaluate the circuit
 foldCircM :: (Gate g, Monad m) => (g -> Ref -> [a] -> m a) -> Circuit g -> m [a]
-foldCircM f c = evalStateT (mapM (foldCircRec f c) (outputRefs c)) IM.empty
+foldCircM f c = foldCircRec f c (outputRefs c)
 
 -- evaluate the circuit for a particular ref as output
 foldCircRefM :: (Gate g, Monad m) => (g -> Ref -> [a] -> m a) -> Circuit g -> Ref -> m a
-foldCircRefM !f !c !ref = evalStateT (foldCircRec f c ref) IM.empty
-
--- foldCircRec' :: (Gate g, Monad m)
---              => (g -> Ref -> [a] -> m a) -> Circuit g -> Ref
---              -> ST STArray m a
--- foldCircRec' f c !ref = do
+foldCircRefM !f !c !ref = head <$> foldCircRec f c [ref]
 
 -- helper function for foldCircM and foldCircRefM
--- TODO: replace with a mutable array in the ST monad to avoid paying for lookups
 foldCircRec :: (Gate g, Monad m)
-            => (g -> Ref -> [a] -> m a) -> Circuit g -> Ref
-            -> StateT (IM.IntMap a) m a
-foldCircRec f c !ref = do
-    existingVal <- gets (IM.lookup (getRef ref))
-    case existingVal of
-        Just !val -> return val -- evaluated already
-        Nothing   -> do
-            -- get the gate
-            let !g = c^.circ_refmap.at (getRef ref).non
-                    (error $ printf "[foldCircMRec] no gate for ref %s!" (show ref))
-            argVals <- mapM (foldCircRec f c) (gateArgs g)
-            val     <- lift (f g ref argVals)
-            modify' (IM.insert (getRef ref) val)
-            return val
+            => (g -> Ref -> [a] -> m a) -> Circuit g -> [Ref] -> m [a]
+foldCircRec f c !outs = flip evalStateT IM.empty $ do
+    forM_ (wires c) $ \(ref, gate) -> do
+        argVals <- mapM look (gateArgs gate)
+        val     <- lift (f gate ref argVals)
+        modify' (IM.insert (getRef ref) val)
+    mapM look outs
+  where
+    look r = gets (IM.lookup (getRef r)) >>= \case
+        Nothing -> error "[foldCircRec] not topo sorted!"
+        Just v  -> return v
 
-topologicalOrder :: Gate gate => Circuit gate -> [Ref]
-topologicalOrder c = reverse $ execState (foldCircM eval c) []
+dfs :: (Gate g, Monad m) => (g -> Ref -> [a] -> m a) -> Circuit g -> m [a]
+dfs f c = evalStateT (mapM (dfsHelper f c) (outputRefs c)) IM.empty
+  where
+    dfsHelper :: (Gate g, Monad m)
+                => (g -> Ref -> [a] -> m a) -> Circuit g -> Ref
+                -> StateT (IM.IntMap a) m a
+    dfsHelper f c !ref = do
+        existingVal <- gets (IM.lookup (getRef ref))
+        case existingVal of
+            Just !val -> return val -- evaluated already
+            Nothing   -> do
+                let !g = c^.circ_refmap.at (getRef ref).non
+                        (error $ printf "[foldCircMRec] no gate for ref %s!" (show ref))
+                argVals <- mapM (dfsHelper f c) (gateArgs g)
+                val     <- lift (f g ref argVals)
+                modify' (IM.insert (getRef ref) val)
+                return val
+
+topoOrder :: Gate gate => Circuit gate -> [Ref]
+topoOrder c = reverse $ execState (dfs eval c) []
   where
     eval :: gate -> Ref -> [a] -> State [Ref] ()
     eval _ ref _ = modify (ref:)
 
 -- Ugly and fast!
 topoLevels :: Gate gate => Circuit gate -> [[Ref]]
-topoLevels c = nub $ map snd $ M.toAscList $ execState (foldCircM eval c) M.empty
+topoLevels c = nub $ map snd $ M.toAscList $ execState (dfs eval c) M.empty
   where
     eval :: gate -> Ref -> [Int] -> State (M.Map Int [Ref]) Int
     eval _ ref [] = modify (M.insertWith (++) 0 [ref]) >> return 0
