@@ -29,7 +29,7 @@ data Circuit gate = Circuit
     , _circ_const_vals  :: !(IM.IntMap Integer)
     , _circ_symlen      :: !Int
     , _circ_base        :: !Integer
-    , _circ_refcount    :: !(IM.IntMap Int)
+    , _circ_refcount    :: !(IM.IntMap Int) -- number of times each ref is used
     } deriving (Show)
 
 makeLenses ''Circuit

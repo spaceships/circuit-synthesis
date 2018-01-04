@@ -107,11 +107,11 @@ nextConstId = do
 bumpRefCount :: Monad m => Ref -> BuilderT g m ()
 bumpRefCount ref = bs_circ . circ_refcount %= IM.insertWith add (getRef ref) 1
   where
-    add (-1) y = -1 -- preserve -1 which marks inf
+    add x (-1) = -1 -- preserve -1 which marks inf
     add x y  = x + y
 
 markPersistant :: Monad m => Ref -> BuilderT g m ()
-markPersistant ref = bs_circ . circ_refcount . at (getRef ref) ?= -1
+markPersistant ref = bs_circ . circ_refcount . at (getRef ref) ?= (-1)
 
 markOutput :: Monad m => Ref -> BuilderT g m ()
 markOutput !ref = do

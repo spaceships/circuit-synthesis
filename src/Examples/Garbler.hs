@@ -8,8 +8,9 @@ import Examples.Goldreich
 
 import Control.Monad
 import Data.List.Split
+import Lens.Micro.Platform
 import System.IO
-import qualified Data.IntMap as IntMap
+import qualified Data.IntMap as IM
 
 export :: [(String, [(String, IO Acirc2)])]
 export =
@@ -31,6 +32,7 @@ garbler :: Circ -> IO Acirc2
 garbler c' = buildCircuitT $ do
     let c = toCirc2 c'
         k = 80 -- security parameter, wirelabel & prg seed size
+        l = maxFanOut c -- which determines the stretch we need from G2
 
     s  <- inputs k -- the seed to the PRGs
     ix <- inputs (ngates c) -- the gate index in sigma vector form
@@ -43,7 +45,7 @@ garbler c' = buildCircuitT $ do
         return g'
 
     g2 <- do
-        g <- prgBuilder k (2*(k+1)) 5 xorAnd
+        g <- prgBuilder k (2*l*(k+1)) 5 xorAnd
         let g' i xs = (!! i) . safeChunksOf (k+1) <$> g xs
         return g'
 
@@ -52,22 +54,22 @@ garbler c' = buildCircuitT $ do
     withPbits <- forM bits $ \(w0,w1) -> do
         p1 <- circNot (head w0)
         return (w0, p1:tail w1) -- permuation bit is FIRST bit of wirelabels
-    let intermediateWirelabels = IntMap.fromList (zip (map getRef (intermediateWireRefs c)) withPbits)
+    let intermediateWirelabels = IM.fromList (zip (map getRef (intermediateWireRefs c)) withPbits)
 
     -- output wirelabels are fixed here, so we dont have to branch in garble
     -- this makes indexing easier since there is only one routine for garbling
     zero <- mapM constant (replicate (k+1) 0)
     one  <- mapM constant (1 : replicate k 0) -- truth value is FIRST bit of output wirelabels
-    let outputWirelabels = IntMap.fromList (zip (map getRef (outputRefs c)) (repeat (zero, one)))
-        wires = IntMap.union intermediateWirelabels outputWirelabels
+    let outputWirelabels = IM.fromList (zip (map getRef (outputRefs c)) (repeat (zero, one)))
+        wires = IM.union intermediateWirelabels outputWirelabels
 
-    -- TODO: annotate circuit: anything before this point will be reusable.
+    -- annotate circuit: anything before this point will be reusable
+    wires & traverseOf (each.each.each) markPersistant
 
     -- we index the wires so we dont have to loop over anything in the garbler.
     -- z is the output wire for the ith gate
-
     let zs = flip map (gates c) $ \(ref, g) ->
-            let (z0,z1) = wires IntMap.! getRef ref
+            let (z0,z1) = wires IM.! getRef ref
             in flip map (permutations 2 [0,1]) $ \[i,j] ->
                 if eval g i j then z0 else z1
 
@@ -83,7 +85,7 @@ garbler c' = buildCircuitT $ do
         zwire _ _ = error "whoops"
 
     -- x is the first input wire for the ith gate, y is the second input wire
-    let pairs = (map.map) ((wires IntMap.!) . getRef) (map gateArgs (map snd (gates c)))
+    let pairs = (map.map) ((wires IM.!) . getRef) (map gateArgs (map snd (gates c)))
         xPairs = map head pairs
         yPairs = map last pairs
 
@@ -110,7 +112,7 @@ garbler c' = buildCircuitT $ do
     outputs (concat permutedGate)
 
   where
-    eval g x y = gateEval (const $ error "FOO") (const $ error "BAR") g [fromIntegral x, fromIntegral y] == 1
+    eval g x y = gateEval (\_ -> error "FOO") (\_ -> error "BAR") g [fromIntegral x, fromIntegral y] == 1
 
 --------------------------------------------------------------------------------
 -- simple circuit for testing garble
@@ -133,3 +135,12 @@ sizeTest = buildCircuitT $ do
     z2 <- zipWithM (zipWithM circMul) z1 ys
     zs <- foldM1 (zipWithM circXor) z2
     outputs zs
+
+simple :: Acirc
+simple = buildCircuit $ do
+    xs  <- inputs 2
+    ys  <- secrets [0,1]
+    one <- constant 1
+    w   <- circProd =<< zipWithM circAdd xs ys
+    z   <- circAdd w one
+    output z

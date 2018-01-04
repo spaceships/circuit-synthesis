@@ -5,6 +5,7 @@ module Circuit.Builder
   , buildCircuitT
   , setBase
   , setSymlen
+  , Circuit.Builder.Internals.markPersistant
   , module Circuit.Builder
   ) where
 

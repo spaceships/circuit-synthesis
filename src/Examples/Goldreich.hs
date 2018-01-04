@@ -70,7 +70,8 @@ prg' :: Gate g => Int -> Int -> Int -> ([Ref] -> BuilderT g IO Ref) -> IO (Circu
 prg' n m d predicate = buildCircuitT $ do
     xs <- inputs n
     g  <- prgBuilder n m d predicate
-    outputs =<< g xs
+    zs <- g xs
+    outputs zs
 
 prgBuilder :: (Gate g, MonadIO m)
            => Int -> Int -> Int -> ([Ref] -> BuilderT g m Ref)

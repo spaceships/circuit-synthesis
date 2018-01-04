@@ -304,3 +304,6 @@ topoLevels c = nub $ map snd $ M.toAscList $ execState (foldCircM eval c) M.empt
         let d = 1 + maximum ds
         modify (M.insertWith (++) d [ref])
         return d
+
+maxFanOut :: Gate gate => Circuit gate -> Int
+maxFanOut = maximum . toListOf (circ_refcount . each)

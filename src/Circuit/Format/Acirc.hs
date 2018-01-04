@@ -4,6 +4,7 @@
 module Circuit.Format.Acirc
   ( Circuit.Format.Acirc.read
   , Circuit.Format.Acirc.write
+  , writeWithTests
   , readAcirc
   , showWithTests
   , showCirc
@@ -33,6 +34,11 @@ readAcirc fp = parseCirc <$> readFile fp
 
 write :: FilePath -> Acirc -> IO ()
 write fp c = T.writeFile fp (showCirc c)
+
+writeWithTests :: FilePath -> Acirc -> IO ()
+writeWithTests fp c = do
+    ts <- replicateM 10 (genTest c)
+    T.writeFile fp (showWithTests c ts)
 
 showWithTests :: Acirc -> [TestCase] -> T.Text
 showWithTests c ts = let s = showCirc c
@@ -73,7 +79,7 @@ showCirc !c = T.unlines (header ++ gateLines)
                  ]
 
     showRefCount !ref = let count = c ^. circ_refcount . at (getRef ref) . non 0
-                        in if count == -1
+                        in if count == (-1)
                               then "inf"
                               else showt count
 
