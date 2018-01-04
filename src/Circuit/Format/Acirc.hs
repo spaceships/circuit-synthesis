@@ -63,18 +63,20 @@ showCirc !c = T.unlines (header ++ gateLines)
 
     gateLines = concat [inputs, consts, gates]
 
+    showRef = showt . getRef
+
     gateTxt :: Ref -> T.Text
     gateTxt !ref =
         case c ^. circ_refmap . at (getRef ref) . non (error "[gateTxt] unknown ref") of
-            (ArithInput id) -> T.append "input " (showt (getId id))
-            (ArithConst id) -> "const"
+            (ArithInput id) -> T.concat [showRef ref, " input ", showt (getId id)]
+            (ArithConst id) -> T.append (showRef ref) " const"
             (ArithAdd x y) -> pr ref "ADD" x y
             (ArithSub x y) -> pr ref "SUB" x y
             (ArithMul x y) -> pr ref "MUL" x y
 
     pr :: Ref -> T.Text -> Ref -> Ref -> T.Text
     pr !ref !gateTy !x !y =
-        T.concat [ gateTy, " ", showt (getRef x), " ", showt (getRef y)
+        T.concat [ showRef ref, " ", gateTy, " ", showRef x, " ", showt (getRef y)
                  , " : ", showRefCount ref
                  ]
 
@@ -167,7 +169,8 @@ parseRef = Ref <$> int
 
 parseRefLine :: AcircParser ()
 parseRefLine = do
-    ref <- nextRef
+    ref <- parseRef
+    spaces
     choice [parseConst ref, parseInput ref, parseGate ref]
     endLine
 
