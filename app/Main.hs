@@ -1,3 +1,5 @@
+{-# LANGUAGE ExistentialQuantification #-}
+
 module Main where
 
 import Circuit
@@ -29,17 +31,18 @@ import qualified Data.Text.IO as T
 import Options.Applicative
 import Data.Semigroup ((<>))
 
-data Mode = Compile String
+data Mode = CompileAcirc String
           | ReadCircuit FilePath
           | Garble FilePath
           deriving (Show)
 
-data Opts = Opts { mode               :: Mode
-                 , verbose            :: Bool
-                 , show_info          :: Bool
-                 , target             :: Maybe String
-                 , optimization_level :: Int
-                 , coerce             :: Maybe String
+data Opts = Opts { mode                :: Mode
+                 , verbose             :: Bool
+                 , show_info           :: Bool
+                 , dont_generate_tests :: Bool
+                 , target              :: Maybe String
+                 , optimization_level  :: Int
+                 , coerce              :: Maybe String
                  } deriving (Show)
 
 parseArgs :: IO Opts
@@ -47,15 +50,19 @@ parseArgs = execParser $ info (parser <**> helper)
     (fullDesc <> progDesc "cxs is a tool to compile, convert, and optimize circuits")
   where
     parser = Opts
-            <$> subparser (command "read"    (info (readParser    <**> helper) (progDesc "read an existing circuit")) <>
-                           command "compile" (info (compileParser <**> helper) (progDesc "compile a DSL circuit")) <>
-                           command "garble"  (info (garbleParser  <**> helper) (progDesc "compile a garler for an existing boolean circuit")))
-            <*> switch
-                ( short 'v'
-                <> help "Verbose mode")
-            <*> switch
-                ( short 'i'
-                <> help "Print circuit info")
+            <$> subparser
+                (command "read"
+                    (info (readParser <**> helper)
+                        (progDesc "Read an existing circuit"))
+                <> command "compile"
+                    (info (compileParser <**> helper)
+                        (progDesc "Compile a DSL arithmetic circuit"))
+                <> command "garble"
+                    (info (garbleParser <**> helper)
+                        (progDesc "Compile a garler for an existing boolean circuit")))
+            <*> switch ( short 'v' <> help "Verbose mode")
+            <*> switch ( short 'i' <> help "Print circuit info")
+            <*> switch ( short 'T' <> help "Skip test generation")
             <*> (optional $ strOption
                 ( short 'o'
                 <> metavar "FILE"
@@ -72,8 +79,8 @@ parseArgs = execParser $ info (parser <**> helper)
                 <> help "Coerce circuit to type TYPE [a,a2,b]"))
 
     readParser    = ReadCircuit <$> strArgument (metavar "CIRCUIT" <> help "The source circuit")
-    compileParser = Compile <$> (switch (short 'c' <> help "Compile a DSL circuit from the examples")
-                             *> strArgument (metavar "NAME" <> help "The name of the compilation routine"))
+    compileParser = CompileAcirc <$> (switch (short 'c' <> help "Compile a DSL circuit from the examples")
+                        *> strArgument (metavar "NAME" <> help "The name of the compilation routine"))
     garbleParser  = Garble <$> strArgument (metavar "CIRCUIT" <> help "The source circuit to garble (must be boolean)")
 
 main :: IO ()
@@ -83,18 +90,12 @@ chooseMode :: Opts -> IO ()
 chooseMode opts = do
     when (verbose opts) (print opts)
     case mode opts of
-        Compile name -> do
-            let m = M.union (fmap (compile opts) $ M.fromList Garbler.export) $ M.fromList
+        CompileAcirc name -> do
+            let m = M.union (include [Garbler.export, GGM.export]) $ M.fromList
                     [ ("goldreich"     , compile opts Goldreich.make)
                     , ("aes"           , compile opts AES.make)
                     , ("aes1r"         , compile opts AES.makeAes1r)
                     , ("aes10r"        , compile opts AES.makeAes10r)
-                    , ("ggm"           , compile opts GGM.makeGGM)
-                    , ("ggmSigma"      , compile opts GGM.makeGGMSigma)
-                    , ("ggmNoPrg"      , compile opts GGM.makeGGMNoPrg)
-                    , ("ggmNoPrgSigma" , compile opts GGM.makeGGMNoPrg)
-                    , ("ggmSigma256"   , compile opts GGM.makeGGMSigma256)
-                    , ("ggmSigma1024"  , compile opts GGM.makeGGMSigma1024)
                     , ("applebaum"     , compile opts AR.makeApplebaum)
                     , ("tribes"        , compile opts Tribes.make)
                     , ("point"         , compile opts Point.make)
@@ -157,10 +158,11 @@ chooseMode opts = do
             circuitMain opts (Just (printf "garbled_%s.acirc" (takeBaseName inp))) g []
 
   where
+    include = M.unions . map (fmap (compile opts) . M.fromList)
+    compile :: Opts -> [(String, IO Acirc)] -> IO ()
     compile opts tups = forM_ tups $ \(fname, comp) -> do
         c <- comp
         circuitMain opts (Just fname) c []
-
     run opts comp = uncurry (circuitMain opts (target opts)) =<< comp
 
 circuitMain :: (Graphviz.Graphviz g, Optimize g, Gate g, ToAcirc g, ToCirc g, ToAcirc2 g)
@@ -181,6 +183,10 @@ circuitMain opts outputName c ts = do
 
     when (show_info opts) $ do
         printCircInfo c
+
+    ts <- if dont_generate_tests opts
+             then return ts
+             else replicateM 10 (genTest c)
 
     case outputName of
         Nothing -> return ()

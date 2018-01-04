@@ -11,6 +11,7 @@ import Lens.Micro.Platform
 import qualified Data.Map.Strict as M
 import qualified Data.IntMap.Strict as IM
 import qualified Data.IntSet as IS
+import qualified Data.Vector as V
 
 type BuilderT g = StateT (BuildSt g)
 type Builder g = BuilderT g Identity
@@ -114,7 +115,7 @@ markPersistant ref = bs_circ . circ_refcount . at (getRef ref) ?= (-1)
 
 markOutput :: Monad m => Ref -> BuilderT g m ()
 markOutput !ref = do
-    bs_circ . circ_outputs %= IS.insert (getRef ref)
+    bs_circ . circ_outputs %= flip V.snoc ref
     bumpRefCount ref
 
 markSecret :: Monad m => Ref -> BuilderT g m ()

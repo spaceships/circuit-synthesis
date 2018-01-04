@@ -10,99 +10,64 @@ import Control.Monad
 import Control.Monad.Trans
 import Data.List.Split
 
-makeGGM :: [(String, IO Acirc)]
-makeGGM =
-    [ ("ggm_1_32.dsl.acirc"  , ggm  4  32 16)
-    , ("ggm_2_32.dsl.acirc"  , ggm  8  32 16)
-    , ("ggm_3_32.dsl.acirc"  , ggm 12  32 16)
-    , ("ggm_4_32.dsl.acirc"  , ggm 16  32 16)
-    , ("ggm_1_64.dsl.acirc"  , ggm  4  64 16)
-    , ("ggm_2_64.dsl.acirc"  , ggm  8  64 16)
-    , ("ggm_3_64.dsl.acirc"  , ggm 12  64 16)
-    , ("ggm_4_64.dsl.acirc"  , ggm 16  64 16)
-    , ("ggm_1_128.dsl.acirc" , ggm  4 128 16)
-    , ("ggm_2_128.dsl.acirc" , ggm  8 128 16)
-    , ("ggm_3_128.dsl.acirc" , ggm 12 128 16)
-    , ("ggm_4_128.dsl.acirc" , ggm 16 128 16)
-    ]
+export :: [(String, [(String, IO Acirc)])]
+export =
+    [ ("big_ggm", [("ggm_4_128.dsl.acirc" , ggm 16 128 16)])
 
-makeGGMSigma :: [(String, IO Acirc)]
-makeGGMSigma =
-    [ ("ggm_sigma_1_16_32.dsl.acirc"  , ggmSigma 1  32 16)
-    , ("ggm_sigma_2_16_32.dsl.acirc"  , ggmSigma 2  32 16)
-    , ("ggm_sigma_3_16_32.dsl.acirc"  , ggmSigma 3  32 16)
-    , ("ggm_sigma_4_16_32.dsl.acirc"  , ggmSigma 4  32 16)
-    , ("ggm_sigma_1_16_64.dsl.acirc"  , ggmSigma 1  64 16)
-    , ("ggm_sigma_2_16_64.dsl.acirc"  , ggmSigma 2  64 16)
-    , ("ggm_sigma_3_16_64.dsl.acirc"  , ggmSigma 3  64 16)
-    , ("ggm_sigma_4_16_64.dsl.acirc"  , ggmSigma 4  64 16)
-    , ("ggm_sigma_1_16_128.dsl.acirc" , ggmSigma 1 128 16)
-    , ("ggm_sigma_2_16_128.dsl.acirc" , ggmSigma 2 128 16)
-    , ("ggm_sigma_3_16_128.dsl.acirc" , ggmSigma 3 128 16)
-    , ("ggm_sigma_4_16_128.dsl.acirc" , ggmSigma 4 128 16)
+    , ("ggm", [ ("ggm_1_32.dsl.acirc"  , ggm  4  32 16)
+              , ("ggm_2_32.dsl.acirc"  , ggm  8  32 16)
+              , ("ggm_3_32.dsl.acirc"  , ggm 12  32 16)
+              , ("ggm_4_32.dsl.acirc"  , ggm 16  32 16)
+              , ("ggm_1_64.dsl.acirc"  , ggm  4  64 16)
+              , ("ggm_2_64.dsl.acirc"  , ggm  8  64 16)
+              , ("ggm_3_64.dsl.acirc"  , ggm 12  64 16)
+              , ("ggm_4_64.dsl.acirc"  , ggm 16  64 16)
+              , ("ggm_1_128.dsl.acirc" , ggm  4 128 16)
+              , ("ggm_2_128.dsl.acirc" , ggm  8 128 16)
+              , ("ggm_3_128.dsl.acirc" , ggm 12 128 16)
+              , ("ggm_4_128.dsl.acirc" , ggm 16 128 16)
+              ] )
 
-    , ("ggm_sigma_1_32_32.dsl.acirc"  , ggmSigma 1  32 32)
-    , ("ggm_sigma_1_32_64.dsl.acirc"  , ggmSigma 1  64 32)
-    , ("ggm_sigma_1_32_128.dsl.acirc" , ggmSigma 1 128 32)
-    , ("ggm_sigma_2_32_32.dsl.acirc"  , ggmSigma 2  32 32)
-    , ("ggm_sigma_2_32_64.dsl.acirc"  , ggmSigma 2  64 32)
-    , ("ggm_sigma_2_32_128.dsl.acirc" , ggmSigma 2 128 32)
+    , ("ggm_sigma", [ ("ggm_sigma_1_16_32.dsl.acirc"  , ggmSigma 1  32 16)
+                    , ("ggm_sigma_2_16_32.dsl.acirc"  , ggmSigma 2  32 16)
+                    , ("ggm_sigma_3_16_32.dsl.acirc"  , ggmSigma 3  32 16)
+                    , ("ggm_sigma_4_16_32.dsl.acirc"  , ggmSigma 4  32 16)
+                    , ("ggm_sigma_1_16_64.dsl.acirc"  , ggmSigma 1  64 16)
+                    , ("ggm_sigma_2_16_64.dsl.acirc"  , ggmSigma 2  64 16)
+                    , ("ggm_sigma_3_16_64.dsl.acirc"  , ggmSigma 3  64 16)
+                    , ("ggm_sigma_4_16_64.dsl.acirc"  , ggmSigma 4  64 16)
+                    , ("ggm_sigma_1_16_128.dsl.acirc" , ggmSigma 1 128 16)
+                    , ("ggm_sigma_2_16_128.dsl.acirc" , ggmSigma 2 128 16)
+                    , ("ggm_sigma_3_16_128.dsl.acirc" , ggmSigma 3 128 16)
+                    , ("ggm_sigma_4_16_128.dsl.acirc" , ggmSigma 4 128 16)
 
-    , ("ggm_sigma_1_64_32.dsl.acirc"  , ggmSigma 1  32 64)
-    , ("ggm_sigma_1_64_64.dsl.acirc"  , ggmSigma 1  64 64)
-    , ("ggm_sigma_1_64_128.dsl.acirc" , ggmSigma 1 128 64)
-    , ("ggm_sigma_2_64_32.dsl.acirc"  , ggmSigma 2  32 64)
-    , ("ggm_sigma_2_64_64.dsl.acirc"  , ggmSigma 2  64 64)
-    , ("ggm_sigma_2_64_128.dsl.acirc" , ggmSigma 2 128 64)
-    ]
+                    , ("ggm_sigma_1_32_32.dsl.acirc"  , ggmSigma 1  32 32)
+                    , ("ggm_sigma_1_32_64.dsl.acirc"  , ggmSigma 1  64 32)
+                    , ("ggm_sigma_1_32_128.dsl.acirc" , ggmSigma 1 128 32)
+                    , ("ggm_sigma_2_32_32.dsl.acirc"  , ggmSigma 2  32 32)
+                    , ("ggm_sigma_2_32_64.dsl.acirc"  , ggmSigma 2  64 32)
+                    , ("ggm_sigma_2_32_128.dsl.acirc" , ggmSigma 2 128 32)
 
-makeGGMSigma256 :: [(String, IO Acirc)]
-makeGGMSigma256 =
-    [ ("ggm_sigma_1_256_32.dsl.acirc"  , ggmSigma 1  32 256)
-    , ("ggm_sigma_1_256_64.dsl.acirc"  , ggmSigma 1  64 256)
-    , ("ggm_sigma_1_256_128.dsl.acirc" , ggmSigma 1 128 256)
-    , ("ggm_sigma_2_256_32.dsl.acirc"  , ggmSigma 2  32 256)
-    , ("ggm_sigma_2_256_64.dsl.acirc"  , ggmSigma 2  64 256)
-    , ("ggm_sigma_2_256_128.dsl.acirc" , ggmSigma 2 128 256)
-    ]
+                    , ("ggm_sigma_1_64_32.dsl.acirc"  , ggmSigma 1  32 64)
+                    , ("ggm_sigma_1_64_64.dsl.acirc"  , ggmSigma 1  64 64)
+                    , ("ggm_sigma_1_64_128.dsl.acirc" , ggmSigma 1 128 64)
+                    , ("ggm_sigma_2_64_32.dsl.acirc"  , ggmSigma 2  32 64)
+                    , ("ggm_sigma_2_64_64.dsl.acirc"  , ggmSigma 2  64 64)
+                    , ("ggm_sigma_2_64_128.dsl.acirc" , ggmSigma 2 128 64)
+                    ] )
 
-makeGGMSigma1024 :: [(String, IO Acirc)]
-makeGGMSigma1024 =
-    [ ("ggm_sigma_2_1024_32.dsl.acirc"  , ggmSigma 2  32 1024)
-    , ("ggm_sigma_2_1024_64.dsl.acirc"  , ggmSigma 2  64 1024)
-    , ("ggm_sigma_2_1024_128.dsl.acirc" , ggmSigma 2 128 1024)
-    ]
+    , ("ggm_sigma_256", [ ("ggm_sigma_1_256_32.dsl.acirc"  , ggmSigma 1  32 256)
+                        , ("ggm_sigma_1_256_64.dsl.acirc"  , ggmSigma 1  64 256)
+                        , ("ggm_sigma_1_256_128.dsl.acirc" , ggmSigma 1 128 256)
+                        , ("ggm_sigma_2_256_32.dsl.acirc"  , ggmSigma 2  32 256)
+                        , ("ggm_sigma_2_256_64.dsl.acirc"  , ggmSigma 2  64 256)
+                        , ("ggm_sigma_2_256_128.dsl.acirc" , ggmSigma 2 128 256)
+                        ] )
 
-makeGGMNoPrg :: [(String, IO Acirc)]
-makeGGMNoPrg =
-    [ ("ggm_noprg_1_32.dsl.acirc"  , ggmNoPrg 4  32 16)
-    , ("ggm_noprg_2_32.dsl.acirc"  , ggmNoPrg 8  32 16)
-    , ("ggm_noprg_3_32.dsl.acirc"  , ggmNoPrg 12 32 16)
-    , ("ggm_noprg_4_32.dsl.acirc"  , ggmNoPrg 16 32 16)
-    , ("ggm_noprg_1_64.dsl.acirc"  , ggmNoPrg 4  64 16)
-    , ("ggm_noprg_2_64.dsl.acirc"  , ggmNoPrg 8  64 16)
-    , ("ggm_noprg_3_64.dsl.acirc"  , ggmNoPrg 12 64 16)
-    , ("ggm_noprg_4_64.dsl.acirc"  , ggmNoPrg 16 64 16)
-    , ("ggm_noprg_1_128.dsl.acirc" , ggmNoPrg 4  128 16)
-    , ("ggm_noprg_2_128.dsl.acirc" , ggmNoPrg 8  128 16)
-    , ("ggm_noprg_3_128.dsl.acirc" , ggmNoPrg 12 128 16)
-    , ("ggm_noprg_4_128.dsl.acirc" , ggmNoPrg 16 128 16)
-    ]
-
-makeGGMNoPrgSigma :: [(String, IO Acirc)]
-makeGGMNoPrgSigma =
-    [ ("ggm_sigma_noprg_1_32.dsl.acirc"  , ggmSigmaNoPrg 16 32 16)
-    , ("ggm_sigma_noprg_2_32.dsl.acirc"  , ggmSigmaNoPrg 32 32 16)
-    , ("ggm_sigma_noprg_3_32.dsl.acirc"  , ggmSigmaNoPrg 48 32 16)
-    , ("ggm_sigma_noprg_4_32.dsl.acirc"  , ggmSigmaNoPrg 64 32 16)
-    , ("ggm_sigma_noprg_1_64.dsl.acirc"  , ggmSigmaNoPrg 16 64 16)
-    , ("ggm_sigma_noprg_2_64.dsl.acirc"  , ggmSigmaNoPrg 32 64 16)
-    , ("ggm_sigma_noprg_3_64.dsl.acirc"  , ggmSigmaNoPrg 48 64 16)
-    , ("ggm_sigma_noprg_4_64.dsl.acirc"  , ggmSigmaNoPrg 64 64 16)
-    , ("ggm_sigma_noprg_1_128.dsl.acirc" , ggmSigmaNoPrg 16 128 16)
-    , ("ggm_sigma_noprg_2_128.dsl.acirc" , ggmSigmaNoPrg 32 128 16)
-    , ("ggm_sigma_noprg_3_128.dsl.acirc" , ggmSigmaNoPrg 48 128 16)
-    , ("ggm_sigma_noprg_4_128.dsl.acirc" , ggmSigmaNoPrg 64 128 16)
+    , ("ggm_sigma_1024", [ ("ggm_sigma_2_1024_32.dsl.acirc"  , ggmSigma 2  32 1024)
+                         , ("ggm_sigma_2_1024_64.dsl.acirc"  , ggmSigma 2  64 1024)
+                         , ("ggm_sigma_2_1024_128.dsl.acirc" , ggmSigma 2 128 1024)
+                         ] )
     ]
 
 --------------------------------------------------------------------------------

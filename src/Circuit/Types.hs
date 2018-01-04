@@ -9,9 +9,10 @@ module Circuit.Types where
 
 import Circuit.Utils (xor, b2i, i2b)
 
+import Lens.Micro.Platform
 import qualified Data.IntMap.Strict as IM
 import qualified Data.IntSet as IS
-import Lens.Micro.Platform
+import qualified Data.Vector as V
 
 newtype Ref = Ref { getRef :: Int } deriving (Eq, Ord, Num)
 newtype Id  = Id  { getId  :: Int } deriving (Eq, Ord, Num)
@@ -20,7 +21,7 @@ instance Show Ref where show ref = show (getRef ref)
 instance Show Id where show id = show (getId id)
 
 data Circuit gate = Circuit
-    { _circ_outputs     :: !IS.IntSet
+    { _circ_outputs     :: !(V.Vector Ref)
     , _circ_inputs      :: !IS.IntSet
     , _circ_consts      :: !(IM.IntMap Id)
     , _circ_secret_refs :: !(IS.IntSet)

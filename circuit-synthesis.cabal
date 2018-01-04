@@ -36,6 +36,7 @@ library
                         , Examples.Tribes
 
     build-depends:        base
+                        , array
                         , DRBG
                         , binary
                         , bytestring

@@ -12,11 +12,11 @@ import Lens.Micro.Platform
 import System.IO
 import qualified Data.IntMap as IM
 
-export :: [(String, [(String, IO Acirc2)])]
+export :: [(String, [(String, IO Acirc)])]
 export =
-    [ ("size_test", [("size_test.acirc", sizeTest )])
-    , ("garbled_and", [("garbled_andn.acirc", garbler =<< andCirc <$> query)])
-    , ("garbled_and1000", [("garbled_and1000.acirc", garbler (andCirc 1000))])
+    [ ("size_test", [("size_test.acirc", toAcirc <$> sizeTest )])
+    , ("garbled_and", [("garbled_andn.acirc", toAcirc <$> (garbler =<< andCirc <$> query))])
+    , ("garbled_and1000", [("garbled_and1000.acirc", toAcirc <$> garbler (andCirc 1000))])
     ]
   where
     query = do

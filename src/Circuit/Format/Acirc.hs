@@ -50,7 +50,7 @@ showWithTests !c !ts = T.unlines (header ++ gateLines)
   where
     header = [ T.append ":ninputs " (showt (ninputs c))
              , T.append ":consts "  (T.unwords (map showt (IM.elems (_circ_const_vals c))))
-             , T.append ":outputs " (T.unwords (map (showt.getRef) (outputRefs c)))
+             , T.append ":outputs " (T.unwords (map (showt.getRef) (reverse (outputRefs c))))
              , T.append ":secrets " (T.unwords (map (showt.getRef) (secretRefs c)))
              , T.append ":symlen "  (showt (_circ_symlen c))
              , T.append ":base "    (showt (_circ_base c))
@@ -70,8 +70,8 @@ showWithTests !c !ts = T.unlines (header ++ gateLines)
         case c ^. circ_refcount . at (getRef ref) of
             Nothing -> Nothing
             Just ct -> Just $ case c ^. circ_refmap . at (getRef ref) . non (error "[gateTxt] unknown ref") of
-                (ArithInput id) -> T.concat [showRef ref, " input ", showt (getId id)]
-                (ArithConst id) -> T.append (showRef ref) " const"
+                (ArithInput id) -> T.concat [showRef ref, " input ", showt (getId id), " : ", showCount ct]
+                (ArithConst id) -> T.concat [showRef ref, " const : ", showCount ct]
                 (ArithAdd x y) -> pr ref "ADD" x y ct
                 (ArithSub x y) -> pr ref "SUB" x y ct
                 (ArithMul x y) -> pr ref "MUL" x y ct
@@ -86,7 +86,7 @@ showWithTests !c !ts = T.unlines (header ++ gateLines)
 
 showTest :: TestCase -> T.Text
 showTest (!inp, !out) = T.concat [":test ", T.pack (showInts (reverse inp)), " "
-                                 , T.pack (showInts (reverse out)) ]
+                                          , T.pack (showInts (reverse out)) ]
 
 --------------------------------------------------------------------------------
 -- parser
@@ -146,7 +146,7 @@ parseOutputs = do
     string "outputs"
     spaces
     refs <- many (parseRef <* spaces)
-    lift $ mapM_ B.markOutput refs
+    lift $ mapM_ B.markOutput (reverse refs)
     endLine
 
 parseSecrets :: AcircParser ()
@@ -181,6 +181,7 @@ parseInput ref = do
     spaces
     id <- Id <$> int
     lift $ B.insertInput ref id
+    timesUsed
 
 parseConst :: Ref -> AcircParser ()
 parseConst ref = do
@@ -188,6 +189,7 @@ parseConst ref = do
     spaces
     id <- lift B.nextConstId
     lift $ B.insertConst ref id
+    timesUsed
 
 parseGate :: Ref -> AcircParser ()
 parseGate ref = do
@@ -202,4 +204,7 @@ parseGate ref = do
             "SUB" -> ArithSub x y
             g     -> error ("[parser] unkonwn gate type " ++ g)
     lift $ B.insertGate ref gate
-    optional $ spaces >> char ':' >> spaces >> int -- times used annotation
+    timesUsed
+
+timesUsed :: AcircParser ()
+timesUsed = optional $ spaces >> char ':' >> spaces >> int -- times used annotation

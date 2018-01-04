@@ -2,6 +2,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedLists #-}
 #if __GLASGOW_HASKELL__ >= 800
 {-# LANGUAGE Strict #-}
 #endif
@@ -16,23 +17,25 @@ import Circuit.Utils
 
 import Control.Monad.Identity
 import Control.Monad.State.Strict
+import Control.Monad.ST
 import Data.List (find,nub)
+import Data.Array.ST
 import Lens.Micro.Platform
 import Text.Printf
 import qualified Data.Map.Strict as M
 import qualified Data.IntMap.Strict as IM
 import qualified Data.IntSet as IS
+import qualified Data.Vector as V
 
 --------------------------------------------------------------------------------
 -- Generic circuit functions
 
 emptyCirc :: Circuit a
 emptyCirc = Circuit
-    { _circ_outputs     = IS.empty
+    { _circ_outputs     = []
     , _circ_inputs      = IS.empty
     , _circ_consts      = IM.empty
     , _circ_secret_refs = IS.empty
-    -- , _circ_secret_ids  = IS.empty
     , _circ_refmap      = IM.empty
     , _circ_const_vals  = IM.empty
     , _circ_symlen      = 1
@@ -54,7 +57,7 @@ gateRefs :: Gate gate => Circuit gate -> [Ref]
 gateRefs = map fst . gates
 
 outputRefs :: Gate gate => Circuit gate -> [Ref]
-outputRefs c = map Ref $ IS.toList (c^.circ_outputs)
+outputRefs c = V.toList (c^.circ_outputs)
 
 inputRefs :: Gate gate => Circuit gate -> [Ref]
 inputRefs c = map Ref $ IS.toList (c^.circ_inputs)
@@ -63,7 +66,7 @@ constRefs :: Gate gate => Circuit gate -> [Ref]
 constRefs c = map Ref $ IM.keys (c^.circ_consts)
 
 isOutputRef :: Gate gate => Circuit gate -> Ref -> Bool
-isOutputRef c ref = IS.member (getRef ref) (c^.circ_outputs)
+isOutputRef c ref = V.elem ref (c^.circ_outputs)
 
 intermediateGates :: Gate gate => Circuit gate -> [(Ref, gate)]
 intermediateGates c = filter intermediate (gates c)
@@ -168,7 +171,7 @@ nsecrets :: Circuit gate -> Int
 nsecrets = IS.size . _circ_secret_refs
 
 noutputs :: Circuit gate -> Int
-noutputs = IS.size . _circ_outputs
+noutputs = length . _circ_outputs
 
 symlen :: Circuit gate -> Int
 symlen = _circ_symlen
@@ -274,6 +277,11 @@ foldCircM f c = evalStateT (mapM (foldCircRec f c) (outputRefs c)) IM.empty
 -- evaluate the circuit for a particular ref as output
 foldCircRefM :: (Gate g, Monad m) => (g -> Ref -> [a] -> m a) -> Circuit g -> Ref -> m a
 foldCircRefM !f !c !ref = evalStateT (foldCircRec f c ref) IM.empty
+
+-- foldCircRec' :: (Gate g, Monad m)
+--              => (g -> Ref -> [a] -> m a) -> Circuit g -> Ref
+--              -> ST STArray m a
+-- foldCircRec' f c !ref = do
 
 -- helper function for foldCircM and foldCircRefM
 -- TODO: replace with a mutable array in the ST monad to avoid paying for lookups
