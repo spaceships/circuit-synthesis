@@ -227,7 +227,7 @@ plainEval c inps
     getInp i = inps !! getId i
 
 ensure :: Gate gate => Bool -> Circuit gate -> [TestCase] -> IO Bool
-ensure verbose c ts = and <$> mapM ensure' (zip [(0::Integer)..] ts)
+ensure verbose c ts = and <$> mapM ensure' (zip [0::Int ..] ts)
   where
     ensure' (i, (inps, outs)) = do
         let res = plainEval c inps
