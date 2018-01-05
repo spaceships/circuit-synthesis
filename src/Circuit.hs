@@ -40,6 +40,7 @@ emptyCirc = Circuit
     , _circ_symlen      = 1
     , _circ_base        = 2
     , _circ_refcount    = IM.empty
+    , _circ_maxref      = 0
     }
 
 wires :: Gate gate => Circuit gate -> [(Ref, gate)]

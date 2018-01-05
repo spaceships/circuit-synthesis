@@ -18,7 +18,6 @@ type Builder g = BuilderT g Identity
 
 data BuildSt g = BuildSt
     { _bs_circ        :: !(Circuit g)
-    , _bs_next_ref    :: !Ref
     , _bs_next_inp    :: !Id
     , _bs_next_const  :: !Id
     , _bs_dedup       :: !(M.Map g Ref)
@@ -28,7 +27,7 @@ data BuildSt g = BuildSt
 makeLenses ''BuildSt
 
 emptyBuild :: BuildSt g
-emptyBuild = BuildSt emptyCirc 0 0 0 M.empty M.empty
+emptyBuild = BuildSt emptyCirc 0 0 M.empty M.empty
 
 runCircuitT :: Monad m => BuilderT g m a -> m (Circuit g, a)
 runCircuitT b = do
@@ -88,9 +87,9 @@ newGate !gate = do
 
 nextRef :: Monad m => BuilderT g m Ref
 nextRef = do
-    ref <- use bs_next_ref
-    bs_next_ref += 1
-    return ref
+    ref <- use (bs_circ . circ_maxref)
+    bs_circ . circ_maxref += 1
+    return (Ref ref)
 
 nextInputId :: Monad m => BuilderT g m Id
 nextInputId = do

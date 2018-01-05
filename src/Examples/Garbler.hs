@@ -7,6 +7,7 @@ import Circuit.Conversion
 import Examples.Goldreich
 
 import Control.Monad
+import Control.Monad.Trans
 import Data.List.Split
 import Lens.Micro.Platform
 import System.IO
@@ -39,15 +40,18 @@ garbler c' = buildCircuitT $ do
 
     let numWirelabelsToGenerate = 2*(nwires c - noutputs c) -- the output wires get the actual value
 
-    g1 <- do
-        g <- prgBuilder k (numWirelabelsToGenerate * (k+1)) 5 xorAnd -- prg for generating wires
+    (g1, g1Desc) <- do
+        (g,s) <- prgBuilder' k (numWirelabelsToGenerate * (k+1)) 5 xorAnd -- prg for generating wires
         let g' xs = safeChunksOf (k+1) <$> g xs
-        return g'
+        return (g',s)
 
-    g2 <- do
-        g <- prgBuilder k (2*l*(k+1)) 5 xorAnd
+    (g2, g2Desc) <- do
+        (g,s) <- prgBuilder' k (2*l*(k+1)) 5 xorAnd
         let g' i xs = (!! i) . safeChunksOf (k+1) <$> g xs
-        return g'
+        return (g',s)
+
+    lift $ writeFile "g1.txt" g1Desc
+    lift $ writeFile "g2.txt" g2Desc
 
     -- generate pairs of wirelabels for every intermediate wire in c
     bits <- pairsOf <$> g1 s

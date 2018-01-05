@@ -7,7 +7,7 @@ import Control.Monad
 import Control.Monad.Trans
 import Circuit
 
-circToSexp :: Circuit ArithGate -> [String]
+circToSexp :: Acirc -> [String]
 circToSexp c = foldCirc eval c
   where
     eval (ArithAdd _ _) [x,y] = printf "Add(%s, %s)" x y

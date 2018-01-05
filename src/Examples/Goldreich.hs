@@ -12,6 +12,7 @@ import Circuit.Utils
 
 import Control.Monad
 import Control.Monad.Trans
+import Text.Printf
 
 make :: [(String, IO Acirc)]
 make =
@@ -76,10 +77,16 @@ prg' n m d predicate = buildCircuitT $ do
 prgBuilder :: (Gate g, MonadIO m)
            => Int -> Int -> Int -> ([Ref] -> BuilderT g m Ref)
            -> BuilderT g m ([Ref] -> BuilderT g m [Ref])
-prgBuilder ninputs noutputs locality predicate = do
+prgBuilder ninputs noutputs locality predicate = fst <$> prgBuilder' ninputs noutputs locality predicate
+
+prgBuilder' :: (Gate g, MonadIO m)
+           => Int -> Int -> Int -> ([Ref] -> BuilderT g m Ref)
+           -> BuilderT g m ([Ref] -> BuilderT g m [Ref], String)
+prgBuilder' ninputs noutputs locality predicate = do
     selections <- safeChunksOf locality <$> (liftIO $ randIO $ randIntsMod (noutputs * locality) ninputs)
     let g xs = mapM predicate (map (selectsPT xs) selections)
-    return g
+        s    = prgDesc ninputs noutputs locality selections
+    return (g, s)
 
 --------------------------------------------------------------------------------
 -- indexed prg
@@ -122,3 +129,11 @@ indexedPrgSigmaBuilder noutputs outputSize xs ix = do
                 circMul (ix!!k) (xs !! sel)
             foldM1 circAdd sels
     mapM xorAnd inps
+
+--------------------------------------------------------------------------------
+-- prg description
+
+prgDesc :: Int -> Int -> Int -> [[Int]] -> String
+prgDesc nin nout locality selections =
+    printf "nin=%d nout=%d locality=%d\n" nin nout locality ++
+    unlines (map (unwords . map show) selections)

@@ -49,6 +49,7 @@ showWithTests :: Acirc -> [TestCase] -> T.Text
 showWithTests !c !ts = T.unlines (header ++ gateLines)
   where
     header = [ T.append ":ninputs " (showt (ninputs c))
+             , T.append ":nrefs "   (showt (c ^. circ_maxref + 1))
              , T.append ":consts "  (T.unwords (map showt (IM.elems (_circ_const_vals c))))
              , T.append ":outputs " (T.unwords (map (showt.getRef) (outputRefs c)))
              , T.append ":secrets " (T.unwords (map (showt.getRef) (secretRefs c)))
@@ -101,12 +102,6 @@ parse s = runCircParser 0 parser s
                                     try parseOutputs <|> try parseSecrets <|> try parseConsts <|>
                                     skipParam))
     lines    = many parseRefLine
-
-nextRef :: AcircParser Ref
-nextRef = do
-    ref <- getSt
-    modifySt (succ)
-    return (Ref ref)
 
 skipParam :: AcircParser ()
 skipParam = do
@@ -166,7 +161,10 @@ parseConsts = do
     endLine
 
 parseRef :: AcircParser Ref
-parseRef = Ref <$> int
+parseRef = do
+    ref <- int
+    lift $ B.bs_circ . circ_maxref %= max ref
+    return (Ref ref)
 
 parseRefLine :: AcircParser ()
 parseRefLine = do
