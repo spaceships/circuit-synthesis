@@ -14,19 +14,21 @@ import Control.Monad
 import Control.Monad.Trans
 import Text.Printf
 
-make :: [(String, IO Acirc)]
-make =
-    [ ("prg_xormaj_32_32.dsl.acirc"   , prg'  32  32 5 xorMaj)
-    , ("prg_xormaj_32_128.dsl.acirc"  , prg'  32 128 5 xorMaj)
-    , ("prg_xormaj_64_64.dsl.acirc"   , prg'  64  64 6 xorMaj)
-    , ("prg_xormaj_64_128.dsl.acirc"  , prg'  64 128 6 xorMaj)
-    , ("prg_xormaj_128_128.dsl.acirc" , prg' 128 128 7 xorMaj)
+export :: [(String, [(String, IO Acirc)])]
+export =
+    [("goldreich", [ ("prg_xormaj_32_32.dsl.acirc"   , prg'  32  32 5 xorMaj)
+                   , ("prg_xormaj_32_128.dsl.acirc"  , prg'  32 128 5 xorMaj)
+                   , ("prg_xormaj_64_64.dsl.acirc"   , prg'  64  64 6 xorMaj)
+                   , ("prg_xormaj_64_128.dsl.acirc"  , prg'  64 128 6 xorMaj)
+                   , ("prg_xormaj_128_128.dsl.acirc" , prg' 128 128 7 xorMaj)
 
-    , ("prg_xorand_32_32.dsl.acirc"   , prg'  32  32 5 xorAnd)
-    , ("prg_xorand_32_128.dsl.acirc"  , prg'  32 128 5 xorAnd)
-    , ("prg_xorand_64_64.dsl.acirc"   , prg'  64  64 5 xorAnd)
-    , ("prg_xorand_64_128.dsl.acirc"  , prg'  64 128 5 xorAnd)
-    , ("prg_xorand_128_128.dsl.acirc" , prg' 128 128 5 xorAnd)
+                   , ("prg_xorand_32_32.dsl.acirc"   , prg'  32  32 5 xorAnd)
+                   , ("prg_xorand_32_128.dsl.acirc"  , prg'  32 128 5 xorAnd)
+                   , ("prg_xorand_64_64.dsl.acirc"   , prg'  64  64 5 xorAnd)
+                   , ("prg_xorand_64_128.dsl.acirc"  , prg'  64 128 5 xorAnd)
+                   , ("prg_xorand_128_128.dsl.acirc" , prg' 128 128 5 xorAnd)
+                   ])
+    ,("prg_test", [("prg_test.acirc", prgTest)])
     ]
 
 --------------------------------------------------------------------------------
@@ -85,7 +87,7 @@ prgBuilder' :: (Gate g, MonadIO m)
 prgBuilder' ninputs noutputs locality predicate = do
     selections <- safeChunksOf locality <$> (liftIO $ randIO $ randIntsMod (noutputs * locality) ninputs)
     let g xs = mapM predicate (map (selectsPT xs) selections)
-        s    = prgDesc ninputs noutputs locality selections
+        s    = prgDesc ninputs noutputs selections
     return (g, s)
 
 --------------------------------------------------------------------------------
@@ -133,7 +135,16 @@ indexedPrgSigmaBuilder noutputs outputSize xs ix = do
 --------------------------------------------------------------------------------
 -- prg description
 
-prgDesc :: Int -> Int -> Int -> [[Int]] -> String
-prgDesc nin nout locality selections =
-    printf "nin=%d nout=%d locality=%d\n" nin nout locality ++
+prgDesc :: Int -> Int -> [[Int]] -> String
+prgDesc nin nout selections =
+    printf "nin=%d nout=%d\n" nin nout ++
     unlines (map (unwords . map show) selections)
+
+prgTest :: Gate g => IO (Circuit g)
+prgTest = buildCircuitT $ do
+    let ninputs = 16
+        noutputs = ninputs*2
+    x <- inputs ninputs
+    (g, desc) <- prgBuilder' ninputs noutputs 5 xorAnd
+    outputs =<< g x
+    lift $ writeFile "prg_test.txt" desc

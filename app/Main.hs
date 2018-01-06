@@ -91,15 +91,16 @@ chooseMode opts = do
     when (verbose opts) (print opts)
     case mode opts of
         CompileAcirc name -> do
-            let m = M.union (include [Point.export, Garbler.export, GGM.export]) $ M.fromList
-                    [ ("goldreich"     , compile opts Goldreich.make)
-                    , ("aes"           , compile opts AES.make)
-                    , ("aes1r"         , compile opts AES.makeAes1r)
-                    , ("aes10r"        , compile opts AES.makeAes10r)
-                    , ("applebaum"     , compile opts AR.makeApplebaum)
-                    , ("tribes"        , compile opts Tribes.make)
-                    , ("comparison"    , compile opts Comparison.make)
-                    ]
+            let m = M.union
+                        (include [Point.export, Garbler.export, GGM.export, Goldreich.export]) $
+                        M.fromList
+                        [ ("aes"           , compile opts AES.make)
+                        , ("aes1r"         , compile opts AES.makeAes1r)
+                        , ("aes10r"        , compile opts AES.makeAes10r)
+                        , ("applebaum"     , compile opts AR.makeApplebaum)
+                        , ("tribes"        , compile opts Tribes.make)
+                        , ("comparison"    , compile opts Comparison.make)
+                        ]
             case M.lookup name m of
                 Just c  -> c
                 Nothing -> do
