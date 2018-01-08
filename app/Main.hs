@@ -39,7 +39,7 @@ data Mode = CompileAcirc String
 data Opts = Opts { mode                :: Mode
                  , verbose             :: Bool
                  , show_info           :: Bool
-                 , dont_generate_tests :: Bool
+                 , ntests              :: Maybe Int
                  , target              :: Maybe String
                  , optimization_level  :: Int
                  , coerce              :: Maybe String
@@ -60,9 +60,9 @@ parseArgs = execParser $ info (parser <**> helper)
                 <> command "garble"
                     (info (garbleParser <**> helper)
                         (progDesc "Compile a garler for an existing boolean circuit")))
-            <*> switch ( short 'v' <> help "Verbose mode")
-            <*> switch ( short 'i' <> help "Print circuit info")
-            <*> switch ( short 'T' <> help "Skip test generation")
+            <*> switch (short 'v' <> help "Verbose mode")
+            <*> switch (short 'i' <> help "Print circuit info")
+            <*> (optional $ option auto (short 'T' <> metavar "N" <> help "Generate N tests"))
             <*> (optional $ strOption
                 ( short 'o'
                 <> metavar "FILE"
@@ -71,7 +71,7 @@ parseArgs = execParser $ info (parser <**> helper)
                 ( short 'O'
                 <> showDefault
                 <> value 0
-                <> metavar "INT"
+                <> metavar "N"
                 <> help "Optimization level")
             <*> (optional $ strOption
                 ( short 't'
@@ -184,9 +184,9 @@ circuitMain opts outputName c ts = do
     when (show_info opts) $ do
         printCircInfo c
 
-    ts <- if dont_generate_tests opts
-             then return ts
-             else replicateM 10 (genTest c)
+    ts <- case ntests opts of
+        Just n  -> replicateM n (genTest c)
+        Nothing -> return ts
 
     case outputName of
         Nothing -> return ()
