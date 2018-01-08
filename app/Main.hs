@@ -43,6 +43,7 @@ data Opts = Opts { mode                :: Mode
                  , target              :: Maybe String
                  , optimization_level  :: Int
                  , coerce              :: Maybe String
+                 , run_tests           :: Bool
                  } deriving (Show)
 
 parseArgs :: IO Opts
@@ -77,10 +78,10 @@ parseArgs = execParser $ info (parser <**> helper)
                 ( short 't'
                 <> metavar "TYPE"
                 <> help "Coerce circuit to type TYPE [a,a2,b]"))
+            <*> switch (short 'e' <> help "Ensure circuit tests pass")
 
     readParser    = ReadCircuit <$> strArgument (metavar "CIRCUIT" <> help "The source circuit")
-    compileParser = CompileAcirc <$> (switch (short 'c' <> help "Compile a DSL circuit from the examples")
-                        *> strArgument (metavar "NAME" <> help "The name of the compilation routine"))
+    compileParser = CompileAcirc <$> strArgument (metavar "NAME" <> help "The name of the compilation routine")
     garbleParser  = Garble <$> strArgument (metavar "CIRCUIT" <> help "The source circuit to garble (must be boolean)")
 
 main :: IO ()
@@ -187,6 +188,8 @@ circuitMain opts outputName c ts = do
     ts <- case ntests opts of
         Just n  -> replicateM n (genTest c)
         Nothing -> return ts
+
+    when (run_tests opts) $ void (ensure True c ts)
 
     case outputName of
         Nothing -> return ()

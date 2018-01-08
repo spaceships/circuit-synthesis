@@ -35,6 +35,8 @@ indexedGarbler c' = buildCircuitT $ do
         k = 80 -- security parameter, wirelabel & prg seed size
         l = maxFanOut c -- which determines the stretch we need from G2
 
+    setSymlen k
+
     s  <- inputs k -- the seed to the PRGs
     ix <- inputs (ngates c) -- the gate index in sigma vector form
 
@@ -94,6 +96,8 @@ indexedGarblerWires c' = buildCircuitT $ do
     let c = toCirc2 c'
         k = 80 -- security parameter, wirelabel & prg seed size
         l = maxFanOut c -- which determines the stretch we need from G2
+
+    setSymlen k
 
     s  <- inputs k -- the seed to the PRGs
     ix <- inputs (ngates c) -- the gate index in sigma vector form
@@ -184,6 +188,8 @@ garbler :: Circ -> IO Acirc2
 garbler c' = buildCircuitT $ do
     let c = toCirc2 c'
         k = 80 -- security parameter, wirelabel & prg seed size
+
+    setSymlen k
 
     s <- inputs k -- the seed to the PRGs
 

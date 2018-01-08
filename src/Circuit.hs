@@ -134,6 +134,7 @@ genTest c
         inp <- num2Base (fromIntegral (_circ_base c)) (ninputs c) <$> randIntegerModIO q
         return (inp, plainEval c inp)
     | otherwise = do
+        -- XXX: assumes symlen /= 1 means sigma vector
         when ((ninputs c `mod` _circ_symlen c) /= 0) $
             error "[genTest] inputs not evenly dividable"
         let nsyms = ninputs c `div` _circ_symlen c
