@@ -95,19 +95,19 @@ prgBuilder' ninputs noutputs locality predicate = do
 
 indexedPrg :: Gate g => Int -> Int -> Int -> IO (Circuit g)
 indexedPrg ninputs noutputs outputSize = buildCircuitT $ do
-    xs <- inputs ninputs
-    ix <- inputs (numBits noutputs)
+    xs  <- inputs ninputs
+    ix  <- inputs (numBits noutputs)
     sel <- selectionVector ix
-    outputs =<< indexedPrgSigmaBuilder noutputs outputSize xs sel
+    g   <- indexedPrgSigmaBuilder ninputs noutputs outputSize
+    outputs =<< g xs sel
 
--- use sigma vector indexing to reduce the degree, but size is still an issue
 indexedPrgSigma :: Gate g => Int -> Int -> Int -> IO (Circuit g)
 indexedPrgSigma ninputs noutputs outputSize = buildCircuitT $ do
     xs <- inputs ninputs
     ix <- inputs noutputs
-    outputs =<< indexedPrgSigmaBuilder noutputs outputSize xs ix
+    g  <- indexedPrgSigmaBuilder ninputs noutputs outputSize
+    outputs =<< g xs ix
 
--- use sigma vector indexing to reduce the degree, but size is still an issue
 indexedPrgNaiveSigma :: Gate g => Int -> Int -> Int -> IO (Circuit g)
 indexedPrgNaiveSigma ninputs noutputs outputSize = buildCircuitT $ do
     xs <- inputs ninputs
@@ -117,20 +117,22 @@ indexedPrgNaiveSigma ninputs noutputs outputSize = buildCircuitT $ do
     outputs =<< selectListSigma ix (safeChunksOf outputSize zs)
 
 -- TODO: do this more efficiently; lists are expensive
-indexedPrgSigmaBuilder :: (Gate g, MonadIO m) => Int -> Int -> [Ref] -> [Ref] -> BuilderT g m [Ref]
-indexedPrgSigmaBuilder noutputs outputSize xs ix = do
-    let ninputs = length xs
+indexedPrgSigmaBuilder :: (Gate g, MonadIO m) => Int -> Int -> Int
+                       -> BuilderT g m ([Ref] -> [Ref] -> BuilderT g m [Ref])
+indexedPrgSigmaBuilder ninputs noutputs outputSize = do
     -- for each output, a list of 5 random input bits
     selections <- liftIO $ replicateM (noutputs * outputSize) $
                   replicateM 5 (randIO (randIntMod ninputs)) -- [m:[5:Int]]
     -- for each bit of the ith output, a list of 5 random bits
-    inps <- forM [0..outputSize-1] $ \i -> do -- for each output bit i
-        forM [0..5-1] $ \j -> do              -- for each input bit of each output bit
-            sels <- forM [0..noutputs-1] $ \k -> do -- for each output group
-                let sel = selections !! (outputSize*k) !! j
-                circMul (ix!!k) (xs !! sel)
-            foldM1 circAdd sels
-    mapM xorAnd inps
+    let g xs ix = do
+            inps <- forM [0..outputSize-1] $ \i -> do -- for each output bit i
+                forM [0..5-1] $ \j -> do              -- for each input bit of each output bit
+                    sels <- forM [0..noutputs-1] $ \k -> do -- for each output group
+                        let sel = selections !! (outputSize*k) !! j
+                        circMul (ix!!k) (xs !! sel)
+                    foldM1 circAdd sels
+            mapM xorAnd inps
+    return g
 
 --------------------------------------------------------------------------------
 -- prg description

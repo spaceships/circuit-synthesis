@@ -173,8 +173,10 @@ exportParams c = do
 select :: (Gate g, Monad m) => [Ref] -> [Ref] -> BuilderT g m Ref
 select xs ix = do
     sel <- selectionVector ix
-    zs  <- zipWithM (circMul) sel xs
-    circSum zs
+    selectSigma xs ix
+
+selectSigma :: (Gate g, Monad m) => [Ref] -> [Ref] -> BuilderT g m Ref
+selectSigma xs sel = circSum =<< zipWithM (circMul) sel xs
 
 selects :: (Gate g, Monad m) => [Ref] -> [[Ref]] -> BuilderT g m [Ref]
 selects xs ixs = mapM (select xs) ixs
@@ -215,6 +217,18 @@ bitsSet xs bs = circProd =<< selectPT xs bs
 -- transforms an input x into a vector [ 0 .. 1 .. 0 ] with a 1 in the xth place
 selectionVector :: (Gate g, Monad m) => [Ref] -> BuilderT g m [Ref]
 selectionVector xs = mapM (bitsSet xs) (permutations (length xs) [False, True])
+
+-- produces a selection vector for i with length q
+selectionVectorInt :: (Gate g, Monad m) => Int -> Int -> BuilderT g m [Ref]
+selectionVectorInt i q
+  | i >= q = error "[selectInt] i >= q!"
+  | otherwise = do
+    one  <- constant 1
+    zero <- constant 0
+    if i == 0 then
+        return $ one : replicate (q-1) zero
+    else
+        return $ replicate (i-1) zero ++ [one] ++ replicate (q - i - 1) zero
 
 lookupTable :: (Gate g, Monad m) => ([Bool] -> Bool) -> [Ref] -> BuilderT g m Ref
 lookupTable f xs = do

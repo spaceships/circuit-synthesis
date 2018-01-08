@@ -43,6 +43,27 @@ emptyCirc = Circuit
     , _circ_maxref      = 0
     }
 
+nwires :: Circuit gate -> Int
+nwires = IM.size . _circ_refmap
+
+ngates :: Circuit gate -> Int
+ngates c = nwires c - ninputs c - nconsts c
+
+ninputs :: Circuit gate -> Int
+ninputs = IS.size . _circ_inputs
+
+nconsts :: Circuit gate -> Int
+nconsts = length . _circ_consts
+
+nsecrets :: Circuit gate -> Int
+nsecrets = IS.size . _circ_secret_refs
+
+noutputs :: Circuit gate -> Int
+noutputs = length . _circ_outputs
+
+symlen :: Circuit gate -> Int
+symlen = _circ_symlen
+
 wires :: Gate gate => Circuit gate -> [(Ref, gate)]
 wires c = map (\ref -> (ref, getGate c ref)) (wireRefs c)
 
@@ -154,27 +175,6 @@ circEq c0 c1
     x  <- ensure False c1 t0
     y  <- ensure False c0 t1
     return (x && y)
-
-nwires :: Circuit gate -> Int
-nwires = IM.size . _circ_refmap
-
-ngates :: Circuit gate -> Int
-ngates c = nwires c - ninputs c - nconsts c
-
-ninputs :: Circuit gate -> Int
-ninputs = IS.size . _circ_inputs
-
-nconsts :: Circuit gate -> Int
-nconsts = length . _circ_consts
-
-nsecrets :: Circuit gate -> Int
-nsecrets = IS.size . _circ_secret_refs
-
-noutputs :: Circuit gate -> Int
-noutputs = length . _circ_outputs
-
-symlen :: Circuit gate -> Int
-symlen = _circ_symlen
 
 ydeg :: Circuit ArithGate -> Integer
 ydeg c = head (degs c)
