@@ -220,11 +220,11 @@ garbler c' = buildCircuitT $ do
         xPairs = map head pairs
         yPairs = map last pairs
 
-    ggs <- forM (zip [0..] (gates c)) $ \(i, (ref, g)) -> do
+    ggs <- forM (zip [0..] (gates c)) $ \(i, (zref, g)) -> do
         let [xref, yref]      = gateArgs g
             ((px:x0), (_:x1)) = wires IM.! getRef xref
             ((py:y0), (_:y1)) = wires IM.! getRef yref
-            (z0, z1)          = wires IM.! getRef yref
+            (z0, z1)          = wires IM.! getRef zref
 
         let xwire i = if i == 0 then x0 else x1
             ywire i = if i == 0 then y0 else y1

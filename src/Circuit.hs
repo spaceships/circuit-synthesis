@@ -166,16 +166,17 @@ printCircInfo c = do
     printf "nwires=%d depth=%d\n" (nwires c) (depth c)
     printf "degree=%d\n" (circDegree c)
 
+-- TODO: fix me for non-sigma input symbols
 printTruthTable :: Gate gate => Circuit gate -> IO ()
 printTruthTable c = forM_ inputs $ \inp -> do
     let out = plainEval c inp
     printf "%s -> %s\n" (showInts inp) (showInts out)
   where
     n = ninputs c `div` symlen c
-    sym x = [ if i == x then 1 else 0 | i <- [ 0 .. symlen c - 1 ] ]
+    sigma x = [ if i == x then 1 else 0 | i <- [ 0 .. symlen c - 1 ] ]
     inputs = case symlen c of
         1 -> sequence (replicate (ninputs c) [0..c^.circ_base - 1])
-        _ -> map concat $ sequence (replicate n (map sym [0..symlen c - 1]))
+        _ -> map concat $ sequence (replicate n (map sigma [0..symlen c - 1]))
 
 circEq :: Gate gate => Circuit gate -> Circuit gate -> IO Bool
 circEq c0 c1

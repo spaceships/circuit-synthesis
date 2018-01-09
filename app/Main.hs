@@ -35,8 +35,7 @@ import Data.Semigroup ((<>))
 
 data Mode = ReadCircuit FilePath
           | Garble FilePath
-          | CompileAcirc String
-          | CompileAcirc2 String
+          | Compile String String
           deriving (Show)
 
 data Opts = Opts { mode                :: Mode
@@ -60,10 +59,7 @@ parseArgs = execParser $ info (parser <**> helper)
                         (progDesc "Read an existing circuit"))
                 <> command "compile"
                     (info (compileParser <**> helper)
-                        (progDesc "Compile an acirc"))
-                <> command "compile2"
-                    (info (compile2Parser <**> helper)
-                        (progDesc "Compile an acirc2"))
+                        (progDesc "Compile a circuit from the DSL examples"))
                 <> command "garble"
                     (info (garbleParser <**> helper)
                         (progDesc "Compile a garler for an existing boolean circuit")))
@@ -88,8 +84,9 @@ parseArgs = execParser $ info (parser <**> helper)
 
     readParser    = ReadCircuit <$> strArgument (metavar "CIRCUIT" <> help "The source circuit")
     garbleParser  = Garble <$> strArgument (metavar "CIRCUIT" <> help "The source circuit to garble (must be boolean)")
-    compileParser  = CompileAcirc  <$> strArgument (metavar "NAME" <> help "The name of the compilation routine")
-    compile2Parser = CompileAcirc2 <$> strArgument (metavar "NAME" <> help "The name of the compilation routine")
+    compileParser  = Compile
+                    <$> strArgument (metavar "TYPE" <> help "The type of the circuit")
+                    <*> strArgument (metavar "NAME" <> help "The name of the compilation routine")
 
 main :: IO ()
 main = chooseMode =<< parseArgs
@@ -98,8 +95,8 @@ chooseMode :: Opts -> IO ()
 chooseMode opts = do
     when (verbose opts) (print opts)
     case mode opts of
-        CompileAcirc name -> do
-            runExportedRoutine name $ M.union
+        (Compile "acirc" name) -> do
+            runExportedRoutine "acirc" name $ M.union
                 (include [Point.export, GGM.export, Goldreich.export]) $
                 M.fromList
                 [ ("aes"           , compileAcirc opts AES.make)
@@ -110,12 +107,14 @@ chooseMode opts = do
                 , ("comparison"    , compileAcirc opts Comparison.make)
                 ]
 
-        CompileAcirc2 name -> do
+        (Compile "acirc2" name) -> do
             let m = include2 [ Garbler.export
                              , Goldreich.export
                              , Simple.export
                              ]
-            runExportedRoutine name m
+            runExportedRoutine "acirc2" name m
+
+        (Compile ty _) -> error (printf "[main] unsupported type: \"%s\"" ty)
 
         ReadCircuit inp -> do
             let ext = takeExtension inp
@@ -188,11 +187,12 @@ chooseMode opts = do
 
     run opts comp = uncurry (circuitMain opts (target opts)) =<< comp
 
-    runExportedRoutine name m = do
+    runExportedRoutine ty name m = do
         case M.lookup name m of
             Just c  -> c
             Nothing -> do
-                printf "[main] unknown circuit generation mode \"%s\"!\nknown modes:\n" name
+                printf "[main] unknown circuit generation mode \"%s\"!\n" name
+                printf "known modes for %s:\n" ty
                 mapM_ (printf "\t%s\n") (M.keys m)
                 exitFailure
 
