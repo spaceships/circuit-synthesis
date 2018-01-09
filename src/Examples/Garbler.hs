@@ -5,6 +5,7 @@ import Circuit.Builder
 import Circuit.Utils
 import Circuit.Conversion
 import Examples.Goldreich
+import Examples.Simple
 
 import Control.Monad
 import Control.Monad.Trans
@@ -12,11 +13,11 @@ import Data.List.Split
 import System.IO
 import qualified Data.IntMap as IM
 
-export :: [(String, [(String, IO Acirc)])]
+export :: [(String, [(String, IO Acirc2)])]
 export =
-    [ ("size_test", [("size_test.acirc", toAcirc <$> sizeTest )])
-    , ("garbled_and", [("garbled_andn.acirc", toAcirc <$> (garbler =<< andCirc <$> query))])
-    , ("garbled_and1000", [("garbled_and1000.acirc", toAcirc <$> garbler (andCirc 1000))])
+    [ ("size_test", [("size_test.acirc2", sizeTest )])
+    , ("garbled_and", [("garbled_andn.acirc2", garbler =<< andCirc <$> query)])
+    , ("garbled_and1000", [("garbled_and1000.acirc2", garbler (andCirc 1000))])
     ]
   where
     query = do
@@ -250,11 +251,6 @@ garbler c' = buildCircuitT $ do
 
   where
     eval g x y = gateEval (\_ -> error "FOO") (\_ -> error "BAR") g [fromIntegral x, fromIntegral y]
---------------------------------------------------------------------------------
--- simple circuit for testing garble
-
-andCirc :: Int -> Circ
-andCirc n = buildCircuit (inputs (n+1) >>= foldM1 circMul >>= output)
 
 --------------------------------------------------------------------------------
 -- test to see how well we can evaluate extra large circuits
@@ -271,12 +267,3 @@ sizeTest = buildCircuitT $ do
     z2 <- zipWithM (zipWithM circMul) z1 ys
     zs <- foldM1 (zipWithM circXor) z2
     outputs zs
-
-simple :: Acirc
-simple = buildCircuit $ do
-    xs  <- inputs 2
-    ys  <- secrets [0,1]
-    one <- constant 1
-    w   <- circProd =<< zipWithM circAdd xs ys
-    z   <- circAdd w one
-    output z

@@ -14,7 +14,7 @@ import Control.Monad
 import Control.Monad.Trans
 import Text.Printf
 
-export :: [(String, [(String, IO Acirc)])]
+export :: Gate g => [(String, [(String, IO (Circuit g))])]
 export =
     [("goldreich", [ ("prg_xormaj_32_32.dsl.acirc"   , prg'  32  32 5 xorMaj)
                    , ("prg_xormaj_32_128.dsl.acirc"  , prg'  32 128 5 xorMaj)

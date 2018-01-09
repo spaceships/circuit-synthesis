@@ -21,6 +21,7 @@ library
                         , Circuit.Types
                         , Circuit.Utils
                         , Circuit.Format.Acirc
+                        , Circuit.Format.Acirc2
                         , Circuit.Format.Graphviz
                         , Circuit.Format.Netlist
                         , Circuit.Format.Nigel
@@ -34,6 +35,7 @@ library
                         , Examples.GGM
                         , Examples.Point
                         , Examples.Tribes
+                        , Examples.Simple
 
     build-depends:        base
                         , DRBG

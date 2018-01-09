@@ -7,6 +7,7 @@ import Circuit.Conversion
 import Circuit.Optimizer
 import Circuit.Utils
 import qualified Circuit.Format.Acirc    as Acirc
+import qualified Circuit.Format.Acirc2   as Acirc2
 import qualified Circuit.Format.Nigel    as Nigel
 import qualified Circuit.Format.Netlist  as Netlist
 import qualified Circuit.Format.Graphviz as Graphviz
@@ -19,6 +20,7 @@ import qualified Examples.Goldreich       as Goldreich
 import qualified Examples.GGM             as GGM
 import qualified Examples.Point           as Point
 import qualified Examples.Tribes          as Tribes
+import qualified Examples.Simple          as Simple
 
 import Control.Monad
 import Lens.Micro.Platform
@@ -31,9 +33,10 @@ import qualified Data.Text.IO as T
 import Options.Applicative
 import Data.Semigroup ((<>))
 
-data Mode = CompileAcirc String
-          | ReadCircuit FilePath
+data Mode = ReadCircuit FilePath
           | Garble FilePath
+          | CompileAcirc String
+          | CompileAcirc2 String
           deriving (Show)
 
 data Opts = Opts { mode                :: Mode
@@ -57,7 +60,10 @@ parseArgs = execParser $ info (parser <**> helper)
                         (progDesc "Read an existing circuit"))
                 <> command "compile"
                     (info (compileParser <**> helper)
-                        (progDesc "Compile a DSL arithmetic circuit"))
+                        (progDesc "Compile an acirc"))
+                <> command "compile2"
+                    (info (compile2Parser <**> helper)
+                        (progDesc "Compile an acirc2"))
                 <> command "garble"
                     (info (garbleParser <**> helper)
                         (progDesc "Compile a garler for an existing boolean circuit")))
@@ -81,8 +87,9 @@ parseArgs = execParser $ info (parser <**> helper)
             <*> switch (short 'e' <> help "Ensure circuit tests pass")
 
     readParser    = ReadCircuit <$> strArgument (metavar "CIRCUIT" <> help "The source circuit")
-    compileParser = CompileAcirc <$> strArgument (metavar "NAME" <> help "The name of the compilation routine")
     garbleParser  = Garble <$> strArgument (metavar "CIRCUIT" <> help "The source circuit to garble (must be boolean)")
+    compileParser  = CompileAcirc  <$> strArgument (metavar "NAME" <> help "The name of the compilation routine")
+    compile2Parser = CompileAcirc2 <$> strArgument (metavar "NAME" <> help "The name of the compilation routine")
 
 main :: IO ()
 main = chooseMode =<< parseArgs
@@ -92,22 +99,24 @@ chooseMode opts = do
     when (verbose opts) (print opts)
     case mode opts of
         CompileAcirc name -> do
-            let m = M.union
-                        (include [Point.export, Garbler.export, GGM.export, Goldreich.export]) $
-                        M.fromList
-                        [ ("aes"           , compile opts AES.make)
-                        , ("aes1r"         , compile opts AES.makeAes1r)
-                        , ("aes10r"        , compile opts AES.makeAes10r)
-                        , ("applebaum"     , compile opts AR.makeApplebaum)
-                        , ("tribes"        , compile opts Tribes.make)
-                        , ("comparison"    , compile opts Comparison.make)
-                        ]
-            case M.lookup name m of
-                Just c  -> c
-                Nothing -> do
-                    printf "[main] unknown circuit generation mode \"%s\"!\nknown modes:\n" name
-                    mapM_ (printf "\t%s\n") (M.keys m)
-                    exitFailure
+            runExportedRoutine name $ M.union
+                (include [Point.export, GGM.export, Goldreich.export]) $
+                M.fromList
+                [ ("aes"           , compileAcirc opts AES.make)
+                , ("aes1r"         , compileAcirc opts AES.makeAes1r)
+                , ("aes10r"        , compileAcirc opts AES.makeAes10r)
+                , ("applebaum"     , compileAcirc opts AR.makeApplebaum)
+                , ("tribes"        , compileAcirc opts Tribes.make)
+                , ("comparison"    , compileAcirc opts Comparison.make)
+                ]
+
+        CompileAcirc2 name -> do
+            let m = include2 [ Garbler.export
+                             , Goldreich.export
+                             , Simple.export
+                             ]
+            runExportedRoutine name m
+
         ReadCircuit inp -> do
             let ext = takeExtension inp
 
@@ -159,12 +168,28 @@ chooseMode opts = do
             circuitMain opts (Just (printf "garbled_%s.acirc" (takeBaseName inp))) g []
 
   where
-    include = M.unions . map (fmap (compile opts) . M.fromList)
-    compile :: Opts -> [(String, IO Acirc)] -> IO ()
-    compile opts tups = forM_ tups $ \(fname, comp) -> do
+    include  = M.unions . map (fmap (compileAcirc opts) . M.fromList)
+    include2 = M.unions . map (fmap (compileAcirc2 opts) . M.fromList)
+
+    compileAcirc :: Opts -> [(String, IO Acirc)] -> IO ()
+    compileAcirc opts tups = forM_ tups $ \(fname, comp) -> do
         c <- comp
         circuitMain opts (Just fname) c []
+
+    compileAcirc2 :: Opts -> [(String, IO Acirc2)] -> IO ()
+    compileAcirc2 opts tups = forM_ tups $ \(fname, comp) -> do
+        c <- comp
+        circuitMain opts (Just fname) c []
+
     run opts comp = uncurry (circuitMain opts (target opts)) =<< comp
+
+    runExportedRoutine name m = do
+        case M.lookup name m of
+            Just c  -> c
+            Nothing -> do
+                printf "[main] unknown circuit generation mode \"%s\"!\nknown modes:\n" name
+                mapM_ (printf "\t%s\n") (M.keys m)
+                exitFailure
 
 circuitMain :: (Graphviz.Graphviz g, Optimize g, Gate g, ToAcirc g, ToCirc g, ToAcirc2 g)
             => Opts -> Maybe FilePath -> Circuit g -> [TestCase] -> IO ()
@@ -196,6 +221,7 @@ circuitMain opts outputName c ts = do
         Just fn -> do
             let t = case takeExtension fn of
                     ".acirc" -> Acirc.showWithTests (toAcirc c) ts
+                    ".acirc2" -> Acirc2.showWithTests (toAcirc2 c) ts
                     ".nigel" -> Nigel.showCirc (toCirc c)
                     ".dot"   -> Graphviz.showGraphviz c
                     other    -> error (printf "[main] unknown output format \"%s\"" other)
