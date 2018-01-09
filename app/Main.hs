@@ -65,7 +65,7 @@ parseArgs = execParser $ info (parser <**> helper)
                         (progDesc "Compile a garler for an existing boolean circuit")))
             <*> switch (short 'v' <> help "Verbose mode")
             <*> switch (short 'i' <> help "Print circuit info")
-            <*> (optional $ option auto (short 'T' <> metavar "N" <> help "Generate N tests"))
+            <*> (optional $ option auto (short 'T' <> metavar "N" <> help "Generate N fresh tests"))
             <*> (optional $ strOption
                 ( short 'o'
                 <> metavar "FILE"
@@ -221,7 +221,7 @@ circuitMain opts outputName c ts = do
                       then return ts
                       else replicateM 10 (genTest c)
 
-    when (run_tests opts) $ void (ensure True c ts)
+    when (run_tests opts) $ evalTests opts c ts
 
     case outputName of
         Nothing -> return ()
