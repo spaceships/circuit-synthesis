@@ -1,4 +1,5 @@
 .cabal-sandbox
+.ghc*
 cabal.sandbox.config
 Setup.hs
 dist
