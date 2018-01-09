@@ -297,6 +297,19 @@ splitRand n = do
             rest <- splitRand (n-1)
             return (g1:rest)
 
+-- randomly permute the list using a knuth shuffle
+randomize :: [a] -> Rand [a]
+randomize []  = return []
+randomize [x] = return [x]
+randomize xs  = do
+    n <- randIntMod (length xs)
+    let (z:ys) = swap n xs
+    zs <- randomize ys
+    return (z:zs)
+  where
+    swap 0 xs = xs
+    swap i (x:xs) = let y = xs !! (i-1) in y : take (i-1) xs ++ [x] ++ drop i xs
+
 --------------------------------------------------------------------------------
 -- other helpers
 

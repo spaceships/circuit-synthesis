@@ -193,7 +193,7 @@ garbler c' = buildCircuitT $ do
     s <- inputs k -- the seed to the PRGs
 
     (g1, g1Desc) <- do
-        (g,s) <- prgBuilder' k ((nwires c - noutputs c) * (2*k+1)) 5 xorAnd -- prg for generating wires
+        (g,s) <- prgBuilder' k (nwires c * (2*k+1)) 5 xorAnd -- prg for generating wires
         let g' xs = do ys <- safeChunksOf (2*k+1) <$> g xs
                        forM ys $ \(p0:w) -> do
                            p1 <- circNot p0
@@ -208,13 +208,15 @@ garbler c' = buildCircuitT $ do
     lift $ writeFile "g1.txt" g1Desc
     lift $ writeFile "g2.txt" g2Desc
 
-    intermediateWirelabels <- IM.fromList . (zip (map getRef (intermediateWireRefs c))) <$> g1 s
+    -- intermediateWirelabels <- IM.fromList . (zip (map getRef (intermediateWireRefs c))) <$> g1 s
+    wires <- IM.fromList . (zip (map getRef (wireRefs c))) <$> g1 s
 
     -- output wirelabels are fixed here, so we dont have to branch in garble
-    zero <- mapM constant (replicate (k+1) 0)
-    one  <- mapM constant (1 : replicate k 0) -- truth value is FIRST bit of output wirelabels
-    let outputWirelabels = IM.fromList (zip (map getRef (outputRefs c)) (repeat (zero, one)))
-        wires = IM.union intermediateWirelabels outputWirelabels
+    -- XXX the first element should be a secret, rest const 0
+    -- zero <- mapM seccrets (replicate (k+1) 0)
+    -- one  <- mapM constant (1 : replicate k 0) -- truth value is FIRST bit of output wirelabels
+    -- let outputWirelabels = IM.fromList (zip (map getRef (outputRefs c)) (repeat (zero, one)))
+    --     wires = IM.union intermediateWirelabels outputWirelabels
 
     let pairs = (map.map) ((wires IM.!) . getRef) (map gateArgs (map snd (gates c)))
         xPairs = map head pairs
@@ -245,6 +247,62 @@ garbler c' = buildCircuitT $ do
         return $ concatMap (safeChunksOf (k+1)) h3
 
     outputs $ (concat.concat) ggs
+
+  where
+    eval g x y = gateEval (\_ -> error "FOO") (\_ -> error "BAR") g [fromIntegral x, fromIntegral y]
+
+
+-- XXX: only fan-out one is secure at the moment
+-- garbler that does not use permutation bits
+garblerNoPBits :: Circ -> IO Acirc2
+garblerNoPBits c' = buildCircuitT $ do
+    let c = toCirc2 c'
+        k = 80 -- security parameter, wirelabel & prg seed size
+        paddingSize = 10
+
+    setSymlen k
+
+    s <- inputs k -- the seed to the PRGs
+
+    (g1, g1Desc) <- do
+        (g,s) <- prgBuilder' k (2*k*nwires c) 5 xorAnd -- prg for generating wires
+        let g' xs = pairsOf . safeChunksOf k <$> g xs
+        return (g',s)
+
+    (g2, g2Desc) <- do
+        (g,s) <- prgBuilder' k (2*(k+paddingSize)) 5 xorAnd
+        let g' i xs = (!! i) . safeChunksOf (k+paddingSize) <$> g xs
+        return (g',s)
+
+    lift $ writeFile "g1.txt" g1Desc
+    lift $ writeFile "g2.txt" g2Desc
+
+    wires <- IM.fromList . (zip (map getRef (wireRefs c))) <$> g1 s
+
+    let pairs = (map.map) ((wires IM.!) . getRef) (map gateArgs (map snd (gates c)))
+        xPairs = map head pairs
+        yPairs = map last pairs
+
+    pad <- constants (replicate paddingSize 0)
+
+    gs <- forM (zip [0..] (gates c)) $ \(i, (zref, g)) -> do
+        let [xref, yref]      = gateArgs g
+            (x0, x1) = wires IM.! getRef xref
+            (y0, y1) = wires IM.! getRef yref
+            (z0, z1) = wires IM.! getRef zref
+
+        let xwire i = if i == 0 then x0 else x1
+            ywire i = if i == 0 then y0 else y1
+            zwire i = (if i == 0 then z0 else z1) ++ pad
+
+        forM (permutations 2 [0,1]) $ \[i,j] -> do
+            mx <- g2 j (xwire i)
+            my <- g2 i (ywire j)
+            foldM1 (zipWithM circXor) [mx, my, zwire (eval g i j)]
+
+    gss <- lift $ randIO $ mapM randomize gs
+
+    outputs $ (concat.concat) gss
 
   where
     eval g x y = gateEval (\_ -> error "FOO") (\_ -> error "BAR") g [fromIntegral x, fromIntegral y]
