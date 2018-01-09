@@ -41,6 +41,7 @@ emptyCirc = Circuit
     , _circ_base        = 2
     , _circ_refcount    = IM.empty
     , _circ_maxref      = 0
+    , _circ_sigma_vecs  = IS.empty
     }
 
 nwires :: Circuit gate -> Int
@@ -130,17 +131,28 @@ randomizeSecrets c = do
 genTest :: Gate gate => Circuit gate -> IO TestCase
 genTest c
     | c^.circ_symlen == 1 = do
-        let q = (fromIntegral (_circ_base c)) ^ (fromIntegral (ninputs c) :: Integer)
+        let q = fromIntegral $ _circ_base c ^ ninputs c
         inp <- num2Base (fromIntegral (_circ_base c)) (ninputs c) <$> randIntegerModIO q
         return (inp, plainEval c inp)
     | otherwise = do
-        -- XXX: assumes symlen /= 1 means sigma vector
-        when ((ninputs c `mod` _circ_symlen c) /= 0) $
-            error "[genTest] inputs not evenly dividable"
+        -- symlen > 1: this only changes what we do if a particular symbol is marked as a sigma vector
+
+        -- check that symlen is reasonable given this many inputs
+        when ((ninputs c `mod` view circ_symlen c) /= 0) $
+            error ("[genTest] inputs not evenly dividable by symlen " ++ show (c^.circ_symlen))
+
         let nsyms = ninputs c `div` _circ_symlen c
-        inp <- fmap concat $ replicateM nsyms $ do
-            x <- fromIntegral <$> randIO (randInteger (numBits (c^.circ_symlen)))
-            return [ if i == x then 1 else 0 | i <- [0..c^.circ_symlen-1] ]
+
+        inp <- fmap concat $ randIO $ forM ([0..nsyms-1] :: [Int]) $ \i -> do
+            if IS.member i (c^.circ_sigma_vecs) then do
+                let q = c^.circ_symlen
+                x <- randIntMod q
+                return [ if j == x then 1 else 0 | j <- [0..q-1] ]
+            else do
+                let b = fromIntegral (c^.circ_base)
+                    p = fromIntegral (c^.circ_symlen)
+                num2Base b p <$> randIntegerMod (b^p)
+
         return (inp, plainEval c inp)
 
 

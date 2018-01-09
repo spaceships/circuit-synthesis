@@ -120,7 +120,7 @@ chooseMode opts = do
         ReadCircuit inp -> do
             let ext = takeExtension inp
 
-            when (ext `notElem` [".acirc", ".nigel", ".netlist"]) $
+            when (ext `notElem` [".acirc", ".acirc2", ".nigel", ".netlist"]) $
                 error (printf "[main] unknown input extension \"%s\"!" ext)
 
             case target opts of
@@ -130,6 +130,11 @@ chooseMode opts = do
                         Just "a2" -> run opts (over _1 toAcirc2 <$> Acirc.readWithTests inp)
                         Just _    -> error "[main] supported types for acirc: [a,a2]"
                         Nothing   -> run opts (Acirc.readWithTests inp)
+                    ".acirc2" -> case coerce opts of
+                        Just "a"  -> run opts (over _1 toAcirc <$> Acirc2.readWithTests inp)
+                        Just "a2" -> run opts (Acirc2.readWithTests inp)
+                        Just _    -> error "[main] supported types for acirc2: [a,a2]"
+                        Nothing   -> run opts (Acirc2.readWithTests inp)
                     ".nigel" -> case coerce opts of
                         Just "a"   -> run opts (Nigel.readNigel inp :: IO (Acirc, [TestCase]))
                         Just "a2"  -> run opts (Nigel.readNigel inp :: IO (Acirc2, [TestCase]))
@@ -212,7 +217,9 @@ circuitMain opts outputName c ts = do
 
     ts <- case ntests opts of
         Just n  -> replicateM n (genTest c)
-        Nothing -> return ts
+        Nothing -> if not (null ts)
+                      then return ts
+                      else replicateM 10 (genTest c)
 
     when (run_tests opts) $ void (ensure True c ts)
 

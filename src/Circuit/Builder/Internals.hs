@@ -52,6 +52,9 @@ setSymlen !n = bs_circ . circ_symlen .= n
 setBase :: Monad m => Int -> BuilderT g m ()
 setBase !n = bs_circ . circ_base .= n
 
+setSigma :: Monad m => Int -> BuilderT g m ()
+setSigma !n = bs_circ . circ_sigma_vecs %= IS.insert n
+
 insertGate :: (Gate g, Ord g, Monad m) => Ref -> g -> BuilderT g m ()
 insertGate !ref !gate = do
     refs <- use $ bs_circ . circ_refmap

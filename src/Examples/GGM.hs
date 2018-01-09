@@ -124,19 +124,8 @@ ggmSigma num_prg keyLength symlen = buildCircuitT $ do
     g <- lift $ prg' keyLength (keyLength * symlen) 5 xorAnd
     keyBits <- lift $ randKeyIO keyLength
     setSymlen symlen
+    setSigma 0
     xs   <- replicateM num_prg (inputs symlen)
     seed <- secrets keyBits
     res  <- foldM (ggmStepR g) seed xs
     outputs (take outputLength res)
-
-ggmSigmaNoPrg :: Int -> Int -> Int -> IO Acirc
-ggmSigmaNoPrg inputLength keyLength stretch = buildCircuitT $ do
-    let g = buildCircuit $ do
-                xs <- inputs keyLength
-                replicateM stretch (outputs xs)
-    keyBits <- lift $ randKeyIO keyLength
-    xs   <- inputs inputLength
-    seed <- secrets keyBits
-    when ((length xs `mod` stretch) /= 0) $ error "[ggmSigmaNoPrg] wrong input length"
-    res  <- foldM (ggmStepR g) seed (chunksOf stretch xs)
-    outputs res

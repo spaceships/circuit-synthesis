@@ -31,6 +31,7 @@ data Circuit gate = Circuit
     , _circ_base        :: !Int
     , _circ_refcount    :: !(IM.IntMap Int) -- number of times each ref is used
     , _circ_maxref      :: !Int
+    , _circ_sigma_vecs  :: !(IS.IntSet) -- input symbols which should be unary sigma vectors
     } deriving (Show)
 
 makeLenses ''Circuit
@@ -183,9 +184,3 @@ instance Gate BoolGate2 where
     gateIsGate (Bool2Input _) = False
     gateIsGate (Bool2Const _) = False
     gateIsGate _ = True
-
-
-bool2Args :: BoolGate2 -> Maybe (Ref, Bool, Ref, Bool)
-bool2Args (Bool2Xor x nx y ny) = Just (x, nx, y, ny)
-bool2Args (Bool2And x nx y ny) = Just (x, nx, y, ny)
-bool2Args _ = Nothing

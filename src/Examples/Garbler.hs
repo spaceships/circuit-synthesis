@@ -9,14 +9,12 @@ import Examples.Simple
 
 import Control.Monad
 import Control.Monad.Trans
-import Data.List.Split
 import System.IO
 import qualified Data.IntMap as IM
 
 export :: [(String, [(String, IO Acirc2)])]
 export =
-    [ ("size_test", [("size_test.acirc2", sizeTest )])
-    , ("garbled_and", [("garbled_andn.acirc2", garbler =<< andCirc <$> query)])
+    [ ("garbled_andn", [("garbled_andn.acirc2", garbler =<< andCirc <$> query)])
     , ("garbled_and1000", [("garbled_and1000.acirc2", garbler (andCirc 1000))])
     ]
   where
@@ -184,7 +182,7 @@ indexedGarblerWires c' = buildCircuitT $ do
     eval g x y = gateEval (\_ -> error "FOO") (\_ -> error "BAR") g [fromIntegral x, fromIntegral y] == 1
 
 -- full garbler
--- XXX: only fan out one is secure at the moment
+-- XXX: only fan-out one is secure at the moment
 garbler :: Circ -> IO Acirc2
 garbler c' = buildCircuitT $ do
     let c = toCirc2 c'
@@ -213,7 +211,6 @@ garbler c' = buildCircuitT $ do
     intermediateWirelabels <- IM.fromList . (zip (map getRef (intermediateWireRefs c))) <$> g1 s
 
     -- output wirelabels are fixed here, so we dont have to branch in garble
-    -- this makes indexing easier since there is only one routine for garbling
     zero <- mapM constant (replicate (k+1) 0)
     one  <- mapM constant (1 : replicate k 0) -- truth value is FIRST bit of output wirelabels
     let outputWirelabels = IM.fromList (zip (map getRef (outputRefs c)) (repeat (zero, one)))
@@ -224,7 +221,7 @@ garbler c' = buildCircuitT $ do
         yPairs = map last pairs
 
     ggs <- forM (zip [0..] (gates c)) $ \(i, (ref, g)) -> do
-        let Just (xref, xneg, yref, yneg) = bool2Args g
+        let [xref, yref]      = gateArgs g
             ((px:x0), (_:x1)) = wires IM.! getRef xref
             ((py:y0), (_:y1)) = wires IM.! getRef yref
             (z0, z1)          = wires IM.! getRef yref
@@ -251,19 +248,3 @@ garbler c' = buildCircuitT $ do
 
   where
     eval g x y = gateEval (\_ -> error "FOO") (\_ -> error "BAR") g [fromIntegral x, fromIntegral y]
-
---------------------------------------------------------------------------------
--- test to see how well we can evaluate extra large circuits
-
-sizeTest :: IO Acirc2
-sizeTest = buildCircuitT $ do
-    let n = 80
-    xs <- inputs n
-    g1 <- prgBuilder n (1000*n) (numBits n) xorAnd
-    g2 <- prgBuilder n n (numBits n) xorAnd
-    ys <- chunksOf n <$> g1 xs
-    z0 <- mapM g2 ys
-    z1 <- zipWithM (zipWithM circMul) z0 ys
-    z2 <- zipWithM (zipWithM circMul) z1 ys
-    zs <- foldM1 (zipWithM circXor) z2
-    outputs zs
