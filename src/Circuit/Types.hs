@@ -27,7 +27,7 @@ data Circuit gate = Circuit
     , _circ_secret_refs :: !(IS.IntSet)
     , _circ_refmap      :: !(IM.IntMap gate)
     , _circ_const_vals  :: !(IM.IntMap Int)
-    , _circ_symlen      :: !Int
+    , _circ_symlen      :: !(IM.IntMap Int)
     , _circ_base        :: !Int
     , _circ_refcount    :: !(IM.IntMap Int) -- number of times each ref is used
     , _circ_maxref      :: !Int

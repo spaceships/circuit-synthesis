@@ -20,6 +20,7 @@ data BuildSt g = BuildSt
     { _bs_circ        :: !(Circuit g)
     , _bs_next_inp    :: !Id
     , _bs_next_const  :: !Id
+    , _bs_next_sym    :: !Int
     , _bs_dedup       :: !(M.Map g Ref)
     , _bs_constants   :: !(M.Map Int Ref)
     }
@@ -27,7 +28,7 @@ data BuildSt g = BuildSt
 makeLenses ''BuildSt
 
 emptyBuild :: BuildSt g
-emptyBuild = BuildSt emptyCirc 0 0 M.empty M.empty
+emptyBuild = BuildSt emptyCirc 0 0 0 M.empty M.empty
 
 runCircuitT :: Monad m => BuilderT g m a -> m (Circuit g, a)
 runCircuitT b = do
@@ -46,8 +47,8 @@ buildCircuit = view bs_circ . flip execState emptyBuild
 --------------------------------------------------------------------------------
 -- operations
 
-setSymlen :: Monad m => Int -> BuilderT g m ()
-setSymlen !n = bs_circ . circ_symlen .= n
+setSymlen :: Monad m => Int -> Int -> BuilderT g m ()
+setSymlen !i !n = bs_circ . circ_symlen . at i ?= n
 
 setBase :: Monad m => Int -> BuilderT g m ()
 setBase !n = bs_circ . circ_base .= n
@@ -105,6 +106,12 @@ nextConstId = do
     id <- use bs_next_const
     bs_next_const += 1
     return id
+
+nextSymbol :: Monad m => BuilderT g m Int
+nextSymbol = do
+    i <- use bs_next_sym
+    bs_next_sym += 1
+    return i
 
 bumpRefCount :: Monad m => Ref -> BuilderT g m ()
 bumpRefCount ref = bs_circ . circ_refcount %= IM.insertWith add (getRef ref) 1

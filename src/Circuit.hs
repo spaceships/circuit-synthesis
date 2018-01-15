@@ -31,17 +31,17 @@ import qualified Data.Vector as V
 
 emptyCirc :: Circuit a
 emptyCirc = Circuit
-    { _circ_outputs     = []
-    , _circ_inputs      = IS.empty
-    , _circ_consts      = IM.empty
-    , _circ_secret_refs = IS.empty
-    , _circ_refmap      = IM.empty
-    , _circ_const_vals  = IM.empty
-    , _circ_symlen      = 1
-    , _circ_base        = 2
-    , _circ_refcount    = IM.empty
-    , _circ_maxref      = 0
-    , _circ_sigma_vecs  = IS.empty
+    { _circ_outputs        = []
+    , _circ_inputs         = IS.empty
+    , _circ_consts         = IM.empty
+    , _circ_secret_refs    = IS.empty
+    , _circ_refmap         = IM.empty
+    , _circ_const_vals     = IM.empty
+    , _circ_symlen         = IM.empty
+    , _circ_base           = 2
+    , _circ_refcount       = IM.empty
+    , _circ_maxref         = 0
+    , _circ_sigma_vecs     = IS.empty
     }
 
 nwires :: Circuit gate -> Int
@@ -62,8 +62,8 @@ nsecrets = IS.size . _circ_secret_refs
 noutputs :: Circuit gate -> Int
 noutputs = length . _circ_outputs
 
-symlen :: Circuit gate -> Int
-symlen = _circ_symlen
+symlen :: Circuit gate -> Int -> Int
+symlen c i = c ^. circ_symlen . at i . non (error $ "[symlen] no symbol " ++ show i)
 
 wires :: Gate gate => Circuit gate -> [(Ref, gate)]
 wires c = map (\ref -> (ref, getGate c ref)) (wireRefs c)
@@ -128,32 +128,34 @@ randomizeSecrets c = do
     let newSecrets = IM.fromList $ zip (map getId (secretIds c)) key
     return $ c & circ_const_vals %~ IM.union newSecrets
 
+-- TODO: support variable length symbols
 genTest :: Gate gate => Circuit gate -> IO TestCase
 genTest c
-    | c^.circ_symlen == 1 = do
+    | all (==1) (c^.circ_symlen) = do
         let q = fromIntegral $ _circ_base c ^ ninputs c
         inp <- num2Base (fromIntegral (_circ_base c)) (ninputs c) <$> randIntegerModIO q
         return (inp, plainEval c inp)
     | otherwise = do
+        undefined
         -- symlen > 1: this only changes what we do if a particular symbol is marked as a sigma vector
 
         -- check that symlen is reasonable given this many inputs
-        when ((ninputs c `mod` view circ_symlen c) /= 0) $
-            error ("[genTest] inputs not evenly dividable by symlen " ++ show (c^.circ_symlen))
+        -- when ((ninputs c `mod` c^.circ_default_symlen) /= 0) $
+            -- error ("[genTest] inputs not evenly dividable by symlen " ++ show (c^.circ_default_symlen))
 
-        let nsyms = ninputs c `div` _circ_symlen c
+        -- let nsyms = ninputs c `div` (c^.circ_default_symlen)
 
-        inp <- fmap concat $ randIO $ forM ([0..nsyms-1] :: [Int]) $ \i -> do
-            if IS.member i (c^.circ_sigma_vecs) then do
-                let q = c^.circ_symlen
-                x <- randIntMod q
-                return [ if j == x then 1 else 0 | j <- [0..q-1] ]
-            else do
-                let b = fromIntegral (c^.circ_base)
-                    p = fromIntegral (c^.circ_symlen)
-                num2Base b p <$> randIntegerMod (b^p)
+        -- inp <- fmap concat $ randIO $ forM ([0..nsyms-1] :: [Int]) $ \i -> do
+        --     if IS.member i (c^.circ_sigma_vecs) then do
+        --         let q = c^.circ_default_symlen
+        --         x <- randIntMod q
+        --         return [ if j == x then 1 else 0 | j <- [0..q-1] ]
+        --     else do
+        --         let b = fromIntegral (c^.circ_base)
+        --             p = fromIntegral (c^.circ_default_symlen)
+        --         num2Base b p <$> randIntegerMod (b^p)
 
-        return (inp, plainEval c inp)
+        -- return (inp, plainEval c inp)
 
 
 printCircInfo :: Gate g => Circuit g -> IO ()
@@ -162,21 +164,23 @@ printCircInfo c = do
     printf "circuit info\n"
     printf "============\n"
     printf "ninputs=%d noutputs=%d nconsts=%d nsecrets=%d\n" n (noutputs c) (nconsts c) (nsecrets c)
-    printf "symlen=%d base=%d\n" (symlen c) (c^.circ_base)
+    printf "symlen=%s\n" (show (IM.toList (c^.circ_symlen)))
+    printf "base=%d\n" (c^.circ_base)
     printf "nwires=%d depth=%d\n" (nwires c) (depth c)
     printf "degree=%d\n" (circDegree c)
 
 -- TODO: fix me for non-sigma input symbols
 printTruthTable :: Gate gate => Circuit gate -> IO ()
-printTruthTable c = forM_ inputs $ \inp -> do
-    let out = plainEval c inp
-    printf "%s -> %s\n" (showInts inp) (showInts out)
-  where
-    n = ninputs c `div` symlen c
-    sigma x = [ if i == x then 1 else 0 | i <- [ 0 .. symlen c - 1 ] ]
-    inputs = case symlen c of
-        1 -> sequence (replicate (ninputs c) [0..c^.circ_base - 1])
-        _ -> map concat $ sequence (replicate n (map sigma [0..symlen c - 1]))
+printTruthTable = undefined
+-- printTruthTable c = forM_ inputs $ \inp -> do
+--     let out = plainEval c inp
+--     printf "%s -> %s\n" (showInts inp) (showInts out)
+  -- where
+    -- n = ninputs c `div` symlen c
+    -- sigma x = [ if i == x then 1 else 0 | i <- [ 0 .. symlen c - 1 ] ]
+    -- inputs = case symlen c of
+    --     1 -> sequence (replicate (ninputs c) [0..c^.circ_base - 1])
+    --     _ -> map concat $ sequence (replicate n (map sigma [0..symlen c - 1]))
 
 circEq :: Gate gate => Circuit gate -> Circuit gate -> IO Bool
 circEq c0 c1

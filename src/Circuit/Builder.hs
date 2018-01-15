@@ -63,6 +63,21 @@ secret_n n = do
 secrets :: (Gate g, Monad m) => [Int] -> BuilderT g m [Ref]
 secrets = mapM secret
 
+symbol :: (Gate g, Monad m) => Int -> BuilderT g m [Ref]
+symbol len = do
+    refs <- inputs len
+    i <- nextSymbol
+    setSymlen i len
+    return refs
+
+sigma :: (Gate g, Monad m) => Int -> BuilderT g m [Ref]
+sigma len = do
+    refs <- inputs len
+    i <- nextSymbol
+    setSymlen i len
+    setSigma i
+    return refs
+
 -- avoid duplication: there will be only one gate for const 0
 constant :: (Gate g, Monad m) => Int -> BuilderT g m Ref
 constant val = do
@@ -162,10 +177,10 @@ exportConsts c = do
         else
             constant x
 
-exportParams :: Monad m => Circuit g -> BuilderT g' m ()
+exportParams :: (Gate g, Gate g', Monad m) => Circuit g -> BuilderT g' m ()
 exportParams c = do
-    setSymlen (c^.circ_symlen)
     setBase (c^.circ_base)
+    mapM_ (uncurry setSymlen) (IM.toList (c^.circ_symlen))
 
 --------------------------------------------------------------------------------
 -- extras!

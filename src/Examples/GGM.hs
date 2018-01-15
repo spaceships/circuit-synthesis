@@ -123,9 +123,8 @@ ggmSigma num_prg keyLength symlen = buildCircuitT $ do
     let outputLength = numBits symlen * num_prg
     g <- lift $ prg' keyLength (keyLength * symlen) 5 xorAnd
     keyBits <- lift $ randKeyIO keyLength
-    setSymlen symlen
     setSigma 0
-    xs   <- replicateM num_prg (inputs symlen)
+    xs   <- replicateM num_prg (symbol symlen)
     seed <- secrets keyBits
     res  <- foldM (ggmStepR g) seed xs
     outputs (take outputLength res)

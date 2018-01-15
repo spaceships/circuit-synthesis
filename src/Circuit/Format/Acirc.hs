@@ -53,13 +53,14 @@ showWithTests !c !ts = T.unlines (header ++ gateLines)
              , T.append ":consts "  (T.unwords (map showt (IM.elems (_circ_const_vals c))))
              , T.append ":outputs " (T.unwords (map (showt.getRef) (outputRefs c)))
              , T.append ":secrets " (T.unwords (map (showt.getRef) (secretRefs c)))
-             , T.append ":symlen "  (showt (_circ_symlen c))
-             , T.append ":base "    (showt (_circ_base c))
+             , T.append ":symlen "  (T.unwords (map showt (c^..circ_symlen.each)))
+             , T.append ":base "    (showt (c^.circ_base))
              ] ++ map showTest ts
                ++ [ ":start" ]
 
     inputs = mapMaybe gateTxt (inputRefs c)
     consts = mapMaybe gateTxt (constRefs c)
+
     gates  = mapMaybe gateTxt (gateRefs c)
 
     gateLines = concat [inputs, consts, gates]
@@ -132,8 +133,9 @@ parseSymlen :: AcircParser ()
 parseSymlen = do
     string "symlen"
     spaces
-    n <- Prelude.read <$> many digit
-    lift $ B.setSymlen n
+    symlens <- many (spaces >> int)
+    forM (zip [0..] symlens) $ \(i,len) -> do
+        lift $ B.setSymlen i len
     endLine
 
 parseOutputs :: AcircParser ()

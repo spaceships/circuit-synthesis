@@ -26,8 +26,7 @@ point ninputs symlen = buildCircuitT $ do
         bs    = num2Bits nbits thePoint
         ixs   = map bits2Num $ chunksOf (nbits `div` ninputs) bs
         sels  = map (toSel symlen) ixs
-    setSymlen symlen
-    xs <- replicateM ninputs (inputs symlen)
+    xs <- replicateM ninputs (symbol symlen)
     ys <- mapM secrets sels
     -- !(!(x1=y1) + !(x2=y2) + ... + !(xn=yn))
     zs <- mapM (circNot <=< circSum <=< uncurry (zipWithM circMul)) (zip xs ys)

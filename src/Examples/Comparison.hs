@@ -14,9 +14,8 @@ make = [ ("comparison.dsl.acirc", return (comparison 9 22)) ]
 -- second input is expected to come in special negated unary form: 0 -> [1,0,0,0], 3 -> [1,1,1,1]
 comparison :: Int -> Int -> Circuit ArithGate
 comparison nsyms symlen = buildCircuit $ do
-    setSymlen symlen
-    xs <- replicateM nsyms (inputs symlen)
-    ys <- replicateM nsyms (inputs symlen) -- assumed to come in the negated sigma vector form
+    xs <- replicateM nsyms (symbol symlen)
+    ys <- replicateM nsyms (symbol symlen) -- assumed to come in the negated sigma vector form
     z  <- circSum =<< zipWithM squash xs ys
     output z
   where
