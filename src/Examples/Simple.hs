@@ -14,7 +14,7 @@ andCirc n = buildCircuit (inputs (n+1) >>= foldM1 circMul >>= output)
 simple :: Gate g => Circuit g
 simple = buildCircuit $ do
     x1  <- symbol 2
-    x2  <- symbol 3
+    x2  <- sigma 3
     ys  <- secrets [0,1,0,1,0]
     one <- constant 1
     w   <- circProd =<< zipWithM circAdd (x1++x2) ys

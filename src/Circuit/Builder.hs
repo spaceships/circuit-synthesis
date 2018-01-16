@@ -70,6 +70,12 @@ symbol len = do
     setSymlen i len
     return refs
 
+inputBit :: (Gate g, Monad m) => BuilderT g m Ref
+inputBit = head <$> symbol 1
+
+inputBits :: (Gate g, Monad m) => Int -> BuilderT g m [Ref]
+inputBits n = replicateM n inputBit
+
 sigma :: (Gate g, Monad m) => Int -> BuilderT g m [Ref]
 sigma len = do
     refs <- inputs len
@@ -234,17 +240,17 @@ bitsSet xs bs = circProd =<< selectPT xs bs
 selectionVector :: (Gate g, Monad m) => [Ref] -> BuilderT g m [Ref]
 selectionVector xs = mapM (bitsSet xs) (permutations (length xs) [False, True])
 
--- produces a selection vector for i with length q
+-- produces a selection vector for i with length len
 selectionVectorInt :: (Gate g, Monad m) => Int -> Int -> BuilderT g m [Ref]
-selectionVectorInt i q
-  | i >= q = error "[selectInt] i >= q!"
+selectionVectorInt i len
+  | i >= len = error "[selectInt] i >= len!"
   | otherwise = do
     one  <- constant 1
     zero <- constant 0
     if i == 0 then
-        return $ one : replicate (q-1) zero
+        return $ one : replicate (len-1) zero
     else
-        return $ replicate (i-1) zero ++ [one] ++ replicate (q - i - 1) zero
+        return $ replicate (i-1) zero ++ [one] ++ replicate (len - i - 1) zero
 
 lookupTable :: (Gate g, Monad m) => ([Bool] -> Bool) -> [Ref] -> BuilderT g m Ref
 lookupTable f xs = do

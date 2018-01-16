@@ -9,6 +9,8 @@ import Examples.Simple
 
 import Control.Monad
 import Control.Monad.Trans
+import Data.List (zip4)
+import Lens.Micro.Platform
 import System.IO
 -- import Lens.Micro.Platform
 import qualified Data.IntMap as IM
@@ -59,7 +61,7 @@ garblerNoPBits c' = buildCircuitT $ do
     pad <- constants (replicate paddingSize 0)
 
     gs <- forM (zip [0..] (gates c)) $ \(i, (zref, g)) -> do
-        let [xref, yref]      = gateArgs g
+        let [xref, yref] = gateArgs g
             (x0, x1) = wires IM.! getRef xref
             (y0, y1) = wires IM.! getRef yref
             (z0, z1) = wires IM.! getRef zref
@@ -68,11 +70,12 @@ garblerNoPBits c' = buildCircuitT $ do
             ywire i = if i == 0 then y0 else y1
             zwire i = (if i == 0 then z0 else z1) ++ pad
 
-        forM (permutations 2 [0,1]) $ \[i,j] -> do
+        forM (permutations 2 [0,1]) $ \[i,j] -> do -- XXX: randomize the truth table
             mx <- g2 j (xwire i)
             my <- g2 i (ywire j)
             foldM1 (zipWithM circXor) [mx, my, zwire (eval g i j)]
 
+    -- XXX: this randomization needs to be of the truth table, not garbled table
     gss <- lift $ randIO $ mapM randomize gs
 
     outputs $ (concat.concat) gss
@@ -93,7 +96,9 @@ indexedGarblerNoPBits c' = buildCircuitT $ do
 
     ix <- sigma (ngates c)
 
-    g1 <- indexedPrgSigmaBuilder k (nwires c) (2*k)
+    g1 <- do
+        g <- indexedPrgSigmaBuilder k (nwires c) (2*k)
+        return $ \xs ix -> safeChunksOf k <$> g xs ix
 
     (g2, g2Desc) <- do
         (g,s) <- prgBuilder' k (2*(k+paddingSize)) 5 xorAnd
@@ -103,52 +108,55 @@ indexedGarblerNoPBits c' = buildCircuitT $ do
     -- lift $ writeFile "g1.txt" g1Desc
     -- lift $ writeFile "g2.txt" g2Desc
 
-    -- turn a selection vector for z into a selection vector for x and y
-    inputSels <- forM (gates c) $ \(_,g) -> do
+    -- turn a selection vector for the gate into a selection vector for x and y and z
+    sels <- forM (gates c) $ \(_,g) -> do
         let [xref,yref] = gateArgs g
         xsel <- selectionVectorInt (getRef xref) (nwires c) -- selection vector for x of gate g
         ysel <- selectionVectorInt (getRef yref) (nwires c) -- selection vector for y of gate g
-        return (xsel, ysel)
 
-    xsel  <- selectListSigma ix (map fst inputSels) -- select the ith selection vector!
-    ysel  <- selectListSigma ix (map snd inputSels)
+        -- randomize the truth table for gate g
+        tt <- lift $ randIO (randomize (permutations 2 [0,1]))
+        -- for each table entry, we need to know whether to encrypt the first or second wirelabel of z
+        indexSels <- forM tt $ \[i,j] -> do
+            -- create length 2 selection vectors for each table entry
+            x <- selectionVectorInt i 2
+            y <- selectionVectorInt j 2
+            z <- selectionVectorInt (eval g i j) 2
+            return (x,y,z)
 
-    x <- g1 s xsel
-    y <- g1 s ysel
+        let xIndexSels = concat $ indexSels ^.. each . _1
+            yIndexSels = concat $ indexSels ^.. each . _2
+            zIndexSels = concat $ indexSels ^.. each . _3
 
-    -- compute the z wires for every gate, then select the appropriate ones
-    -- zsels <- forM (gates c) $ \(_,g) -> do
+        return ((xsel, xIndexSels), (ysel, yIndexSels), zIndexSels)
 
+    -- the indices for generating the X and Y wirelabels from G1
+    xsel  <- selectListSigma ix (sels ^.. each . _1 . _1) -- select the ith selection vector!
+    ysel  <- selectListSigma ix (sels ^.. each . _2 . _1)
 
+    -- the selections for choosing the 1st or 2nd wirelabel in each garbled row
+    xIndexSels <- safeChunksOf 2 <$> selectListSigma ix (sels ^.. each . _1 . _2)
+    yIndexSels <- safeChunksOf 2 <$> selectListSigma ix (sels ^.. each . _2 . _2)
+    zIndexSels <- safeChunksOf 2 <$> selectListSigma ix (sels ^.. each . _3)
 
-    -- z <- g1 s zsel
+    -- the wirelabels themselves for gate g
+    xwls <- g1 s xsel
+    ywls <- g1 s ysel
+    zwls <- g1 s ix
 
-    undefined
+    pad <- constants (replicate paddingSize 0)
 
-    -- let pairs = (map.map) ((wires IM.!) . getRef) (map gateArgs (map snd (gates c)))
-    --     xPairs = map head pairs
-    --     yPairs = map last pairs
+    garbledRows <- forM (zip4 xIndexSels yIndexSels zIndexSels (permutations 2 [0,1])) $ \(xix, yix, zix, [i,j]) -> do
+        x <- selectListSigma xix xwls
+        y <- selectListSigma yix ywls
+        z <- selectListSigma zix zwls
 
-    -- pad <- constants (replicate paddingSize 0)
+        mx <- g2 j x
+        my <- g2 i y
 
-    -- gs <- forM (zip [0..] (gates c)) $ \(i, (zref, g)) -> do
-    --     let [xref, yref]      = gateArgs g
-    --         (x0, x1) = wires IM.! getRef xref
-    --         (y0, y1) = wires IM.! getRef yref
-    --         (z0, z1) = wires IM.! getRef zref
+        foldM1 (zipWithM circXor) [mx, my, z ++ pad]
 
-    --     let xwire i = if i == 0 then x0 else x1
-    --         ywire i = if i == 0 then y0 else y1
-    --         zwire i = (if i == 0 then z0 else z1) ++ pad
-
-    --     forM (permutations 2 [0,1]) $ \[i,j] -> do
-    --         mx <- g2 j (xwire i)
-    --         my <- g2 i (ywire j)
-    --         foldM1 (zipWithM circXor) [mx, my, zwire (eval g i j)]
-
-    -- gss <- lift $ randIO $ mapM randomize gs
-
-    -- outputs $ (concat.concat) gss
+    return (concat garbledRows)
 
   where
     eval g x y = gateEval (\_ -> error "FOO") (\_ -> error "BAR") g [fromIntegral x, fromIntegral y]
