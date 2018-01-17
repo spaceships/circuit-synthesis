@@ -25,6 +25,10 @@ export =
                        ,("garbled_and10.acirc2", garblerNoPBits (andCirc 10))
                        ,("garbled_and100.acirc2", garblerNoPBits (andCirc 100))
                        ])
+    , ("igarbled_ands", [("igarbled_and1.acirc2", indexedGarblerNoPBits (andCirc 1))
+                        ,("igarbled_and10.acirc2", indexedGarblerNoPBits (andCirc 10))
+                        ,("igarbled_and100.acirc2", indexedGarblerNoPBits (andCirc 100))
+                        ])
     ]
   where
     query = do
@@ -89,7 +93,7 @@ garblerNoPBits c' = buildCircuitT $ do
     eval g x y = gateEval (\_ -> error "FOO") (\_ -> error "BAR") g [fromIntegral x, fromIntegral y]
 
 
--- TODO: debug me!!!
+-- TODO: switch to naive indexed PRG
 -- XXX: only fan-out one is secure at the moment
 -- garbler that does not use permutation bits
 indexedGarblerNoPBits :: Circ -> IO Acirc2
