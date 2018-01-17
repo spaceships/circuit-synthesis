@@ -21,14 +21,29 @@ import Text.Printf
 import qualified Data.Map.Strict as M
 import qualified Data.IntMap.Strict as IM
 
-input :: (Gate g, Monad m) => BuilderT g m Ref
-input = do
+import Debug.Trace
+
+-- inputBit does not create a new symbol: useful as a primitive
+inputBit :: (Gate g, Monad m) => BuilderT g m Ref
+inputBit = do
     id   <- nextInputId
     ref  <- nextRef
     insertInput ref id
     return ref
 
+inputBits :: (Gate g, Monad m) => Int -> BuilderT g m [Ref]
+inputBits n = replicateM n inputBit
+
+-- create a length 1 input symbol
+input :: (Gate g, Monad m) => BuilderT g m Ref
+input = head <$> symbol 1
+
+-- create n length 1 input symbols
+inputs :: (Gate g, Monad m) => Int -> BuilderT g m [Ref]
+inputs n = replicateM n input
+
 -- get the ref of a particular input, even if it does not exist already.
+-- assumes length 1 symbols.
 input_n :: (Gate g, Monad m) => Id -> BuilderT g m Ref
 input_n n = do
     dedup <- use bs_dedup
@@ -38,8 +53,20 @@ input_n n = do
             cur <- use bs_next_inp
             last <$> replicateM (getId n - getId cur + 1) input
 
-inputs :: (Gate g, Monad m) => Int -> BuilderT g m [Ref]
-inputs n = replicateM n input
+symbol :: (Gate g, Monad m) => Int -> BuilderT g m [Ref]
+symbol len = do
+    refs <- inputBits len
+    i <- nextSymbol
+    setSymlen i len
+    return refs
+
+sigma :: (Gate g, Monad m) => Int -> BuilderT g m [Ref]
+sigma len = do
+    refs <- inputBits len
+    i <- nextSymbol
+    setSymlen i len
+    setSigma i
+    return refs
 
 secret :: (Gate g, Monad m) => Int -> BuilderT g m Ref
 secret val = do
@@ -63,27 +90,6 @@ secret_n n = do
 -- preserve duplication: there will be many gates for secret 0
 secrets :: (Gate g, Monad m) => [Int] -> BuilderT g m [Ref]
 secrets = mapM secret
-
-symbol :: (Gate g, Monad m) => Int -> BuilderT g m [Ref]
-symbol len = do
-    refs <- inputs len
-    i <- nextSymbol
-    setSymlen i len
-    return refs
-
-inputBit :: (Gate g, Monad m) => BuilderT g m Ref
-inputBit = head <$> symbol 1
-
-inputBits :: (Gate g, Monad m) => Int -> BuilderT g m [Ref]
-inputBits n = replicateM n inputBit
-
-sigma :: (Gate g, Monad m) => Int -> BuilderT g m [Ref]
-sigma len = do
-    refs <- inputs len
-    i <- nextSymbol
-    setSymlen i len
-    setSigma i
-    return refs
 
 -- avoid duplication: there will be only one gate for const 0
 constant :: (Gate g, Monad m) => Int -> BuilderT g m Ref

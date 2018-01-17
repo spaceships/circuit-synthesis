@@ -15,3 +15,5 @@ showWithTests c ts = T.append ":binary\n" (Acirc.showWithTests (toAcirc c) ts)
 readWithTests :: FilePath -> IO (Acirc2, [TestCase])
 readWithTests fp = over _1 toAcirc2 <$> Acirc.readWithTests fp
 
+read :: FilePath -> IO Acirc2
+read = fmap fst . readWithTests

@@ -148,7 +148,7 @@ printCircInfo c = do
     printf "circuit info\n"
     printf "============\n"
     printf "ninputs=%d noutputs=%d nconsts=%d nsecrets=%d\n" n (noutputs c) (nconsts c) (nsecrets c)
-    printf "symlen=%s\n" (show (IM.toList (c^.circ_symlen)))
+    printf "symlen=%s\n" (unwords (map show (IM.elems (c^.circ_symlen))))
     printf "base=%d\n" (c^.circ_base)
     printf "nwires=%d depth=%d\n" (nwires c) (depth c)
     printf "degree=%d\n" (circDegree c)

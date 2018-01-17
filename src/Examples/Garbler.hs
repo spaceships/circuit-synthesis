@@ -9,13 +9,9 @@ import Examples.Simple
 
 import Control.Monad
 import Control.Monad.Trans
-import Data.List (zip4)
-import Lens.Micro.Platform
+import Data.Array
 import System.IO
 import qualified Data.IntMap as IM
-
-import Debug.Trace
-
 
 export :: [(String, [(String, IO Acirc2)])]
 export =
@@ -105,13 +101,12 @@ indexedGarblerNoPBits c' = buildCircuitT $ do
         k = 80 -- security parameter, wirelabel & prg seed size
         paddingSize = 10
 
-    s <- symbol k -- the seed to the PRGs
-
-    ix <- sigma (ngates c)
+    s  <- symbol k -- the seed to the PRGs
+    ix <- sigma (ngates c) -- the index of the gate to evaluate
 
     g1 <- do
-        g <- indexedPrgSigmaBuilder k (nwires c) (2*k)
-        return $ \xs ix -> safeChunksOf k <$> g xs ix
+        g <- prgBuilder k (2*k*nwires c) 5 xorAnd
+        return $ \xs -> safeChunksOf (2*k) <$> g xs
 
     (g2, g2Desc) <- do
         (g,s) <- prgBuilder' k (2*(k+paddingSize)) 5 xorAnd
@@ -121,50 +116,35 @@ indexedGarblerNoPBits c' = buildCircuitT $ do
     -- lift $ writeFile "g1.txt" g1Desc
     -- lift $ writeFile "g2.txt" g2Desc
 
-    -- turn a selection vector for the gate into a selection vector for x and y and z
-    sels <- forM (gates c) $ \(zref,g) -> do
+    allWires <- listArray (0, nwires c - 1) <$> g1 s
+    (mapM . mapM) markPersistant allWires
+
+    -- gate wires is a list of lists of the wires needed for the ith garbled gate, in the correct
+    -- order
+    gateWires <- lift $ randIO $ forM (gates c) $ \(zref,g) -> do
         let [xref,yref] = gateArgs g
-        xsel <- selectionVectorInt (getRef xref) (nwires c) -- selection vector for x of gate g
-        ysel <- selectionVectorInt (getRef yref) (nwires c)
-        zsel <- selectionVectorInt (getRef zref) (nwires c)
+            xs = safeChunksOf k $ allWires ! getRef xref
+            ys = safeChunksOf k $ allWires ! getRef yref
+            zs = safeChunksOf k $ allWires ! getRef zref
+
+            get stuff 0 = head stuff
+            get stuff 1 = last stuff
 
         -- randomize the truth table for gate g
-        tt <- lift $ randIO (randomize (permutations 2 [0,1]))
+        tt <- randomize (permutations 2 [0,1])
         -- for each table entry, we need to know whether to encrypt the first or second wirelabel of z
-        indexSels <- forM tt $ \[i,j] -> do
-            -- create length 2 selection vectors for each table entry
-            x <- selectionVectorInt i 2
-            y <- selectionVectorInt j 2
-            z <- selectionVectorInt (eval g i j) 2
-            return (x,y,z)
+        fmap concat $ forM tt $ \[i,j] -> do
+            let x = get xs i
+                y = get ys j
+                z = get zs (eval g i j)
+            return (x ++ y ++ z)
 
-        let xIndexSels = concat $ indexSels ^.. each . _1
-            yIndexSels = concat $ indexSels ^.. each . _2
-            zIndexSels = concat $ indexSels ^.. each . _3
-
-        return ((xsel, xIndexSels), (ysel, yIndexSels), (zsel, zIndexSels))
-
-    -- the indices for generating the X and Y wirelabels from G1
-    xsel  <- selectListSigma ix (sels ^.. each . _1 . _1) -- select the ith selection vector!
-    ysel  <- selectListSigma ix (sels ^.. each . _2 . _1)
-    zsel  <- selectListSigma ix (sels ^.. each . _3 . _1)
-
-    -- the selections for choosing the 1st or 2nd wirelabel in each garbled row
-    xIndexSels <- safeChunksOf 2 <$> selectListSigma ix (sels ^.. each . _1 . _2)
-    yIndexSels <- safeChunksOf 2 <$> selectListSigma ix (sels ^.. each . _2 . _2)
-    zIndexSels <- safeChunksOf 2 <$> selectListSigma ix (sels ^.. each . _3 . _2)
-
-    -- the wirelabels themselves for gate g
-    xwls <- g1 s xsel
-    ywls <- g1 s ysel
-    zwls <- g1 s zsel
+    -- select the wires for the ith gate
+    ws <- safeChunksOf 3 <$> safeChunksOf k <$> selectListSigma ix gateWires
 
     pad <- constants (replicate paddingSize 0)
 
-    garbledRows <- forM (zip4 xIndexSels yIndexSels zIndexSels (permutations 2 [0,1])) $ \(xix, yix, zix, [i,j]) -> do
-        x <- selectListSigma xix xwls
-        y <- selectListSigma yix ywls
-        z <- selectListSigma zix zwls
+    garbledRows <- forM (zip ws (permutations 2 [0,1])) $ \([x,y,z],[i,j]) -> do
 
         mx <- g2 j x
         my <- g2 i y

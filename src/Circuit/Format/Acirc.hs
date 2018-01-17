@@ -28,6 +28,8 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.IntMap as IM
 
+import Debug.Trace
+
 read :: FilePath -> IO Acirc
 read = fmap fst . readWithTests
 
@@ -134,8 +136,7 @@ parseSymlen = do
     string "symlen"
     spaces
     symlens <- many (spaces >> int)
-    forM (zip [0..] symlens) $ \(i,len) -> do
-        lift $ B.setSymlen i len
+    lift $ zipWithM B.setSymlen [0..] symlens
     endLine
 
 parseOutputs :: AcircParser ()
@@ -173,6 +174,7 @@ parseRefLine = do
     ref <- parseRef
     spaces
     choice [parseConst ref, parseInput ref, parseGate ref]
+    parseTimesUsed
     endLine
 
 parseInput :: Ref -> AcircParser ()
@@ -181,7 +183,6 @@ parseInput ref = do
     spaces
     id <- Id <$> int
     lift $ B.insertInput ref id
-    timesUsed
 
 parseConst :: Ref -> AcircParser ()
 parseConst ref = do
@@ -189,7 +190,6 @@ parseConst ref = do
     spaces
     id <- lift B.nextConstId
     lift $ B.insertConst ref id
-    timesUsed
 
 parseGate :: Ref -> AcircParser ()
 parseGate ref = do
@@ -204,7 +204,10 @@ parseGate ref = do
             "SUB" -> ArithSub x y
             g     -> error ("[parser] unkonwn gate type " ++ g)
     lift $ B.insertGate ref gate
-    timesUsed
 
-timesUsed :: AcircParser ()
-timesUsed = optional $ spaces >> char ':' >> spaces >> int -- times used annotation
+parseTimesUsed :: AcircParser ()
+parseTimesUsed = optional $ do
+    spaces
+    char ':'
+    spaces
+    void int <|> void (string "inf") -- times used annotation
