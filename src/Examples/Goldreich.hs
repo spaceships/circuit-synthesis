@@ -12,6 +12,7 @@ import Circuit.Utils
 
 import Control.Monad
 import Control.Monad.Trans
+import Data.Array.Unboxed
 import Text.Printf
 
 export :: Gate g => [(String, [(String, IO (Circuit g))])]
@@ -120,19 +121,29 @@ indexedPrgNaiveSigma ninputs noutputs outputSize = buildCircuitT $ do
 indexedPrgSigmaBuilder :: (Gate g, MonadIO m) => Int -> Int -> Int
                        -> BuilderT g m ([Ref] -> [Ref] -> BuilderT g m [Ref])
 indexedPrgSigmaBuilder ninputs noutputs outputSize = do
-    -- for each output, a list of 5 random input bits
-    selections <- liftIO $ replicateM (noutputs * outputSize) $
-                  replicateM 5 (randIO (randIntMod ninputs)) -- [m:[5:Int]]
-    -- for each bit of the ith output, a list of 5 random bits
-    let g xs ix = do
-            inps <- forM [0..outputSize-1] $ \i -> do -- for each output bit i
-                forM [0..5-1] $ \j -> do              -- for each input bit of each output bit
-                    sels <- forM [0..noutputs-1] $ \k -> do -- for each output group
-                        let sel = selections !! (outputSize*k) !! j
-                        circMul (ix!!k) (xs !! sel)
-                    foldM1 circAdd sels
-            mapM xorAnd inps
-    return g
+    -- for each bit of the output, 5 random bits
+    selsList <- liftIO $ randIO $ replicateM (5*noutputs*outputSize) (randIntMod ninputs)
+    let selections = listArray ((0,0), (noutputs*outputSize-1, 4)) selsList :: UArray (Int,Int) Int
+    return $ \xs ix -> do
+        when (length ix /= noutputs) $ error $
+            printf "[indexedPrgSigmaBuilder::closure] wrong length index! wanted %d, but got %d" noutputs (length ix)
+
+        when (length xs /= ninputs) $ error $
+            printf "[indexedPrgSigmaBuilder::closure] wrong length input! wanted %d, but got %d" ninputs (length xs)
+
+        let xs' = listArray (0,length xs-1) (map getRef xs) :: UArray Int Int
+
+        inps <- forM [0..outputSize-1] $ \i -> do -- for each output bit i
+
+            forM [0..4] $ \j -> do                -- for each input bit of each output bit
+
+                sels <- forM (zip [0..noutputs-1] ix) $ \(k, ix_k) -> do -- for each output group
+                    let sel = selections ! (outputSize*k+i, j)
+                    circMul ix_k (Ref (xs' ! sel))
+
+                foldM1 circAdd sels
+
+        mapM xorAnd inps
 
 --------------------------------------------------------------------------------
 -- prg description

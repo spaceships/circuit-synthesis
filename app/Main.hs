@@ -159,7 +159,7 @@ chooseMode mode = do
 
   where
     include  opts = M.unions . map (fmap (compileAcirc opts) . M.fromList)
-    include2 opts= M.unions . map (fmap (compileAcirc2 opts) . M.fromList)
+    include2 opts = M.unions . map (fmap (compileAcirc2 opts) . M.fromList)
 
     compileAcirc :: GlobalOpts -> [(String, IO Acirc)] -> IO ()
     compileAcirc opts tups = forM_ tups $ \(fname, comp) -> do

@@ -250,7 +250,7 @@ selectionVectorInt i len
     if i == 0 then
         return $ one : replicate (len-1) zero
     else
-        return $ replicate (i-1) zero ++ [one] ++ replicate (len - i - 1) zero
+        return $ replicate (i-1) zero ++ [one] ++ replicate (len - i) zero
 
 lookupTable :: (Gate g, Monad m) => ([Bool] -> Bool) -> [Ref] -> BuilderT g m Ref
 lookupTable f xs = do

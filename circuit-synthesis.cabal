@@ -38,6 +38,7 @@ library
                         , Examples.Simple
 
     build-depends:        base
+                        , array
                         , DRBG
                         , binary
                         , bytestring

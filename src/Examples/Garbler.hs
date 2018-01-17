@@ -12,13 +12,19 @@ import Control.Monad.Trans
 import Data.List (zip4)
 import Lens.Micro.Platform
 import System.IO
--- import Lens.Micro.Platform
 import qualified Data.IntMap as IM
+
+import Debug.Trace
+
 
 export :: [(String, [(String, IO Acirc2)])]
 export =
     [ ("garbled_andn", [("garbled_andn.acirc2", garblerNoPBits =<< andCirc <$> query)])
-    , ("garbled_and1000", [("garbled_and1000.acirc2", garblerNoPBits (andCirc 1000))])
+    , ("igarbled_andn", [("igarbled_andn.acirc2", indexedGarblerNoPBits =<< andCirc <$> query)])
+    , ("garbled_ands", [("garbled_and1.acirc2", garblerNoPBits (andCirc 1))
+                       ,("garbled_and10.acirc2", garblerNoPBits (andCirc 10))
+                       ,("garbled_and100.acirc2", garblerNoPBits (andCirc 100))
+                       ])
     ]
   where
     query = do
@@ -70,20 +76,20 @@ garblerNoPBits c' = buildCircuitT $ do
             ywire i = if i == 0 then y0 else y1
             zwire i = (if i == 0 then z0 else z1) ++ pad
 
-        forM (permutations 2 [0,1]) $ \[i,j] -> do -- XXX: randomize the truth table
+        tt <- lift $ randIO (randomize (permutations 2 [0,1]))
+
+        forM (zip (permutations 2 [0,1]) tt) $ \([i,j], [i',j']) -> do
             mx <- g2 j (xwire i)
             my <- g2 i (ywire j)
-            foldM1 (zipWithM circXor) [mx, my, zwire (eval g i j)]
+            foldM1 (zipWithM circXor) [mx, my, zwire (eval g i' j')]
 
-    -- XXX: this randomization needs to be of the truth table, not garbled table
-    gss <- lift $ randIO $ mapM randomize gs
-
-    outputs $ (concat.concat) gss
+    outputs $ (concat.concat) gs
 
   where
     eval g x y = gateEval (\_ -> error "FOO") (\_ -> error "BAR") g [fromIntegral x, fromIntegral y]
 
 
+-- TODO: debug me!!!
 -- XXX: only fan-out one is secure at the moment
 -- garbler that does not use permutation bits
 indexedGarblerNoPBits :: Circ -> IO Acirc2
@@ -109,10 +115,11 @@ indexedGarblerNoPBits c' = buildCircuitT $ do
     -- lift $ writeFile "g2.txt" g2Desc
 
     -- turn a selection vector for the gate into a selection vector for x and y and z
-    sels <- forM (gates c) $ \(_,g) -> do
+    sels <- forM (gates c) $ \(zref,g) -> do
         let [xref,yref] = gateArgs g
         xsel <- selectionVectorInt (getRef xref) (nwires c) -- selection vector for x of gate g
-        ysel <- selectionVectorInt (getRef yref) (nwires c) -- selection vector for y of gate g
+        ysel <- selectionVectorInt (getRef yref) (nwires c)
+        zsel <- selectionVectorInt (getRef zref) (nwires c)
 
         -- randomize the truth table for gate g
         tt <- lift $ randIO (randomize (permutations 2 [0,1]))
@@ -128,21 +135,22 @@ indexedGarblerNoPBits c' = buildCircuitT $ do
             yIndexSels = concat $ indexSels ^.. each . _2
             zIndexSels = concat $ indexSels ^.. each . _3
 
-        return ((xsel, xIndexSels), (ysel, yIndexSels), zIndexSels)
+        return ((xsel, xIndexSels), (ysel, yIndexSels), (zsel, zIndexSels))
 
     -- the indices for generating the X and Y wirelabels from G1
     xsel  <- selectListSigma ix (sels ^.. each . _1 . _1) -- select the ith selection vector!
     ysel  <- selectListSigma ix (sels ^.. each . _2 . _1)
+    zsel  <- selectListSigma ix (sels ^.. each . _3 . _1)
 
     -- the selections for choosing the 1st or 2nd wirelabel in each garbled row
     xIndexSels <- safeChunksOf 2 <$> selectListSigma ix (sels ^.. each . _1 . _2)
     yIndexSels <- safeChunksOf 2 <$> selectListSigma ix (sels ^.. each . _2 . _2)
-    zIndexSels <- safeChunksOf 2 <$> selectListSigma ix (sels ^.. each . _3)
+    zIndexSels <- safeChunksOf 2 <$> selectListSigma ix (sels ^.. each . _3 . _2)
 
     -- the wirelabels themselves for gate g
     xwls <- g1 s xsel
     ywls <- g1 s ysel
-    zwls <- g1 s ix
+    zwls <- g1 s zsel
 
     pad <- constants (replicate paddingSize 0)
 
@@ -156,7 +164,7 @@ indexedGarblerNoPBits c' = buildCircuitT $ do
 
         foldM1 (zipWithM circXor) [mx, my, z ++ pad]
 
-    return (concat garbledRows)
+    outputs (concat garbledRows)
 
   where
     eval g x y = gateEval (\_ -> error "FOO") (\_ -> error "BAR") g [fromIntegral x, fromIntegral y]

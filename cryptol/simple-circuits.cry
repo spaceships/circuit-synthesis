@@ -48,6 +48,9 @@ maj_100 x = sum [ if b then (1 : [8]) else 0 | b <- x ] > 50
 maj_1000 : [1000] -> Bit
 maj_1000 x = sum [ if b then (1 : [16]) else 0 | b <- x ] > 500
 
+add_4 : ([4], [4]) -> [4]
+add_4 (x,y) = x + y
+
 add_8 : ([8], [8]) -> [8]
 add_8 (x,y) = x + y
 
