@@ -20,11 +20,14 @@ import Debug.Trace
 export :: [(String, [(String, IO Acirc2)])]
 export =
     [ ("garbled_andn", [("garbled_andn.acirc2", garblerNoPBits =<< andCirc <$> query)])
+
     , ("igarbled_andn", [("igarbled_andn.acirc2", indexedGarblerNoPBits =<< andCirc <$> query)])
+
     , ("garbled_ands", [("garbled_and1.acirc2", garblerNoPBits (andCirc 1))
                        ,("garbled_and10.acirc2", garblerNoPBits (andCirc 10))
                        ,("garbled_and100.acirc2", garblerNoPBits (andCirc 100))
                        ])
+
     , ("igarbled_ands", [("igarbled_and1.acirc2", indexedGarblerNoPBits (andCirc 1))
                         ,("igarbled_and10.acirc2", indexedGarblerNoPBits (andCirc 10))
                         ,("igarbled_and100.acirc2", indexedGarblerNoPBits (andCirc 100))

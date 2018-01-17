@@ -15,6 +15,7 @@ import Circuit.Builder.Internals
 import Circuit.Utils
 
 import Control.Monad
+import Data.Array
 import Lens.Micro.Platform
 import Text.Printf
 import qualified Data.Map.Strict as M
@@ -160,11 +161,14 @@ subcircuit' c xs ys
                                             (length ys) (nconsts c))
     | otherwise = foldCircM translate c
   where
+    xs' = listArray (0, length xs-1) xs
+    ys' = listArray (0, length ys-1) ys
+
     translate (ArithAdd _ _) _ [x,y] = circAdd x y
     translate (ArithSub _ _) _ [x,y] = circSub x y
     translate (ArithMul _ _) _ [x,y] = circMul x y
-    translate (ArithInput id) _ _ = return (xs !! getId id)
-    translate (ArithConst id) _ _ = return (ys !! getId id)
+    translate (ArithInput id) _ _ = return (xs' ! getId id)
+    translate (ArithConst id) _ _ = return (ys' ! getId id)
     translate op _ args =
         error ("[subcircuit'] weird input: " ++ show op ++ " " ++ show args)
 
@@ -219,11 +223,10 @@ selectListSigma ix xs
     foldM1 (zipWithM circAdd) masked
 
 selectsPT :: [a] -> [Int] -> [a]
-selectsPT xs sels = map lookup sels
+selectsPT xs sels = map look sels
   where
-    lookup i | i < length xs = xs !! i
-             | otherwise = error (printf "[selectsPT] got index %d but list was length %d!\
-                                         \ perhaps not enough inputs?" i (length xs))
+    xs' = listArray (0, length xs - 1) xs
+    look i = let res = xs' ! i in res `seq` res
 
 selectPT :: (Gate g, Monad m) => [Ref] -> [Bool] -> BuilderT g m [Ref]
 selectPT xs bs = do
