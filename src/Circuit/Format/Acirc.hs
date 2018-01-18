@@ -28,8 +28,6 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.IntMap as IM
 
-import Debug.Trace
-
 read :: FilePath -> IO Acirc
 read = fmap fst . readWithTests
 

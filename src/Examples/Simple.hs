@@ -1,3 +1,5 @@
+{-# LANGUAGE TupleSections #-}
+
 module Examples.Simple where
 
 import Circuit
@@ -6,7 +8,7 @@ import Circuit.Utils
 
 import Control.Monad
 
-export = [("simple", [("simple.acirc2", return simple :: IO Acirc2)])]
+export = [("simple", [("simple.acirc2",) <$> (return simple :: IO Acirc2)])]
 
 andCirc :: Gate g => Int -> Circuit g
 andCirc n = buildCircuit (inputs (n+1) >>= foldM1 circMul >>= output)

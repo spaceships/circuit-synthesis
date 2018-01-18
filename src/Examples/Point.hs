@@ -10,12 +10,12 @@ import Data.List.Split (chunksOf)
 import Control.Monad
 import Control.Monad.Trans (lift)
 
-export = [("point", [ ("point.dsl.acirc", point 25 10)
-                    , ("point_base10.dsl.acirc", pointBaseN 25 10)
-                    , ("point_base11.dsl.acirc", pointBaseN 24 11)
-                    , ("point_base12.dsl.acirc", pointBaseN 23 12)
-                    , ("point_base13.dsl.acirc", pointBaseN 22 13)
-                    , ("point_base15.dsl.acirc", pointBaseN 21 15)
+export = [("point", [ ("point.dsl.acirc",) <$> point 25 10
+                    , ("point_base10.dsl.acirc",) <$> pointBaseN 25 10
+                    , ("point_base11.dsl.acirc",) <$> pointBaseN 24 11
+                    , ("point_base12.dsl.acirc",) <$> pointBaseN 23 12
+                    , ("point_base13.dsl.acirc",) <$> pointBaseN 22 13
+                    , ("point_base15.dsl.acirc",) <$> pointBaseN 21 15
                     ] )]
 
 point :: Int -> Int -> IO Acirc

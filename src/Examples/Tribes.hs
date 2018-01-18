@@ -1,3 +1,5 @@
+{-# LANGUAGE TupleSections #-}
+
 module Examples.Tribes where
 
 import Circuit
@@ -7,13 +9,12 @@ import Circuit.Utils
 import Control.Monad.Trans (lift)
 import Data.List.Split
 
-make :: [(String, IO Acirc)]
 make =
-    [ ("fa_8.dsl.acirc"   , fa 8 4)
-    , ("fa_16.dsl.acirc"  , fa 16 4)
-    , ("fa_32.dsl.acirc"  , fa 32 4)
-    , ("fa_64.dsl.acirc"  , fa 64 4)
-    , ("fa_128.dsl.acirc" , fa 128 4)
+    [ ("fa_8.dsl.acirc"   ,) <$> fa 8 4
+    , ("fa_16.dsl.acirc"  ,) <$> fa 16 4
+    , ("fa_32.dsl.acirc"  ,) <$> fa 32 4
+    , ("fa_64.dsl.acirc"  ,) <$> fa 64 4
+    , ("fa_128.dsl.acirc" ,) <$> fa 128 4
     ]
 
 tribes :: Monad m => Int -> [Ref] -> Ref -> BuilderT ArithGate m Ref

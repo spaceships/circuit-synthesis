@@ -129,11 +129,14 @@ combinations 1 xs = map (:[]) xs
 combinations n (x:xs) = map (x:) (combinations (n-1) xs) ++ combinations n xs
 
 permutations :: Int -> [a] -> [[a]]
-permutations n possibleValues = Prelude.sequence (replicate n possibleValues)
+permutations n xs = Prelude.sequence (replicate n xs)
 
 -- all possible n-tuples of True, False
 booleanPermutations :: Int -> [[Bool]]
 booleanPermutations n = permutations n [False, True]
+
+bitPermutations :: Int -> [[Int]]
+bitPermutations n = permutations n [0,1]
 
 transpose :: [[a]] -> [[a]]
 transpose xs | null (head xs) = []

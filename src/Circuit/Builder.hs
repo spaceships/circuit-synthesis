@@ -21,8 +21,6 @@ import Text.Printf
 import qualified Data.Map.Strict as M
 import qualified Data.IntMap.Strict as IM
 
-import Debug.Trace
-
 -- inputBit does not create a new symbol: useful as a primitive
 inputBit :: (Gate g, Monad m) => BuilderT g m Ref
 inputBit = do
@@ -116,6 +114,9 @@ circSub x y = newGate (gateSub x y)
 
 circMul :: (Gate g, Monad m) => Ref -> Ref -> BuilderT g m Ref
 circMul x y = newGate (gateMul x y)
+
+circAnd :: (Gate g, Monad m) => Ref -> Ref -> BuilderT g m Ref
+circAnd = circMul
 
 circProd :: (Gate g, Monad m) => [Ref] -> BuilderT g m Ref
 circProd = foldTreeM circMul
@@ -245,7 +246,7 @@ selectPT xs bs = do
 bitsSet :: (Gate g, Monad m) => [Ref] -> [Bool] -> BuilderT g m Ref
 bitsSet xs bs = circProd =<< selectPT xs bs
 
--- transforms an input x into a vector [ 0 .. 1 .. 0 ] with a 1 in the xth place
+-- Transform a binary input x into a vector [ 0 .. 1 .. 0 ] with a 1 in the xth place
 selectionVector :: (Gate g, Monad m) => [Ref] -> BuilderT g m [Ref]
 selectionVector xs = mapM (bitsSet xs) (permutations (length xs) [False, True])
 
@@ -260,6 +261,11 @@ selectionVectorInt i len
         return $ one : replicate (len-1) zero
     else
         return $ replicate (i-1) zero ++ [one] ++ replicate (len - i) zero
+
+-- Combine sigma vectors. First sigma vector is most significant.
+-- this builds a formula that says "[x0 & y0, x0 & y1, ... , xn & yn-1, xn & yn]"
+sigmaProd :: (Gate g, Monad m) => [[Ref]] -> BuilderT g m [Ref]
+sigmaProd sels = mapM circProd (sequence sels)
 
 lookupTable :: (Gate g, Monad m) => ([Bool] -> Bool) -> [Ref] -> BuilderT g m Ref
 lookupTable f xs = do

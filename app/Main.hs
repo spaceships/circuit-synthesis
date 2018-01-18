@@ -99,12 +99,9 @@ chooseMode mode = do
     case mode of
         Compile "acirc" name opts -> do
             runExportedRoutine "acirc" name $ M.union
-                (include opts [Point.export, GGM.export, Goldreich.export]) $
+                (include opts [Point.export, GGM.export, Goldreich.export, AES.export]) $
                 M.fromList
-                [ ("aes"           , compileAcirc opts AES.make)
-                , ("aes1r"         , compileAcirc opts AES.makeAes1r)
-                , ("aes10r"        , compileAcirc opts AES.makeAes10r)
-                , ("applebaum"     , compileAcirc opts AR.makeApplebaum)
+                [ ("applebaum"     , compileAcirc opts AR.makeApplebaum)
                 , ("tribes"        , compileAcirc opts Tribes.make)
                 , ("comparison"    , compileAcirc opts Comparison.make)
                 ]
@@ -154,21 +151,21 @@ chooseMode mode = do
             c <- case ext of
                 ".nigel"   -> Nigel.read inp
                 ".netlist" -> Netlist.read inp
-            g <- Garbler.garblerNoPBits c
+            g <- Garbler.garblerNoPBits 1 c
             circuitMain opts (Just (printf "garbled_%s.acirc" (takeBaseName inp))) g []
 
   where
     include  opts = M.unions . map (fmap (compileAcirc opts) . M.fromList)
     include2 opts = M.unions . map (fmap (compileAcirc2 opts) . M.fromList)
 
-    compileAcirc :: GlobalOpts -> [(String, IO Acirc)] -> IO ()
-    compileAcirc opts tups = forM_ tups $ \(fname, comp) -> do
-        c <- comp
+    compileAcirc :: GlobalOpts -> [IO (String, Acirc)] -> IO ()
+    compileAcirc opts actions = forM_ actions $ \m -> do
+        (fname, c) <- m
         circuitMain opts (Just fname) c []
 
-    compileAcirc2 :: GlobalOpts -> [(String, IO Acirc2)] -> IO ()
-    compileAcirc2 opts tups = forM_ tups $ \(fname, comp) -> do
-        c <- comp
+    compileAcirc2 :: GlobalOpts -> [IO (String, Acirc2)] -> IO ()
+    compileAcirc2 opts actions = forM_ actions $ \m -> do
+        (fname, c) <- m
         circuitMain opts (Just fname) c []
 
     run opts comp = uncurry (circuitMain opts (target opts)) =<< comp
