@@ -151,7 +151,7 @@ chooseMode mode = do
             c <- case ext of
                 ".nigel"   -> Nigel.read inp
                 ".netlist" -> Netlist.read inp
-            g <- Garbler.garblerNoPBits 1 c
+            g <- Garbler.naiveGarbler 1 c
             circuitMain opts (Just (printf "garbled_%s.acirc" (takeBaseName inp))) g []
 
   where

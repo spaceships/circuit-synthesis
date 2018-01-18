@@ -1,4 +1,5 @@
 {-# LANGUAGE TupleSections #-}
+
 module Examples.Garbler where
 
 import Circuit
@@ -17,27 +18,38 @@ import qualified Data.IntMap as IM
 
 export :: [(String, [IO (String, Acirc2)])]
 export =
-    [ ("garbled-andn",  [ query "garbled"  garblerNoPBits        ] )
-    , ("igarbled-andn", [ query "igarbled" indexedGarblerNoPBits ] )
+    [ ("garbled-andn",  [ garblerQuery ] )
+    , ("igarbled-andn", [ indexedGarblerQuery ] )
 
-    , ("garbled-ands", [ ("garbled_and1.acirc2",)   <$> garblerNoPBits 1 (andCirc 1)
-                       , ("garbled_and10.acirc2",)  <$> garblerNoPBits 1 (andCirc 10)
-                       , ("garbled_and100.acirc2",) <$> garblerNoPBits 1 (andCirc 100)
+    , ("garbled-ands", [ ("garbled_and1.acirc2",)   <$> naiveGarbler 1 (andCirc 1)
+                       , ("garbled_and10.acirc2",)  <$> naiveGarbler 1 (andCirc 10)
+                       , ("garbled_and100.acirc2",) <$> naiveGarbler 1 (andCirc 100)
                        ] )
 
-    , ("igarbled-ands", [ ("igarbled_and1.acirc2",)   <$> indexedGarblerNoPBits 1 (andCirc 1)
-                        , ("igarbled_and10.acirc2",)  <$> indexedGarblerNoPBits 1 (andCirc 10)
-                        , ("igarbled_and100.acirc2",) <$> indexedGarblerNoPBits 1 (andCirc 100)
+    , ("igarbled-ands", [ ("igarbled_and1.acirc2",)   <$> indexedGarbler 1 1 (andCirc 1)
+                        , ("igarbled_and10.acirc2",)  <$> indexedGarbler 1 1 (andCirc 10)
+                        , ("igarbled_and100.acirc2",) <$> indexedGarbler 1 1 (andCirc 100)
                         ] )
     ]
   where
-    query name garbler = do
+    garblerQuery = do
         putStr "How many and-gates? " >> hFlush stdout
         nands <- read <$> getLine
         putStr "How many seeds? " >> hFlush stdout
         nseeds <- read <$> getLine
-        let s = printf "%s_and%d_s%d.acirc2" name nands nseeds
-        c <- garbler nseeds (andCirc nands)
+        let s = printf "garbler_and%d_s%d.acirc2" nands nseeds
+        c <- naiveGarbler nseeds (andCirc nands)
+        return (s,c)
+
+    indexedGarblerQuery = do
+        putStr "How many and-gates? " >> hFlush stdout
+        nands <- read <$> getLine
+        putStr "How many seeds? " >> hFlush stdout
+        nseeds <- read <$> getLine
+        putStr "How many indices? " >> hFlush stdout
+        nindices <- read <$> getLine
+        let s = printf "igarbler_and%d_s%d_i%d.acirc2" nands nseeds nindices
+        c <- indexedGarbler nseeds nindices (andCirc nands)
         return (s,c)
 
 --------------------------------------------------------------------------------
@@ -45,8 +57,8 @@ export =
 
 -- XXX: only fan-out one is secure at the moment
 -- garbler that does not use permutation bits
-garblerNoPBits :: Int -> Circ -> IO Acirc2
-garblerNoPBits nseeds c' = buildCircuitT $ do
+naiveGarbler :: Int -> Circ -> IO Acirc2
+naiveGarbler nseeds c' = buildCircuitT $ do
     let c = toCirc2 c'
         k = 80 -- security parameter, wirelabel & prg seed size
         paddingSize = 10
@@ -100,15 +112,18 @@ garblerNoPBits nseeds c' = buildCircuitT $ do
 
 -- XXX: only fan-out one is secure at the moment
 -- garbler that does not use permutation bits
-indexedGarblerNoPBits :: Int -> Circ -> IO Acirc2
-indexedGarblerNoPBits nseeds c' = buildCircuitT $ do
-    let c = toCirc2 c'
-        k = 80 -- security parameter, wirelabel & prg seed size
-        paddingSize = 10
+indexedGarbler :: Int -> Int -> Circ -> IO Acirc2
+indexedGarbler nseeds nindices c' = buildCircuitT $ do
+    let c = toCirc2 c' -- fold NOT gates into AND and XOR
+
+    -- params
+    let k = 80 -- security parameter, wirelabel & prg seed size
+        paddingSize = 10 -- length of the padding in the garbled tables
+        ixLen = ceiling (fromIntegral (ngates c) ** (1 / fromIntegral nindices))
 
     -- the seed to the PRGs, as nseeds different inputs
     s  <- foldM1 (zipWithM circAdd) =<< replicateM nseeds (symbol k)
-    ix <- sigma (ngates c) -- the index of the gate to evaluate
+    ix <- sigmaProd =<< replicateM nindices (sigma ixLen) -- the index of the gate to evaluate
 
     g1 <- do
         g <- prgBuilder k (2*k*nwires c) 5 xorAnd
@@ -125,8 +140,7 @@ indexedGarblerNoPBits nseeds c' = buildCircuitT $ do
     allWires <- listArray (0, nwires c - 1) <$> g1 s
     (mapM . mapM) markPersistant allWires
 
-    -- gate wires is a list of lists of the wires needed for the ith garbled gate, in the correct
-    -- order
+    -- gate wires is a list of lists of the wires needed for the ith garbled gate, in the correct order
     gateWires <- lift $ randIO $ forM (gates c) $ \(zref,g) -> do
         let [xref,yref] = gateArgs g
             xs = safeChunksOf k $ allWires ! getRef xref

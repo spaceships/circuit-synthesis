@@ -222,9 +222,7 @@ selectList ix xs = do
 
 -- select the ith list from a list of lists, ix is sigma vector
 selectListSigma :: (Gate g, Monad m) => [Ref] -> [[Ref]] -> BuilderT g m [Ref]
-selectListSigma ix xs
-  | length ix /= length xs = error "[selectListSigma] unequal list sizes!"
-  | otherwise = do
+selectListSigma ix xs = do
     let sels = map (replicate (length (head xs))) ix
     masked <- zipWithM (zipWithM circMul) sels xs
     foldM1 (zipWithM circAdd) masked
