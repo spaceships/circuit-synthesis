@@ -8,6 +8,7 @@ import Circuit.Optimizer
 import Circuit.Utils
 import qualified Circuit.Format.Acirc    as Acirc
 import qualified Circuit.Format.Acirc2   as Acirc2
+import qualified Circuit.Format.Bench    as Bench
 import qualified Circuit.Format.Nigel    as Nigel
 import qualified Circuit.Format.Netlist  as Netlist
 import qualified Circuit.Format.Graphviz as Graphviz
@@ -45,6 +46,7 @@ data GlobalOpts = GlobalOpts
                 , target              :: Maybe String
                 , optimization_level  :: Int
                 , run_tests           :: Bool
+                , fix_inputs          :: Maybe String
                 } deriving (Show)
 
 parseArgs :: IO Mode
@@ -90,6 +92,11 @@ parseArgs = execParser $ info (parser <**> helper)
                         <> metavar "N"
                         <> help "Optimization level")
                     <*> switch (short 'e' <> help "Ensure circuit tests pass")
+                    <*> (optional $ strOption
+                        ( short 'k'
+                        <> metavar "STRING"
+                        <> help "Fix inputs as secrets. Example: \"0:1 1:0\" fixes the 0th input to \
+                               \ 1 and the 1st input to 0. Error thrown if secret occurs in a symbol."))
 
 main :: IO ()
 main = chooseMode =<< parseArgs
@@ -121,6 +128,7 @@ chooseMode mode = do
                     ".acirc2"  -> run opts (Acirc2.readWithTests inp)
                     ".nigel"   -> run opts (Nigel.readNigel inp :: IO (Circ, [TestCase]))
                     ".netlist" -> run opts (Netlist.readNetlist inp :: IO (Circ, [TestCase]))
+                    ".bench"   -> run opts (Bench.readBench inp :: IO (Circ, [TestCase]))
                     other -> error (printf "[main] unknown input extension \"%s\"!" other)
 
                 Just outputFile -> case takeExtension outputFile of
@@ -215,12 +223,12 @@ circuitMain opts outputName c ts = do
                     ".nigel" -> Nigel.showCirc (toCirc c)
                     ".dot"   -> Graphviz.showGraphviz c
                     other    -> error (printf "[main] unknown output format \"%s\"" other)
-            printf "writing %s\n" fn
+            when (verbose opts) $ printf "writing %s\n" fn
             T.writeFile fn t
 
 
 evalTests :: Gate g => GlobalOpts -> Circuit g -> [TestCase] -> IO ()
 evalTests opts c ts = do
-    pr "evaluating plaintext circuit tests"
+    when (verbose opts) $ pr "evaluating plaintext circuit tests"
     ok <- ensure (verbose opts) c ts
-    if ok then pr "ok" else pr "failed"
+    if ok then when (verbose opts) (pr "ok") else pr "failed"

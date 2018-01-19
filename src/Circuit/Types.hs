@@ -22,8 +22,8 @@ instance Show Id where show id = show (getId id)
 
 data Circuit gate = Circuit
     { _circ_outputs     :: !(V.Vector Ref)
-    , _circ_inputs      :: !IS.IntSet
-    , _circ_consts      :: !(IM.IntMap Id)
+    , _circ_inputs      :: !(IM.IntMap Ref) -- Map Id Ref
+    , _circ_consts      :: !(IM.IntMap Id)  -- Map Ref Id
     , _circ_secret_refs :: !(IS.IntSet)
     , _circ_refmap      :: !(IM.IntMap gate)
     , _circ_const_vals  :: !(IM.IntMap Int)

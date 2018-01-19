@@ -22,6 +22,7 @@ library
                         , Circuit.Utils
                         , Circuit.Format.Acirc
                         , Circuit.Format.Acirc2
+                        , Circuit.Format.Bench
                         , Circuit.Format.Graphviz
                         , Circuit.Format.Netlist
                         , Circuit.Format.Nigel

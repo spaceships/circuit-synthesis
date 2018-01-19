@@ -75,7 +75,7 @@ insertConstVal !id !val = bs_circ . circ_const_vals . at (getId id) ?= val
 
 insertInput :: (Gate g, Monad m) => Ref -> Id -> BuilderT g m ()
 insertInput !ref !id = do
-    bs_circ . circ_inputs %= IS.insert (getRef ref)
+    bs_circ . circ_inputs . at (getId id) ?= ref
     insertGate ref (gateInput id)
 
 newGate :: (Ord g, Monad m, Gate g) => g -> BuilderT g m Ref

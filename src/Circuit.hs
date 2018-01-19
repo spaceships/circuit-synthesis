@@ -29,7 +29,7 @@ import qualified Data.Vector as V
 emptyCirc :: Circuit a
 emptyCirc = Circuit
     { _circ_outputs        = []
-    , _circ_inputs         = IS.empty
+    , _circ_inputs         = IM.empty
     , _circ_consts         = IM.empty
     , _circ_secret_refs    = IS.empty
     , _circ_refmap         = IM.empty
@@ -48,7 +48,7 @@ ngates :: Circuit gate -> Int
 ngates c = nwires c - ninputs c - nconsts c
 
 ninputs :: Circuit gate -> Int
-ninputs = IS.size . _circ_inputs
+ninputs = IM.size . _circ_inputs
 
 nconsts :: Circuit gate -> Int
 nconsts = length . _circ_consts
@@ -79,7 +79,7 @@ outputRefs :: Gate gate => Circuit gate -> [Ref]
 outputRefs c = V.toList (c^.circ_outputs)
 
 inputRefs :: Gate gate => Circuit gate -> [Ref]
-inputRefs c = map Ref $ IS.toList (c^.circ_inputs)
+inputRefs c = IM.elems (c^.circ_inputs)
 
 constRefs :: Gate gate => Circuit gate -> [Ref]
 constRefs c = map Ref $ IM.keys (c^.circ_consts)
