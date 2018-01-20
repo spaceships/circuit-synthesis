@@ -6,10 +6,10 @@
 set -e
 
 usage () {
-    echo "C2A: Cryptol to acirc through AND-inverter graphs"
-    echo "Usage: $0 <cryptol-file> <function>"
-    echo "Options:"
-    echo "  -n      skip optimization step"
+    echo "C2A: Cryptol to acirc through AND-inverter graphs" > /dev/stderr
+    echo "Usage: $0 <cryptol-file> <function>" > /dev/stderr
+    echo "Options:" > /dev/stderr
+    echo "  -n      skip optimization step" > /dev/stderr
     exit $1
 }
 
@@ -29,9 +29,16 @@ if [ x$1 = x ] || [ x$2 = x ]; then
     usage 1
 fi
 
+if ! [ -f cxs ]; then
+    echo "[c2a] ERROR: cxs not present! maybe you should run ./build_cxs.sh" >/dev/stderr
+    exit 1
+fi
+cxs=$(readlink -f cxs)
+
 num_test_cases=10
 
 scriptdir=$(dirname $(readlink -f "${BASH_SOURCE[0]}"))
+dir=$(pwd)
 
 cryptolfile=$(realpath $1)
 func=$2
@@ -69,6 +76,11 @@ sizes=($(egrep "^$func\\s*:\\s*" $cryptolfile | perl -ne \
 xsize=${sizes[0]}
 ysize=${sizes[1]}
 
+fixed_input=""
+for i in $(seq $xsize $((xsize + ysize - 1))); do
+    fixed_input+=" $i:0"
+done
+
 saw sawcmds.saw > /dev/null
 abc -f abccmds.abc > /dev/null
-perl $scriptdir/bench2circ.pl $func.bench ${3:-arithmetic-circuit} $xsize $ysize
+$cxs read $func.bench -o $dir/$func.c2a.acirc -k "$fixed_input"

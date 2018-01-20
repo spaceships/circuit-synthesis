@@ -41,9 +41,16 @@ if [ x$1 = x ] || [ x$2 = x ]; then
     usage 1
 fi
 
+if ! [ -f cxs ]; then
+    echo "[c2a] ERROR: cxs not present! maybe you should run ./build_cxs.sh" >/dev/stderr
+    exit 1
+fi
+cxs=$(readlink -f cxs)
+
 cryptolfile=$(realpath $1)
 func=$2
 
+dir=$(pwd)
 tmp=$(mktemp -d)
 cd $tmp
 
@@ -73,12 +80,19 @@ sizes=($(egrep "^$func\\s*:\\s*" $cryptolfile | perl -ne \
 inputsize=${sizes[0]}
 keysize=${sizes[1]}
 
+fixed_input=""
+for i in $(seq $inputsize $((inputsize + keysize - 1))); do
+    fixed_input+=" $i:0"
+done
+
 saw sawcmds.saw > /dev/null
 abc -f abccmds.abc > /dev/null
 yosys yosys.ys > /dev/null
 
 if [ "$opt_binary" ]; then
-    cat $func.out.v
+    cat $func.out.v > $dir/$func.c2v.netlist
 else
-    python $scriptdir/verilog2acirc.py $func.out.v $inputsize $keysize
+    mv $func.out.v $func.netlist
+    $cxs read $func.netlist -o $dir/$func.c2v.acirc -k "$fixed_input"
+    echo "$cxs read $func.netlist -o $dir/$func.c2v.acirc -k \"$fixed_input\"" >/dev/stderr
 fi

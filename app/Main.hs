@@ -135,22 +135,30 @@ chooseMode mode = do
                 Just outputFile -> case takeExtension outputFile of
                     ".acirc" -> case ext of
                         ".acirc"   -> run opts (Acirc.readWithTests inp)
-                        ".nigel"   -> run opts (Nigel.readNigel inp :: IO (Acirc, [TestCase]))
+                        ".nigel"   -> run opts (Nigel.readNigel inp     :: IO (Acirc, [TestCase]))
                         ".netlist" -> run opts (Netlist.readNetlist inp :: IO (Acirc, [TestCase]))
-                        other      -> error "[main] supported input formats for acirc output: [acirc, nigel, netlist]"
+                        ".bench"   -> run opts (Bench.readBench inp     :: IO (Acirc, [TestCase]))
+                        other      -> error (printf "[main] unsupported input extension for acirc: \"%s\"!" other)
+
                     ".acirc2" -> case ext of
                         ".acirc2"  -> run opts (Acirc2.readWithTests inp)
-                        ".nigel"   -> run opts (Nigel.readNigel inp :: IO (Acirc2, [TestCase]))
+                        ".nigel"   -> run opts (Nigel.readNigel inp     :: IO (Acirc2, [TestCase]))
                         ".netlist" -> run opts (Netlist.readNetlist inp :: IO (Acirc2, [TestCase]))
-                        other      -> error "[main] supported input formats for acirc2 output: [acirc2, nigel, netlist]"
+                        ".bench"   -> run opts (Bench.readBench inp     :: IO (Acirc2, [TestCase]))
+                        other      -> error (printf "[main] unsupported input extension for acirc2: \"%s\"!" other)
+
                     ".nigel" -> case ext of
-                        ".nigel"   -> run opts (Nigel.readNigel inp :: IO (Circ, [TestCase]))
+                        ".nigel"   -> run opts (Nigel.readNigel inp     :: IO (Circ, [TestCase]))
                         ".netlist" -> run opts (Netlist.readNetlist inp :: IO (Circ, [TestCase]))
-                        other      -> error "[main] supported input formats for nigel output: [nigel, netlist]"
+                        ".bench"   -> run opts (Bench.readBench inp     :: IO (Circ, [TestCase]))
+                        other      -> error (printf "[main] unsupported input extension for nigel: \"%s\"!" other)
+
                     ".netlist" -> case ext of
-                        ".nigel"   -> run opts (Nigel.readNigel inp :: IO (Circ, [TestCase]))
+                        ".nigel"   -> run opts (Nigel.readNigel inp     :: IO (Circ, [TestCase]))
                         ".netlist" -> run opts (Netlist.readNetlist inp :: IO (Circ, [TestCase]))
-                        other      -> error "[main] supported input formats for netlist output: [nigel, netlist]"
+                        ".bench"   -> run opts (Bench.readBench inp     :: IO (Circ, [TestCase]))
+                        other      -> error (printf "[main] unsupported input extension for netlist: \"%s\"!" other)
+
                     other -> error (printf "[main] unknown output extension \"%s\"!" other)
 
         Garble inp opts -> do

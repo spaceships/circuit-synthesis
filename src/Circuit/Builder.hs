@@ -196,7 +196,7 @@ exportConsts c = do
 exportParams :: (Gate g, Gate g', Monad m) => Circuit g -> BuilderT g' m ()
 exportParams c = do
     setBase (c^.circ_base)
-    mapM_ (uncurry setSymlen) (IM.toList (c^.circ_symlen))
+    -- mapM_ (uncurry setSymlen) (IM.toList (c^.circ_symlen)) -- XXX handled by input now
 
 --------------------------------------------------------------------------------
 -- extras!
