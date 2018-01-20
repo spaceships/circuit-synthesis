@@ -24,6 +24,7 @@ import qualified Examples.Tribes          as Tribes
 import qualified Examples.Simple          as Simple
 
 import Control.Monad
+import Data.List.Split (splitOn)
 import Lens.Micro.Platform
 import System.Exit
 import System.FilePath.Posix (takeBaseName, takeExtension)
@@ -189,9 +190,13 @@ chooseMode mode = do
 
 circuitMain :: (Graphviz.Graphviz g, Optimize g, Gate g, ToAcirc g, ToCirc g, ToAcirc2 g)
             => GlobalOpts -> Maybe FilePath -> Circuit g -> [TestCase] -> IO ()
-circuitMain opts outputName c ts = do
-    let old_symlen = _circ_symlen c
+circuitMain opts outputName inputC ts = do
 
+    let c = case fix_inputs opts of
+                Nothing -> inputC
+                Just st -> fixInputBits (parseFixedInputsString st) inputC
+
+    let old_symlen = _circ_symlen c
     c' <- case optimization_level opts of
         0 -> return c
         1 -> optimizeO1 c
@@ -200,11 +205,12 @@ circuitMain opts outputName c ts = do
         x -> do
             printf "[error] unknown optimization level %d\n" x
             exitFailure
-
     let c = c' & circ_symlen .~ old_symlen
 
     when (show_info opts) $ do
         printCircInfo c
+        when (verbose opts) $
+            printf "var-degree=%s\n" (unwords (map show (degs c)))
 
     ts <- case ntests opts of
         Just n  -> replicateM n (genTest c)
@@ -232,3 +238,9 @@ evalTests opts c ts = do
     when (verbose opts) $ pr "evaluating plaintext circuit tests"
     ok <- ensure (verbose opts) c ts
     if ok then when (verbose opts) (pr "ok") else pr "failed"
+
+parseFixedInputsString :: String -> [(Id, Int)]
+parseFixedInputsString s = map (f . splitOn ":") (words s)
+  where
+    f [sx,sy] = (Id (read sx), read sy)
+    f _ = error (printf "[parseFixedInputsString] couldn't read string \"%s\"!" s)

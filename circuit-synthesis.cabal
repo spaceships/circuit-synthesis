@@ -75,5 +75,6 @@ executable cxs
                         , filepath
                         , microlens-platform
                         , optparse-applicative
+                        , split
                         , text
     ghc-options: -O2

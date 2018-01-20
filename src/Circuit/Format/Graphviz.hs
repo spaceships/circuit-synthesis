@@ -107,8 +107,8 @@ pprOp :: Int -> ArithGate -> PrettyPr Doc
 pprOp i (ArithAdd x y)  = pprOp' i [x,y] (text "+")
 pprOp i (ArithSub x y)  = pprOp' i [x,y] (text "-")
 pprOp i (ArithMul x y)  = pprOp' i [x,y] (text "*")
-pprOp i (ArithInput id) = pure $ pprInput  i id
-pprOp i (ArithConst id) = pure $ pprSecret i id
+pprOp i (ArithBase (Input id)) = pure $ pprInput  i id
+pprOp i (ArithBase (Const id)) = pure $ pprSecret i id
 
 pprOp' :: Int -> [Ref] -> Doc -> PrettyPr Doc
 pprOp' i rs op = do

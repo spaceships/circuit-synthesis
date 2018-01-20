@@ -13,10 +13,10 @@ circToSexp c = foldCirc eval c
     eval (ArithAdd _ _) [x,y] = printf "Add(%s, %s)" x y
     eval (ArithSub _ _) [x,y] = printf "Add(%s, Mul(Integer(-1), %s))" x y
     eval (ArithMul _ _) [x,y] = printf "Mul(%s, %s)" x y
-    eval (ArithInput i) []   = printf "Symbol('x%d')" (getId i)
-    eval (ArithConst i) []   = if secretConst c i
-                               then printf "Symbol('y%d')" (getId i)
-                               else printf "Integer(%d)" (getConst c i)
+    eval (ArithBase (Input i)) []   = printf "Symbol('x%d')" (getId i)
+    eval (ArithBase (Const i)) []   = if secretConst c i
+                                         then printf "Symbol('y%d')" (getId i)
+                                         else printf "Integer(%d)" (getConst c i)
     eval op args  = error ("[circToSexp] weird input: " ++ show op ++ " " ++ show args)
 
 type SexpParser = ParsecT String () (B.Builder ArithGate)

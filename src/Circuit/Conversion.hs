@@ -94,5 +94,21 @@ foldNots c = flip evalState IM.empty $ B.buildCircuitT $ do
         update z =<< tr x
         return (not n)
 
-    eval (BoolInput _) _ _ = return False
-    eval (BoolConst _) _ _ = return False
+    eval (BoolBase (Input _)) _ _ = return False
+    eval (BoolBase (Const _)) _ _ = return False
+
+
+--------------------------------------------------------------------------------
+-- other generic utils
+
+fixInputBits :: Gate g => [(Id, Int)] -> Circuit g -> Circuit g
+fixInputBits assignments c = B.buildCircuit $ do
+    B.exportParams c
+    ys <- B.exportConsts c
+    let aMap = IM.fromList (map (over _1 getId) assignments)
+    xs <- forM (IM.toList (c^.circ_inputs)) $ \(id, ref) -> do
+        case IM.lookup id aMap of
+            Nothing  -> B.input
+            Just val -> B.secret val
+    zs <- B.subcircuit' c xs ys
+    B.outputs zs

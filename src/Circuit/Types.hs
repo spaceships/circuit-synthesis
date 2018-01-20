@@ -41,12 +41,15 @@ type TestCase = ([Int], [Int])
 --------------------------------------------------------------------------------
 -- types of gates
 
+data BaseGate = Input !Id
+              | Const !Id
+              deriving (Eq, Ord, Show)
+
 data ArithGate =
       ArithAdd !Ref !Ref
     | ArithSub !Ref !Ref
     | ArithMul !Ref !Ref
-    | ArithInput !Id
-    | ArithConst !Id
+    | ArithBase !BaseGate
     deriving (Eq, Ord, Show)
 
 -- Acirc2 has free Xor and mod 2
@@ -56,16 +59,14 @@ data BoolGate =
       BoolXor !Ref !Ref
     | BoolAnd !Ref !Ref
     | BoolNot !Ref
-    | BoolInput !Id
-    | BoolConst !Id
+    | BoolBase !BaseGate
     deriving (Eq, Ord, Show)
 
 -- Bool2 has no Not gates- they're folded into the Xor and And gates with negation flags
 data BoolGate2 =
        Bool2Xor !Ref Bool !Ref Bool
      | Bool2And !Ref Bool !Ref Bool
-     | Bool2Input !Id
-     | Bool2Const !Id
+     | Bool2Base !BaseGate
      deriving (Eq, Ord, Show)
 
 type Acirc = Circuit ArithGate
@@ -78,109 +79,124 @@ type Circ2 = Circuit BoolGate2
 
 class (Eq g, Ord g) => Gate g where
     gateArgs :: g -> [Ref]
+    gateGetBase :: g -> Maybe BaseGate
     gateEval :: (Id -> Int) -> (Id -> Int) -> g -> [Int] -> Int
+
     gateAdd :: Ref -> Ref -> g
     gateSub :: Ref -> Ref -> g
     gateMul :: Ref -> Ref -> g
     gateXor :: Ref -> Ref -> Maybe g
     gateNot :: Ref -> Maybe g
-    gateInput :: Id -> g
-    gateConst :: Id -> g
+    gateBase :: BaseGate -> g
+
     gateIsMul :: g -> Bool
     gateIsGate :: g -> Bool
+
+    gateFix :: g -> [Ref] -> g
 
 instance Gate ArithGate where
     gateArgs (ArithAdd x y)  = [x,y]
     gateArgs (ArithSub x y)  = [x,y]
     gateArgs (ArithMul x y)  = [x,y]
-    gateArgs (ArithInput _) = []
-    gateArgs (ArithConst _) = []
+    gateArgs (ArithBase _) = []
+
+    gateGetBase (ArithBase b) = Just b
+    gateGetBase _ = Nothing
 
     gateEval _ _ (ArithAdd _ _) [x,y] = x + y
     gateEval _ _ (ArithSub _ _) [x,y] = x - y
     gateEval _ _ (ArithMul _ _) [x,y] = x * y
-    gateEval getInp _   (ArithInput i) [] = getInp i
-    gateEval _ getConst (ArithConst i) [] = getConst i
+    gateEval getInp _ (ArithBase (Input i)) [] = getInp i
+    gateEval _ getConst (ArithBase (Const i)) [] = getConst i
 
     gateAdd x y = ArithAdd x y
     gateSub x y = ArithSub x y
     gateMul x y = ArithMul x y
     gateXor _ _ = Nothing
     gateNot _   = Nothing
-    gateInput i = ArithInput i
-    gateConst i = ArithConst i
+    gateBase = ArithBase
 
     gateIsMul (ArithMul _ _) = True
     gateIsMul _ = False
 
-    gateIsGate (ArithInput _) = False
-    gateIsGate (ArithConst _) = False
+    gateIsGate (ArithBase _) = False
     gateIsGate _ = True
+
+    gateFix (ArithAdd _ _) [x,y] = ArithAdd x y
+    gateFix (ArithSub _ _) [x,y] = ArithSub x y
+    gateFix (ArithMul _ _) [x,y] = ArithMul x y
 
 instance Gate ArithGate2 where
     gateArgs = gateArgs . getArithGate
+    gateGetBase = gateGetBase . getArithGate
     gateEval i c g a = gateEval i c (getArithGate g) a `mod` 2
     gateAdd x y = ArithGate2 (gateAdd x y)
     gateSub x y = ArithGate2 (gateSub x y)
     gateMul x y = ArithGate2 (gateMul x y)
     gateXor x y = Just $ ArithGate2 (gateAdd x y)
     gateNot _   = Nothing
-    gateInput i = ArithGate2 (ArithInput i)
-    gateConst i = ArithGate2 (ArithConst i)
-
+    gateBase b = ArithGate2 (ArithBase b)
     gateIsMul = gateIsMul . getArithGate
     gateIsGate = gateIsGate . getArithGate
+    gateFix g args = ArithGate2 (gateFix (getArithGate g) args)
 
 instance Gate BoolGate where
     gateArgs (BoolXor x y) = [x,y]
     gateArgs (BoolAnd x y) = [x,y]
     gateArgs (BoolNot x)   = [x]
-    gateArgs (BoolInput _) = []
-    gateArgs (BoolConst _) = []
+    gateArgs (BoolBase _)  = []
+
+    gateGetBase (BoolBase b) = Just b
+    gateGetBase _ = Nothing
 
     gateEval _ _ (BoolXor _ _) [x,y] = b2i (i2b x `xor` i2b y)
     gateEval _ _ (BoolAnd _ _) [x,y] = x * y
     gateEval _ _ (BoolNot _)   [x]   = 1 - x
-    gateEval getInp _   (BoolInput i) [] = getInp i
-    gateEval _ getConst (BoolConst i) [] = getConst i
+    gateEval getInp _   (BoolBase (Input i)) [] = getInp i
+    gateEval _ getConst (BoolBase (Const i)) [] = getConst i
 
     gateAdd x y = BoolXor x y
     gateSub x y = BoolXor x y
     gateMul x y = BoolAnd x y
     gateXor x y = Just (BoolXor x y)
     gateNot x   = Just (BoolNot x)
-    gateInput i = BoolInput i
-    gateConst i = BoolConst i
+    gateBase b  = BoolBase b
 
     gateIsMul (BoolAnd _ _) = True
     gateIsMul _ = False
 
-    gateIsGate (BoolInput _) = False
-    gateIsGate (BoolConst _) = False
+    gateIsGate (BoolBase _) = False
     gateIsGate _ = True
+
+    gateFix (BoolXor _ _) [x,y] = BoolXor x y
+    gateFix (BoolAnd _ _) [x,y] = BoolAnd x y
+    gateFix (BoolNot _) [x] = BoolNot x
 
 instance Gate BoolGate2 where
     gateArgs (Bool2Xor x _ y _) = [x,y]
     gateArgs (Bool2And x _ y _) = [x,y]
-    gateArgs (Bool2Input _) = []
-    gateArgs (Bool2Const _) = []
+    gateArgs (Bool2Base _) = []
+
+    gateGetBase (Bool2Base b) = Just b
+    gateGetBase _ = Nothing
 
     gateEval _ _ (Bool2Xor _ negx _ negy) [x,y] = b2i ((i2b x `xor` negx) `xor` (i2b y `xor` negy))
     gateEval _ _ (Bool2And _ negx _ negy) [x,y] = b2i ((i2b x `xor` negx) && (i2b y `xor` negy))
-    gateEval getInp _   (Bool2Input i) [] = getInp i
-    gateEval _ getConst (Bool2Const i) [] = getConst i
+    gateEval getInp _   (Bool2Base (Input i)) [] = getInp i
+    gateEval _ getConst (Bool2Base (Const i)) [] = getConst i
 
     gateAdd x y = Bool2Xor x False y False
     gateSub x y = Bool2Xor x False y False
     gateMul x y = Bool2And x False y False
     gateXor x y = Just (Bool2Xor x False y False)
     gateNot _   = Nothing
-    gateInput i = Bool2Input i
-    gateConst i = Bool2Const i
+    gateBase = Bool2Base
 
     gateIsMul (Bool2And _ _ _ _) = True
     gateIsMul _ = False
 
-    gateIsGate (Bool2Input _) = False
-    gateIsGate (Bool2Const _) = False
+    gateIsGate (Bool2Base _) = False
     gateIsGate _ = True
+
+    gateFix (Bool2Xor _ negx _ negy) [x,y] = Bool2Xor x negx y negy
+    gateFix (Bool2And _ negx _ negy) [x,y] = Bool2And x negx y negy

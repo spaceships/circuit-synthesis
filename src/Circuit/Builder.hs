@@ -45,7 +45,7 @@ inputs n = replicateM n input
 input_n :: (Gate g, Monad m) => Id -> BuilderT g m Ref
 input_n n = do
     dedup <- use bs_dedup
-    case M.lookup (gateInput n) dedup of
+    case M.lookup (gateBase (Input n)) dedup of
         Just ref -> return ref
         Nothing  -> do
             cur <- use bs_next_inp
@@ -79,7 +79,7 @@ secret val = do
 secret_n :: (Gate g, Monad m) => Id -> BuilderT g m Ref
 secret_n n = do
     dedup <- use bs_dedup
-    case M.lookup (gateConst n) dedup of
+    case M.lookup (gateBase (Const n)) dedup of
         Just ref -> return ref
         Nothing  -> do
             cur <- use bs_next_const
@@ -160,7 +160,7 @@ output = markOutput
 
 -- NOTE: unconnected secrets from the subcircuit will be secrets in the
 -- resulting composite circuit.
-subcircuit' :: Monad m => Circuit ArithGate -> [Ref] -> [Ref] -> BuilderT ArithGate m [Ref]
+subcircuit' :: (Monad m, Gate g) => Circuit g -> [Ref] -> [Ref] -> BuilderT g m [Ref]
 subcircuit' c xs ys
     | length xs < ninputs c = error (printf "[subcircuit'] not enough inputs got %d, need %d"
                                             (length xs) (ninputs c))
@@ -171,16 +171,15 @@ subcircuit' c xs ys
     xs' = listArray (0, length xs-1) xs
     ys' = listArray (0, length ys-1) ys
 
-    translate (ArithAdd _ _) _ [x,y] = circAdd x y
-    translate (ArithSub _ _) _ [x,y] = circSub x y
-    translate (ArithMul _ _) _ [x,y] = circMul x y
-    translate (ArithInput id) _ _ = return (xs' ! getId id)
-    translate (ArithConst id) _ _ = return (ys' ! getId id)
-    translate op _ args =
-        error ("[subcircuit'] weird input: " ++ show op ++ " " ++ show args)
+    translate g _ args = if gateIsGate g
+                            then newGate (gateFix g args)
+                            else case gateGetBase g of
+                                Just (Input id) -> return (xs' ! getId id)
+                                Just (Const id) -> return (ys' ! getId id)
+                                Nothing -> error "[subcircuit'] this should never happen"
 
 -- lift the subcircuit's constants and secrets into the circuit above
-subcircuit :: Monad m => Circuit ArithGate -> [Ref] -> BuilderT ArithGate m [Ref]
+subcircuit :: (Gate g, Monad m) => Circuit g -> [Ref] -> BuilderT g m [Ref]
 subcircuit c xs = do
     ys <- exportConsts c
     subcircuit' c xs ys

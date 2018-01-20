@@ -72,9 +72,9 @@ showWithTests !c !ts = T.unlines (header ++ gateLines)
         case c ^. circ_refcount . at (getRef ref) of
             Nothing -> Nothing
             Just ct -> Just $ case c ^. circ_refmap . at (getRef ref) . non (error "[gateTxt] unknown ref") of
-                (ArithInput id) -> T.concat [showRef ref, " input ", showt (getId id)
-                                            ," : ", showCount ct]
-                (ArithConst id) -> T.concat [showRef ref, " const : ", showCount ct]
+                (ArithBase (Input id)) -> T.concat [showRef ref, " input ", showt (getId id)
+                                                   ," : ", showCount ct]
+                (ArithBase (Const id)) -> T.concat [showRef ref, " const : ", showCount ct]
                 (ArithAdd x y) -> pr ref "ADD" x y ct
                 (ArithSub x y) -> pr ref "SUB" x y ct
                 (ArithMul x y) -> pr ref "MUL" x y ct

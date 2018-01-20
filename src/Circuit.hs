@@ -185,38 +185,39 @@ ydeg c = head (degs c)
 xdeg :: Circuit ArithGate -> Int -> Integer
 xdeg c i = degs c !! (i+1)
 
-degs :: Circuit ArithGate -> [Integer]
-degs c = map (varDegree c) ids
+-- TODO: make these degree functions understand symbols
+degs :: Gate g => Circuit g -> [Integer]
+degs c = map (maxVarDegree c) vars
   where
-    ids = ArithConst (Id (-1)) : map (ArithInput . Id) [0 .. ninputs c-1]
+    vars = Const (Id (-1)) : map (Input . Id) [0 .. ninputs c-1]
 
 depth :: Gate gate => Circuit gate -> Integer
 depth c = maximum $ foldCirc f c
   where
     f _ args = if null args then 0 else maximum args + 1
 
-varDegree :: Circuit ArithGate -> ArithGate -> Integer
-varDegree c z = maximum (varDegree' c z)
+maxVarDegree :: Gate g => Circuit g -> BaseGate -> Integer
+maxVarDegree c z = maximum (varDegree c z)
 
-varDegree' :: Circuit ArithGate -> ArithGate -> [Integer]
-varDegree' c z = foldCirc f c
+varDegree :: (Gate g) => Circuit g -> BaseGate -> [Integer]
+varDegree c z = foldCirc f c
   where
-    f (ArithAdd _ _) [x,y] = max x y
-    f (ArithSub _ _) [x,y] = max x y
-    f (ArithMul _ _) [x,y] = x + y
+    f g args = case gateGetBase g of
+        Just b  -> if eq b z then 1 else 0
+        Nothing -> if gateIsMul g then sum args else maximum args
 
-    f x _ = if eq x z then 1 else 0
-
-    eq (ArithInput x) (ArithInput y) = x == y
-    eq (ArithConst _) (ArithConst _) = True
+    eq (Input x) (Input y) = x == y
+    eq (Const _) (Const _) = True
     eq _ _ = False
 
 circDegree :: Gate g => Circuit g -> Integer
 circDegree c = maximum $ foldCirc f c
   where
-    f g [x,y] = if gateIsMul g then x + y else max x y
     f g [x] = x
-    f _ [] = 1 -- input or const
+    f _ []  = 1 -- input or const
+    f g args = if gateIsMul g
+                  then sum args
+                  else maximum args
 
 zeroTest :: Int -> Int
 zeroTest 0 = 0
