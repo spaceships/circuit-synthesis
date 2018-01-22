@@ -8,7 +8,7 @@ import Circuit.Utils
 import Circuit.Conversion
 import Examples.Goldreich
 import Examples.Simple
-import qualified Circuit.Format.Nigel as Nigel
+import qualified Circuit.Format.Circ as Circ
 
 import Control.Monad
 import Control.Monad.Trans
@@ -116,6 +116,8 @@ naiveGarbler nseeds c' = buildCircuitT $ do
 indexedGarbler :: Int -> Int -> Circ -> IO Acirc2
 indexedGarbler nseeds nindices c' = buildCircuitT $ do
     let c = toCirc2 c' -- fold NOT gates into AND and XOR
+
+    lift $ Circ.writeWithTests "f.circ" c
 
     -- params
     let k = 80 -- security parameter, wirelabel & prg seed size

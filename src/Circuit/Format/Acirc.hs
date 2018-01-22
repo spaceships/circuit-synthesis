@@ -21,12 +21,14 @@ import Prelude hiding (show)
 import Control.Monad
 import Control.Monad.Trans (lift)
 import Data.Maybe (mapMaybe)
+import Formatting ((%))
 import Lens.Micro.Platform
 import Text.Parsec hiding (spaces, parseTest, parse)
 import TextShow
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.IntMap as IM
+import qualified Formatting as F
 
 read :: FilePath -> IO Acirc
 read = fmap fst . readWithTests
@@ -46,10 +48,10 @@ show :: Acirc -> T.Text
 show c = showWithTests c []
 
 showWithTests :: Acirc -> [TestCase] -> T.Text
-showWithTests !c !ts = T.unlines (header ++ gateLines)
+showWithTests !c !ts = T.unlines (header ++ inputs ++ consts ++ gates)
   where
     header = [ T.append ":ninputs " (showt (ninputs c))
-             , T.append ":nrefs "   (showt (c ^. circ_maxref + 1))
+             , T.append ":nrefs "   (showt (c ^. circ_maxref))
              , T.append ":consts "  (T.unwords (map showt (IM.elems (_circ_const_vals c))))
              , T.append ":outputs " (T.unwords (map (showt.getRef) (outputRefs c)))
              , T.append ":secrets " (T.unwords (map (showt.getRef) (secretRefs c)))
@@ -62,27 +64,16 @@ showWithTests !c !ts = T.unlines (header ++ gateLines)
     consts = mapMaybe gateTxt (constRefs c)
     gates  = mapMaybe gateTxt (gateRefs c)
 
-    gateLines = concat [inputs, consts, gates]
-
-    showRef = showt . getRef
-
     gateTxt :: Ref -> Maybe T.Text
     gateTxt !ref =
         case c ^. circ_refcount . at (getRef ref) of
             Nothing -> Nothing
             Just ct -> Just $ case c ^. circ_refmap . at (getRef ref) . non (error "[gateTxt] unknown ref") of
-                (ArithBase (Input id)) -> T.concat [showRef ref, " input ", showt (getId id)
-                                                   ," : ", showCount ct]
-                (ArithBase (Const id)) -> T.concat [showRef ref, " const : ", showCount ct]
-                (ArithAdd x y) -> pr ref "ADD" x y ct
-                (ArithSub x y) -> pr ref "SUB" x y ct
-                (ArithMul x y) -> pr ref "MUL" x y ct
-
-    pr :: Ref -> T.Text -> Ref -> Ref -> Int -> T.Text
-    pr !ref !gateTy !x !y ct =
-        T.concat [ showRef ref, " ", gateTy, " ", showRef x, " ", showt (getRef y)
-                 , " : ", showCount ct
-                 ]
+                (ArithBase (Input id)) -> F.sformat (F.shown % " input " % F.shown % " : " % F.stext) ref id (showCount ct)
+                (ArithBase (Const id)) -> F.sformat (F.shown % " const " % F.shown % " : " % F.stext) ref id (showCount ct)
+                (ArithAdd x y) -> F.sformat (F.shown % " ADD " % F.shown % " " % F.shown % " : " % F.stext) ref x y (showCount ct)
+                (ArithSub x y) -> F.sformat (F.shown % " SUB " % F.shown % " " % F.shown % " : " % F.stext) ref x y (showCount ct)
+                (ArithMul x y) -> F.sformat (F.shown % " MUL " % F.shown % " " % F.shown % " : " % F.stext) ref x y (showCount ct)
 
     showCount ct = if ct == -1 then "inf" else showt ct
 
@@ -185,7 +176,7 @@ parseConst :: Ref -> AcircParser ()
 parseConst ref = do
     string "const"
     spaces
-    id <- lift B.nextConstId
+    id <- Id <$> int
     lift $ B.insertConst ref id
 
 parseGate :: Ref -> AcircParser ()
