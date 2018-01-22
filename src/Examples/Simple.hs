@@ -20,6 +20,7 @@ simple = buildCircuit $ do
     ys  <- secrets [0,1,0,1,0]
     one <- constant 1
     w   <- circProd =<< zipWithM circAdd (x1++x2) ys
-    z   <- circAdd w one
+    w'  <- circNot w
+    z   <- circAdd w' one
     output z
 

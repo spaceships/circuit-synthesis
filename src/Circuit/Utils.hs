@@ -112,9 +112,9 @@ showBits' = map (\b -> if b then '1' else '0')
 red :: String -> String
 red s = "\x1b[1;41m" ++ s ++ "\x1b[0m"
 
-infixl 5 %
-(%) :: Integral a => a -> a -> a
-x % q = mod x q
+-- infixl 5 %
+-- (%) :: Integral a => a -> a -> a
+-- x % q = mod x q
 
 safeInsert :: Ord a => String -> a -> b -> M.Map a b -> M.Map a b
 safeInsert errorMsg x y m =

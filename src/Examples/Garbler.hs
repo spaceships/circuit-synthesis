@@ -8,6 +8,7 @@ import Circuit.Utils
 import Circuit.Conversion
 import Examples.Goldreich
 import Examples.Simple
+import qualified Circuit.Format.Nigel as Nigel
 
 import Control.Monad
 import Control.Monad.Trans
@@ -134,8 +135,7 @@ indexedGarbler nseeds nindices c' = buildCircuitT $ do
         let g' i xs = (!! i) . safeChunksOf (k+paddingSize) <$> g xs
         return (g',s)
 
-    -- lift $ writeFile "g1.txt" g1Desc
-    -- lift $ writeFile "g2.txt" g2Desc
+    lift $ writeFile "g2.txt" g2Desc
 
     allWires <- listArray (0, nwires c - 1) <$> g1 s
     (mapM . mapM) markPersistant allWires

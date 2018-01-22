@@ -60,7 +60,6 @@ showWithTests !c !ts = T.unlines (header ++ gateLines)
 
     inputs = mapMaybe gateTxt (inputRefs c)
     consts = mapMaybe gateTxt (constRefs c)
-
     gates  = mapMaybe gateTxt (gateRefs c)
 
     gateLines = concat [inputs, consts, gates]

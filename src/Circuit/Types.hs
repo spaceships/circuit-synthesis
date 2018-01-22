@@ -62,10 +62,10 @@ data BoolGate =
     | BoolBase !BaseGate
     deriving (Eq, Ord, Show)
 
--- Bool2 has no Not gates- they're folded into the Xor and And gates with negation flags
+-- Bool2 has no Not gates
 data BoolGate2 =
-       Bool2Xor !Ref Bool !Ref Bool
-     | Bool2And !Ref Bool !Ref Bool
+       Bool2Xor !Ref !Ref
+     | Bool2And !Ref !Ref
      | Bool2Base !BaseGate
      deriving (Eq, Ord, Show)
 
@@ -173,30 +173,30 @@ instance Gate BoolGate where
     gateFix (BoolNot _) [x] = BoolNot x
 
 instance Gate BoolGate2 where
-    gateArgs (Bool2Xor x _ y _) = [x,y]
-    gateArgs (Bool2And x _ y _) = [x,y]
+    gateArgs (Bool2Xor x y) = [x,y]
+    gateArgs (Bool2And x y) = [x,y]
     gateArgs (Bool2Base _) = []
 
     gateGetBase (Bool2Base b) = Just b
     gateGetBase _ = Nothing
 
-    gateEval _ _ (Bool2Xor _ negx _ negy) [x,y] = b2i ((i2b x `xor` negx) `xor` (i2b y `xor` negy))
-    gateEval _ _ (Bool2And _ negx _ negy) [x,y] = b2i ((i2b x `xor` negx) && (i2b y `xor` negy))
+    gateEval _ _ (Bool2Xor _ _) [x,y] = b2i (i2b x `xor` i2b y)
+    gateEval _ _ (Bool2And _ _) [x,y] = b2i (i2b x && i2b y)
     gateEval getInp _   (Bool2Base (Input i)) [] = getInp i
     gateEval _ getConst (Bool2Base (Const i)) [] = getConst i
 
-    gateAdd x y = Bool2Xor x False y False
-    gateSub x y = Bool2Xor x False y False
-    gateMul x y = Bool2And x False y False
-    gateXor x y = Just (Bool2Xor x False y False)
+    gateAdd x y = Bool2Xor x y
+    gateSub x y = Bool2Xor x y
+    gateMul x y = Bool2And x y
+    gateXor x y = Just (Bool2Xor x y)
     gateNot _   = Nothing
     gateBase = Bool2Base
 
-    gateIsMul (Bool2And _ _ _ _) = True
+    gateIsMul (Bool2And _ _) = True
     gateIsMul _ = False
 
     gateIsGate (Bool2Base _) = False
     gateIsGate _ = True
 
-    gateFix (Bool2Xor _ negx _ negy) [x,y] = Bool2Xor x negx y negy
-    gateFix (Bool2And _ negx _ negy) [x,y] = Bool2And x negx y negy
+    gateFix (Bool2Xor _ _) [x,y] = Bool2Xor x y
+    gateFix (Bool2And _ _) [x,y] = Bool2And x y
