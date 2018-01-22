@@ -1,10 +1,12 @@
 .cabal-sandbox
 .ghc*
+.tags
 cabal.sandbox.config
 Setup.hs
 dist
 work
 poly-sage.sage.py
 dist-newstyle
+todo
 cxs
-.tags
+boots
