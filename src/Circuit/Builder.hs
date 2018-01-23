@@ -3,7 +3,6 @@ module Circuit.Builder
   , BuilderT
   , buildCircuit
   , buildCircuitT
-  , setBase
   , setSymlen
   , setSigma
   , Circuit.Builder.Internals.markPersistant
@@ -200,11 +199,6 @@ exportConsts c = mapM (constant . getConst c) (map ConstId (IM.keys (c^.circ_con
 
 exportSecrets :: (Gate g, Gate g', Monad m) => Circuit g -> BuilderT g' m [Ref]
 exportSecrets c = mapM (secret . getSecret c) (map SecretId (IM.keys (c^.circ_secrets)))
-
-exportParams :: (Gate g, Gate g', Monad m) => Circuit g -> BuilderT g' m ()
-exportParams c = do
-    setBase (c^.circ_base)
-    -- mapM_ (uncurry setSymlen) (IM.toList (c^.circ_symlen)) -- XXX handled by input now
 
 --------------------------------------------------------------------------------
 -- extras!

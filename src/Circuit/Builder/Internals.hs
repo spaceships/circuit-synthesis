@@ -51,9 +51,6 @@ buildCircuit = view bs_circ . flip execState emptyBuild
 setSymlen :: Monad m => SymId -> Int -> BuilderT g m ()
 setSymlen !id !n = bs_circ . circ_symlen . at (getSymId id) ?= n
 
-setBase :: Monad m => Int -> BuilderT g m ()
-setBase !n = bs_circ . circ_base .= n
-
 setSigma :: Monad m => SymId -> BuilderT g m ()
 setSigma !id = bs_circ . circ_sigma_vecs %= IS.insert (getSymId id)
 

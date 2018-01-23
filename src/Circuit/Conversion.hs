@@ -57,7 +57,6 @@ instance ToCirc2 BoolGate2  where toCirc2 = id
 
 fixInputBits :: Gate g => [(InputId, Int)] -> Circuit g -> Circuit g
 fixInputBits assignments c = B.buildCircuit $ do
-    B.exportParams c
     ys <- B.exportConsts c
     zs <- B.exportSecrets c
     let aMap = IM.fromList (map (over _1 getInputId) assignments)
@@ -70,7 +69,6 @@ fixInputBits assignments c = B.buildCircuit $ do
 
 fromCirc :: Gate g => Circ -> Circuit g
 fromCirc c = B.buildCircuit $ do
-    B.exportParams c
     xs <- A.listArray (InputId 0,  InputId (ninputs c-1))   <$> B.inputs (ninputs c)
     ys <- A.listArray (ConstId 0,  ConstId (nconsts c-1))   <$> B.exportConsts c
     zs <- A.listArray (SecretId 0, SecretId (nsecrets c-1)) <$> B.exportSecrets c
@@ -85,7 +83,6 @@ fromCirc c = B.buildCircuit $ do
 
 fromCirc2 :: Gate g => Circ2 -> Circuit g
 fromCirc2 c = B.buildCircuit $ do
-    B.exportParams c
     xs <- A.listArray (InputId 0,  InputId (ninputs c-1))   <$> B.inputs (ninputs c)
     ys <- A.listArray (ConstId 0,  ConstId (nconsts c-1))   <$> B.exportConsts c
     zs <- A.listArray (SecretId 0, SecretId (nsecrets c-1)) <$> B.exportSecrets c

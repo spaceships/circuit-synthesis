@@ -37,29 +37,31 @@ emptyCirc = Circuit
     , _circ_const_vals     = IM.empty
     , _circ_secret_vals    = IM.empty
     , _circ_symlen         = IM.empty
-    , _circ_base           = 2
     , _circ_refcount       = IM.empty
     , _circ_maxref         = 0
     , _circ_sigma_vecs     = IS.empty
     }
 
 nwires :: Circuit gate -> Int
-nwires = IM.size . _circ_refmap
+nwires = IM.size . view circ_refmap
 
 ngates :: Circuit gate -> Int
 ngates c = nwires c - ninputs c - nconsts c
 
 ninputs :: Circuit gate -> Int
-ninputs = IM.size . _circ_inputs
+ninputs = IM.size . view circ_inputs
 
 nconsts :: Circuit gate -> Int
-nconsts = length . _circ_consts
+nconsts = length . view circ_consts
 
 nsecrets :: Circuit gate -> Int
-nsecrets = IM.size . _circ_secrets
+nsecrets = IM.size . view circ_secrets
+
+nsymbols :: Circuit gate -> Int
+nsymbols = IM.size . view circ_symlen
 
 noutputs :: Circuit gate -> Int
-noutputs = length . _circ_outputs
+noutputs = length . view circ_outputs
 
 symlen :: Circuit gate -> Int -> Int
 symlen c i = c ^. circ_symlen . at i . non (error $ "[symlen] no symbol " ++ show i)
@@ -123,15 +125,14 @@ getGate c ref = case c^.circ_refmap.at (getRef ref) of
 
 randomizeSecrets :: Circuit gate -> IO (Circuit gate)
 randomizeSecrets c = do
-    key <- replicateM (nsecrets c) $ randIntModIO (c ^. circ_base)
+    key <- randIO $ randIntsMod (nsecrets c) 2
     let newSecrets = IM.fromList $ zip (map getSecretId (secretIds c)) key
     return $ c & circ_const_vals %~ IM.union newSecrets
 
 genTest :: Gate gate => Circuit gate -> IO TestCase
 genTest c
     | all (==1) (c^.circ_symlen) = do
-        let q = fromIntegral $ _circ_base c ^ ninputs c
-        inp <- num2Base (fromIntegral (_circ_base c)) (ninputs c) <$> randIntegerModIO q
+        inp <- randIO $ randIntsMod (ninputs c) 2
         return (inp, plainEval c inp)
     | otherwise = do
         inp <- fmap concat $ randIO $ forM (IM.toList (c^.circ_symlen)) $ \(i,len) -> do
@@ -139,8 +140,7 @@ genTest c
                 x <- randIntMod len
                 return [ if j == x then 1 else 0 | j <- [0..len-1] ]
             else do
-                let b = fromIntegral (c^.circ_base)
-                num2Base b len <$> randIntegerMod (b^len)
+                randIntsMod len 2
         return (inp, plainEval c inp)
 
 
@@ -154,24 +154,23 @@ printCircInfo c = do
     printf "sigma=%s\n" (unwords (map show (IS.toList (c^.circ_sigma_vecs))))
     printf "consts=%s\n" (unwords (map show (IM.elems (c^.circ_const_vals))))
     printf "secrets=%s\n" (unwords (map show (IM.elems (c^.circ_secret_vals))))
-    printf "base=%d\n" (c^.circ_base)
     printf "nwires=%d\n" (nwires c)
     printf "depth=%d\n" (depth c)
     printf "degree=%d\n" (circDegree c)
 
 printTruthTable :: Gate gate => Circuit gate -> IO ()
-printTruthTable c = undefined -- TODO: write me
--- forM_ inputs $ \inp -> do
-    -- let out = plainEval c inp
-    -- printf "%s -> %s\n" (showInts inp) (showInts out)
+printTruthTable c = do
+    let allCombos = map concat $ sequence $ map (possibleInputs c) ([0..nsymbols c-1] :: [Int])
+    forM_ allCombos $ \inp -> do
+        let out = plainEval c inp
+        printf "%s -> %s\n" (showInts inp) (showInts out)
   where
-    b = c^.circ_base
-    sigma len x = [ if i == x then 1 else 0 | i <- [ 0 .. len - 1 ] ]
-    inputs i = case symlen c i of
-        1   -> map (:[]) [0..b-1]
+    possibleInputs c i = case symlen c i of
+        1   -> [[0],[1]]
         len -> if IS.member i (c^.circ_sigma_vecs)
-                  then map (sigma len) [0..len-1]
-                  else permutations len [0..b-1]
+                    then map (sigma len) [0..len-1]
+                    else permutations len [0,1]
+    sigma len x = [ if i == x then 1 else 0 | i <- [ 0 .. len - 1 ] ]
 
 circEq :: Gate gate => Circuit gate -> Circuit gate -> IO Bool
 circEq c0 c1

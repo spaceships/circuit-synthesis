@@ -73,9 +73,8 @@ showWithTests !c' !ts = T.unlines (header ++ inputs ++ secrets ++ consts ++ gate
              , T.append ":consts "  (T.unwords (map showt (IM.elems (_circ_const_vals c))))
              , T.append ":secrets " (T.unwords (map showt (IM.elems (_circ_secret_vals c))))
              , T.append ":outputs " (T.unwords (map (showt.getRef) (outputRefs c)))
-             , T.append ":symlen "  (T.unwords (map showt (c^..circ_symlen.each)))
-             , T.append ":sigma "   (T.unwords (map showt (IS.toList (c^.circ_sigma_vecs))))
-             , T.append ":base "    (showt (c^.circ_base))
+             , T.append ":symlens " (T.unwords (map showt (c^..circ_symlen.each)))
+             , T.append ":sigmas "  (T.unwords (map showt (IS.toList (c^.circ_sigma_vecs))))
              ] ++ map showTest ts
                ++ [ ":start" ]
 
