@@ -10,23 +10,31 @@ module Circuit.Types where
 import Circuit.Utils (xor, b2i, i2b)
 
 import Lens.Micro.Platform
+import Data.Array (Ix)
 import qualified Data.IntMap.Strict as IM
 import qualified Data.IntSet as IS
 import qualified Data.Vector as V
 
-newtype Ref = Ref { getRef :: Int } deriving (Eq, Ord, Num)
-newtype Id  = Id  { getId  :: Int } deriving (Eq, Ord, Num)
+newtype Ref      = Ref      { getRef      :: Int } deriving (Eq, Ord, Num, Enum, Ix)
+newtype InputId  = InputId  { getInputId  :: Int } deriving (Eq, Ord, Num, Enum, Ix)
+newtype ConstId  = ConstId  { getConstId  :: Int } deriving (Eq, Ord, Num, Enum, Ix)
+newtype SecretId = SecretId { getSecretId :: Int } deriving (Eq, Ord, Num, Enum, Ix)
+newtype SymId    = SymId    { getSymId    :: Int } deriving (Eq, Ord, Num, Enum, Ix)
 
-instance Show Ref where show ref = show (getRef ref)
-instance Show Id where show id = show (getId id)
+instance Show Ref      where show = show . getRef
+instance Show InputId  where show = show . getInputId
+instance Show ConstId  where show = show . getConstId
+instance Show SecretId where show = show . getSecretId
+instance Show SymId    where show = show . getSymId
 
 data Circuit gate = Circuit
     { _circ_outputs     :: !(V.Vector Ref)
     , _circ_inputs      :: !(IM.IntMap Ref) -- Map Id Ref
-    , _circ_consts      :: !(IM.IntMap Id)  -- Map Ref Id
-    , _circ_secret_refs :: !(IS.IntSet)
+    , _circ_consts      :: !(IM.IntMap Ref) -- Map Id Ref
+    , _circ_secrets     :: !(IM.IntMap Ref) -- Map Id Ref
     , _circ_refmap      :: !(IM.IntMap gate)
     , _circ_const_vals  :: !(IM.IntMap Int)
+    , _circ_secret_vals :: !(IM.IntMap Int)
     , _circ_symlen      :: !(IM.IntMap Int)
     , _circ_base        :: !Int
     , _circ_refcount    :: !(IM.IntMap Int) -- number of times each ref is used
@@ -41,8 +49,9 @@ type TestCase = ([Int], [Int])
 --------------------------------------------------------------------------------
 -- types of gates
 
-data BaseGate = Input !Id
-              | Const !Id
+data BaseGate = Input  !InputId
+              | Const  !ConstId
+              | Secret !SecretId
               deriving (Eq, Ord, Show)
 
 data ArithGate =
@@ -80,7 +89,7 @@ type Circ2 = Circuit BoolGate2
 class (Eq g, Ord g) => Gate g where
     gateArgs :: g -> [Ref]
     gateGetBase :: g -> Maybe BaseGate
-    gateEval :: (Id -> Int) -> (Id -> Int) -> g -> [Int] -> Int
+    gateEval :: (BaseGate -> Int) -> g -> [Int] -> Int
 
     gateAdd :: Ref -> Ref -> g
     gateSub :: Ref -> Ref -> g
@@ -103,11 +112,10 @@ instance Gate ArithGate where
     gateGetBase (ArithBase b) = Just b
     gateGetBase _ = Nothing
 
-    gateEval _ _ (ArithAdd _ _) [x,y] = x + y
-    gateEval _ _ (ArithSub _ _) [x,y] = x - y
-    gateEval _ _ (ArithMul _ _) [x,y] = x * y
-    gateEval getInp _ (ArithBase (Input i)) [] = getInp i
-    gateEval _ getConst (ArithBase (Const i)) [] = getConst i
+    gateEval _ (ArithAdd _ _) [x,y] = x + y
+    gateEval _ (ArithSub _ _) [x,y] = x - y
+    gateEval _ (ArithMul _ _) [x,y] = x * y
+    gateEval getBase (ArithBase b) [] = getBase b
 
     gateAdd x y = ArithAdd x y
     gateSub x y = ArithSub x y
@@ -129,7 +137,7 @@ instance Gate ArithGate where
 instance Gate ArithGate2 where
     gateArgs = gateArgs . getArithGate
     gateGetBase = gateGetBase . getArithGate
-    gateEval i c g a = gateEval i c (getArithGate g) a `mod` 2
+    gateEval b g a = gateEval b (getArithGate g) a `mod` 2
     gateAdd x y = ArithGate2 (gateAdd x y)
     gateSub x y = ArithGate2 (gateSub x y)
     gateMul x y = ArithGate2 (gateMul x y)
@@ -149,11 +157,10 @@ instance Gate BoolGate where
     gateGetBase (BoolBase b) = Just b
     gateGetBase _ = Nothing
 
-    gateEval _ _ (BoolXor _ _) [x,y] = b2i (i2b x `xor` i2b y)
-    gateEval _ _ (BoolAnd _ _) [x,y] = x * y
-    gateEval _ _ (BoolNot _)   [x]   = 1 - x
-    gateEval getInp _   (BoolBase (Input i)) [] = getInp i
-    gateEval _ getConst (BoolBase (Const i)) [] = getConst i
+    gateEval _ (BoolXor _ _) [x,y] = b2i (i2b x `xor` i2b y)
+    gateEval _ (BoolAnd _ _) [x,y] = x * y
+    gateEval _ (BoolNot _)   [x]   = 1 - x
+    gateEval getBase (BoolBase b) [] = getBase b
 
     gateAdd x y = BoolXor x y
     gateSub x y = BoolXor x y
@@ -180,10 +187,9 @@ instance Gate BoolGate2 where
     gateGetBase (Bool2Base b) = Just b
     gateGetBase _ = Nothing
 
-    gateEval _ _ (Bool2Xor _ _) [x,y] = b2i (i2b x `xor` i2b y)
-    gateEval _ _ (Bool2And _ _) [x,y] = b2i (i2b x && i2b y)
-    gateEval getInp _   (Bool2Base (Input i)) [] = getInp i
-    gateEval _ getConst (Bool2Base (Const i)) [] = getConst i
+    gateEval _ (Bool2Xor _ _) [x,y] = b2i (i2b x `xor` i2b y)
+    gateEval _ (Bool2And _ _) [x,y] = b2i (i2b x && i2b y)
+    gateEval getBase (Bool2Base b) [] = getBase b
 
     gateAdd x y = Bool2Xor x y
     gateSub x y = Bool2Xor x y

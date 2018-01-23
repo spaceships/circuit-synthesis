@@ -15,9 +15,10 @@ import Circuit.Utils
 
 import Control.Monad.Identity
 import Control.Monad.State.Strict
-import Data.List (find,nub)
+import Data.List (nub)
 import Lens.Micro.Platform
 import Text.Printf
+import qualified Data.Array as A
 import qualified Data.Map.Strict as M
 import qualified Data.IntMap.Strict as IM
 import qualified Data.IntSet as IS
@@ -31,9 +32,10 @@ emptyCirc = Circuit
     { _circ_outputs        = []
     , _circ_inputs         = IM.empty
     , _circ_consts         = IM.empty
-    , _circ_secret_refs    = IS.empty
+    , _circ_secrets        = IM.empty
     , _circ_refmap         = IM.empty
     , _circ_const_vals     = IM.empty
+    , _circ_secret_vals    = IM.empty
     , _circ_symlen         = IM.empty
     , _circ_base           = 2
     , _circ_refcount       = IM.empty
@@ -54,7 +56,7 @@ nconsts :: Circuit gate -> Int
 nconsts = length . _circ_consts
 
 nsecrets :: Circuit gate -> Int
-nsecrets = IS.size . _circ_secret_refs
+nsecrets = IM.size . _circ_secrets
 
 noutputs :: Circuit gate -> Int
 noutputs = length . _circ_outputs
@@ -82,7 +84,10 @@ inputRefs :: Gate gate => Circuit gate -> [Ref]
 inputRefs c = IM.elems (c^.circ_inputs)
 
 constRefs :: Gate gate => Circuit gate -> [Ref]
-constRefs c = map Ref $ IM.keys (c^.circ_consts)
+constRefs c = IM.elems (c^.circ_consts)
+
+secretRefs :: Gate gate => Circuit gate -> [Ref]
+secretRefs c = IM.elems (c^.circ_secrets)
 
 isOutputRef :: Gate gate => Circuit gate -> Ref -> Bool
 isOutputRef c ref = V.elem ref (c^.circ_outputs)
@@ -98,21 +103,18 @@ intermediateGateRefs = map fst . intermediateGates
 intermediateWireRefs :: Gate gate => Circuit gate -> [Ref]
 intermediateWireRefs c = filter (not . isOutputRef c) (wireRefs c)
 
-getConst :: Circuit gate -> Id -> Int
-getConst c id = case c^.circ_const_vals.at (getId id) of
+getConst :: Circuit gate -> ConstId -> Int
+getConst c id = case c^.circ_const_vals.at (getConstId id) of
     Just x  -> x
-    Nothing -> error ("[getConst] no const known for y" ++ show id)
+    Nothing -> error ("[getConst] no const known for const " ++ show id)
 
-secretConst :: Circuit gate -> Id -> Bool
-secretConst c id = case find ((==id) . snd) (IM.toList (c^.circ_consts)) of
-    Nothing    -> False
-    Just (r,_) -> IS.member r (c^.circ_secret_refs)
+getSecret :: Circuit gate -> SecretId -> Int
+getSecret c id = case c^.circ_secret_vals.at (getSecretId id) of
+    Just x  -> x
+    Nothing -> error ("[getSecret] no secret known for secret " ++ show id)
 
-secretRefs :: Circuit gate -> [Ref]
-secretRefs c = map Ref $ IS.toAscList (_circ_secret_refs c)
-
-secretIds :: Circuit gate -> [Id]
-secretIds c = map (((IM.!) (c^.circ_consts)) . getRef) (secretRefs c)
+secretIds :: Circuit gate -> [SecretId]
+secretIds = map SecretId . IM.keys . view circ_secrets
 
 getGate :: Circuit gate -> Ref -> gate
 getGate c ref = case c^.circ_refmap.at (getRef ref) of
@@ -121,8 +123,8 @@ getGate c ref = case c^.circ_refmap.at (getRef ref) of
 
 randomizeSecrets :: Circuit gate -> IO (Circuit gate)
 randomizeSecrets c = do
-    key <- replicateM (nsecrets c) $ randIntModIO (_circ_base c)
-    let newSecrets = IM.fromList $ zip (map getId (secretIds c)) key
+    key <- replicateM (nsecrets c) $ randIntModIO (c ^. circ_base)
+    let newSecrets = IM.fromList $ zip (map getSecretId (secretIds c)) key
     return $ c & circ_const_vals %~ IM.union newSecrets
 
 genTest :: Gate gate => Circuit gate -> IO TestCase
@@ -149,8 +151,12 @@ printCircInfo c = do
     printf "============\n"
     printf "ninputs=%d noutputs=%d nconsts=%d nsecrets=%d\n" n (noutputs c) (nconsts c) (nsecrets c)
     printf "symlen=%s\n" (unwords (map show (IM.elems (c^.circ_symlen))))
+    printf "sigma=%s\n" (unwords (map show (IS.toList (c^.circ_sigma_vecs))))
+    printf "consts=%s\n" (unwords (map show (IM.elems (c^.circ_const_vals))))
+    printf "secrets=%s\n" (unwords (map show (IM.elems (c^.circ_secret_vals))))
     printf "base=%d\n" (c^.circ_base)
-    printf "nwires=%d depth=%d\n" (nwires c) (depth c)
+    printf "nwires=%d\n" (nwires c)
+    printf "depth=%d\n" (depth c)
     printf "degree=%d\n" (circDegree c)
 
 printTruthTable :: Gate gate => Circuit gate -> IO ()
@@ -189,7 +195,7 @@ xdeg c i = degs c !! (i+1)
 degs :: Gate g => Circuit g -> [Integer]
 degs c = map (maxVarDegree c) vars
   where
-    vars = Const (Id (-1)) : map (Input . Id) [0 .. ninputs c-1]
+    vars = Const (ConstId (-1)) : map (Input . InputId) [0 .. ninputs c-1]
 
 depth :: Gate gate => Circuit gate -> Integer
 depth c = maximum $ foldCirc f c
@@ -207,7 +213,10 @@ varDegree c z = foldCirc f c
         Nothing -> if gateIsMul g then sum args else maximum args
 
     eq (Input x) (Input y) = x == y
-    eq (Const _) (Const _) = True
+    eq (Const _)  (Const _)  = True
+    eq (Const _)  (Secret _) = True
+    eq (Secret _) (Const _)  = True
+    eq (Secret _) (Secret _) = True
     eq _ _ = False
 
 circDegree :: Gate g => Circuit g -> Integer
@@ -226,10 +235,14 @@ zeroTest _ = 1
 plainEval :: Gate gate => Circuit gate -> [Int] -> [Int]
 plainEval c inps
     | ninputs c /= length inps =
-        error (printf "[plainEval] incorrect number of inputs: expected %d, got %s" (ninputs c) (show inps))
-    | otherwise = map zeroTest $ foldCirc (gateEval getInp (getConst c)) c
+        error (printf "[plainEval] incorrect number of inputs: expected %d, got %s"
+                      (ninputs c) (show inps))
+    | otherwise = map zeroTest $ foldCirc (gateEval getBase) c
   where
-    getInp i = inps !! getId i
+    inps' = A.listArray (0 :: InputId, InputId (length inps-1)) inps
+    getBase (Input id)  = inps' A.! id
+    getBase (Const id)  = getConst c id
+    getBase (Secret id) = getSecret c id
 
 ensure :: Gate gate => Bool -> Circuit gate -> [TestCase] -> IO Bool
 ensure verbose c ts = and <$> mapM ensure' (zip [0::Int ..] ts)

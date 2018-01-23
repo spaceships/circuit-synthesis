@@ -55,40 +55,45 @@ instance ToCirc2 BoolGate2  where toCirc2 = id
 --------------------------------------------------------------------------------
 -- other generic utils
 
-fixInputBits :: Gate g => [(Id, Int)] -> Circuit g -> Circuit g
+fixInputBits :: Gate g => [(InputId, Int)] -> Circuit g -> Circuit g
 fixInputBits assignments c = B.buildCircuit $ do
     B.exportParams c
     ys <- B.exportConsts c
-    let aMap = IM.fromList (map (over _1 getId) assignments)
+    zs <- B.exportSecrets c
+    let aMap = IM.fromList (map (over _1 getInputId) assignments)
     xs <- forM (IM.toList (c^.circ_inputs)) $ \(id, ref) -> do
         case IM.lookup id aMap of
             Nothing  -> B.input
             Just val -> B.secret val
-    zs <- B.subcircuit' c xs ys
-    B.outputs zs
+    outs <- B.subcircuit' c xs ys zs
+    B.outputs outs
 
 fromCirc :: Gate g => Circ -> Circuit g
 fromCirc c = B.buildCircuit $ do
     B.exportParams c
-    xs <- A.listArray (0,ninputs c-1) <$> B.inputs (ninputs c)
-    ys <- A.listArray (0,nconsts c-1) <$> B.exportConsts c
+    xs <- A.listArray (InputId 0,  InputId (ninputs c-1))   <$> B.inputs (ninputs c)
+    ys <- A.listArray (ConstId 0,  ConstId (nconsts c-1))   <$> B.exportConsts c
+    zs <- A.listArray (SecretId 0, SecretId (nsecrets c-1)) <$> B.exportSecrets c
     let eval (BoolXor _ _) _ [x,y] = B.circAdd x y
         eval (BoolAnd _ _) _ [x,y] = B.circMul x y
         eval (BoolNot _)   _ [x]   = B.circNot x
-        eval (BoolBase (Input id)) _ _ = return $ xs A.! getId id
-        eval (BoolBase (Const id)) _ _ = return $ ys A.! getId id
+        eval (BoolBase (Input  id)) _ _ = return $ xs A.! id
+        eval (BoolBase (Const  id)) _ _ = return $ ys A.! id
+        eval (BoolBase (Secret id)) _ _ = return $ zs A.! id
     outs <- foldCircM eval c
     B.outputs outs
 
 fromCirc2 :: Gate g => Circ2 -> Circuit g
 fromCirc2 c = B.buildCircuit $ do
     B.exportParams c
-    xs <- A.listArray (0,ninputs c-1) <$> B.inputs (ninputs c)
-    ys <- A.listArray (0,nconsts c-1) <$> B.exportConsts c
+    xs <- A.listArray (InputId 0,  InputId (ninputs c-1))   <$> B.inputs (ninputs c)
+    ys <- A.listArray (ConstId 0,  ConstId (nconsts c-1))   <$> B.exportConsts c
+    zs <- A.listArray (SecretId 0, SecretId (nsecrets c-1)) <$> B.exportSecrets c
     let eval (Bool2Xor _ _) _ [x,y] = B.circAdd x y
         eval (Bool2And _ _) _ [x,y] = B.circMul x y
-        eval (Bool2Base (Input id)) _ _ = return $ xs A.! getId id
-        eval (Bool2Base (Const id)) _ _ = return $ ys A.! getId id
+        eval (Bool2Base (Input  id)) _ _ = return $ xs A.! id
+        eval (Bool2Base (Const  id)) _ _ = return $ ys A.! id
+        eval (Bool2Base (Secret id)) _ _ = return $ zs A.! id
     outs <- foldCircM eval c
     B.outputs outs
 

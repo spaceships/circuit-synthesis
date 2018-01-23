@@ -24,10 +24,19 @@ import qualified Data.IntMap.Strict as IM
 -- inputBit does not create a new symbol: useful as a primitive
 inputBit :: (Gate g, Monad m) => BuilderT g m Ref
 inputBit = do
-    id   <- nextInputId
-    ref  <- nextRef
+    id  <- nextInputId
+    ref <- nextRef
     insertInput ref id
     return ref
+
+inputBitN :: (Gate g, Monad m) => InputId -> BuilderT g m Ref
+inputBitN n = do
+    dedup <- use bs_dedup
+    case M.lookup (gateBase (Input n)) dedup of
+        Just ref -> return ref
+        Nothing  -> do
+            cur <- use bs_next_inp
+            last <$> replicateM (getInputId (n - cur + 1)) inputBit
 
 inputBits :: (Gate g, Monad m) => Int -> BuilderT g m [Ref]
 inputBits n = replicateM n inputBit
@@ -42,14 +51,14 @@ inputs n = replicateM n input
 
 -- get the ref of a particular input, even if it does not exist already.
 -- assumes length 1 symbols.
-input_n :: (Gate g, Monad m) => Id -> BuilderT g m Ref
-input_n n = do
+inputN :: (Gate g, Monad m) => InputId -> BuilderT g m Ref
+inputN n = do
     dedup <- use bs_dedup
     case M.lookup (gateBase (Input n)) dedup of
         Just ref -> return ref
         Nothing  -> do
             cur <- use bs_next_inp
-            last <$> replicateM (getId n - getId cur + 1) input
+            last <$> replicateM (getInputId (n - cur + 1)) input
 
 symbol :: (Gate g, Monad m) => Int -> BuilderT g m [Ref]
 symbol len = do
@@ -68,22 +77,21 @@ sigma len = do
 
 secret :: (Gate g, Monad m) => Int -> BuilderT g m Ref
 secret val = do
-    id  <- nextConstId
+    id  <- nextSecretId
     ref <- nextRef
-    insertConst ref id
-    insertConstVal id val
-    markSecret ref
+    insertSecret ref id
+    insertSecretVal id val
     return ref
 
 -- get the ref of a particular secret, even if it does not exist already (inserts secret 0s)
-secret_n :: (Gate g, Monad m) => Id -> BuilderT g m Ref
-secret_n n = do
+secret_n :: (Gate g, Monad m) => SecretId -> BuilderT g m Ref
+secret_n id = do
     dedup <- use bs_dedup
-    case M.lookup (gateBase (Const n)) dedup of
+    case M.lookup (gateBase (Secret id)) dedup of
         Just ref -> return ref
         Nothing  -> do
-            cur <- use bs_next_const
-            last <$> replicateM (getId n - getId cur + 1) (secret 0)
+            cur <- use bs_next_secret
+            last <$> replicateM (getSecretId (id - cur + 1)) (secret 0)
 
 -- preserve duplication: there will be many gates for secret 0
 secrets :: (Gate g, Monad m) => [Int] -> BuilderT g m [Ref]
@@ -160,8 +168,8 @@ output = markOutput
 
 -- NOTE: unconnected secrets from the subcircuit will be secrets in the
 -- resulting composite circuit.
-subcircuit' :: (Monad m, Gate g) => Circuit g -> [Ref] -> [Ref] -> BuilderT g m [Ref]
-subcircuit' c xs ys
+subcircuit' :: (Monad m, Gate g) => Circuit g -> [Ref] -> [Ref] -> [Ref] -> BuilderT g m [Ref]
+subcircuit' c xs ys zs
     | length xs < ninputs c = error (printf "[subcircuit'] not enough inputs got %d, need %d"
                                             (length xs) (ninputs c))
     | length ys < nconsts c = error (printf "[subcircuit'] not enough consts got %d, need %d"
@@ -170,28 +178,28 @@ subcircuit' c xs ys
   where
     xs' = listArray (0, length xs-1) xs
     ys' = listArray (0, length ys-1) ys
+    zs' = listArray (0, length zs-1) zs
 
     translate g _ args = if gateIsGate g
                             then newGate (gateFix g args)
                             else case gateGetBase g of
-                                Just (Input id) -> return (xs' ! getId id)
-                                Just (Const id) -> return (ys' ! getId id)
+                                Just (Input id)  -> return (xs' ! getInputId id)
+                                Just (Const id)  -> return (ys' ! getConstId id)
+                                Just (Secret id) -> return (zs' ! getSecretId id)
                                 Nothing -> error "[subcircuit'] this should never happen"
 
 -- lift the subcircuit's constants and secrets into the circuit above
 subcircuit :: (Gate g, Monad m) => Circuit g -> [Ref] -> BuilderT g m [Ref]
 subcircuit c xs = do
     ys <- exportConsts c
-    subcircuit' c xs ys
+    zs <- exportSecrets c
+    subcircuit' c xs ys zs
 
 exportConsts :: (Gate g, Gate g', Monad m) => Circuit g -> BuilderT g' m [Ref]
-exportConsts c = do
-    forM (IM.toAscList (c^.circ_consts)) $ \(_, id) -> do
-        let x = getConst c id
-        if secretConst c id then do
-            secret x
-        else
-            constant x
+exportConsts c = mapM (constant . getConst c) (map ConstId (IM.keys (c^.circ_consts)))
+
+exportSecrets :: (Gate g, Gate g', Monad m) => Circuit g -> BuilderT g' m [Ref]
+exportSecrets c = mapM (secret . getSecret c) (map SecretId (IM.keys (c^.circ_secrets)))
 
 exportParams :: (Gate g, Gate g', Monad m) => Circuit g -> BuilderT g' m ()
 exportParams c = do

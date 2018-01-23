@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Circuit.Format.Acirc
   ( Circuit.Format.Acirc.read
@@ -15,7 +16,6 @@ import Circuit
 import Circuit.Parser
 import Circuit.Utils hiding ((%))
 import qualified Circuit.Builder           as B
-import qualified Circuit.Builder.Internals as B
 import Prelude hiding (show)
 
 import Control.Monad
@@ -28,7 +28,22 @@ import TextShow
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.IntMap as IM
+import qualified Data.IntSet as IS
 import qualified Formatting as F
+
+data AcircSt = AcircSt { _acirc_st_outputs     :: [Ref] -- old refs from the previous circuit
+                       , _acirc_st_const_vals  :: IM.IntMap Int
+                       , _acirc_st_secret_vals :: IM.IntMap Int
+                       , _acirc_st_tr          :: IM.IntMap Ref
+                       }
+
+makeLenses ''AcircSt
+
+emptyAcircSt = AcircSt [] IM.empty IM.empty IM.empty
+
+type AcircParser g = ParseCirc g AcircSt
+
+--------------------------------------------------------------------------------
 
 read :: FilePath -> IO Acirc
 read = fmap fst . readWithTests
@@ -48,32 +63,35 @@ show :: Acirc -> T.Text
 show c = showWithTests c []
 
 showWithTests :: Acirc -> [TestCase] -> T.Text
-showWithTests !c !ts = T.unlines (header ++ inputs ++ consts ++ gates)
+showWithTests !c !ts = T.unlines (header ++ inputs ++ secrets ++ consts ++ gates)
   where
     header = [ T.append ":ninputs " (showt (ninputs c))
              , T.append ":nrefs "   (showt (c ^. circ_maxref))
              , T.append ":consts "  (T.unwords (map showt (IM.elems (_circ_const_vals c))))
+             , T.append ":secrets " (T.unwords (map showt (IM.elems (_circ_secret_vals c))))
              , T.append ":outputs " (T.unwords (map (showt.getRef) (outputRefs c)))
-             , T.append ":secrets " (T.unwords (map (showt.getRef) (secretRefs c)))
              , T.append ":symlen "  (T.unwords (map showt (c^..circ_symlen.each)))
+             , T.append ":sigma "   (T.unwords (map showt (IS.toList (c^.circ_sigma_vecs))))
              , T.append ":base "    (showt (c^.circ_base))
              ] ++ map showTest ts
                ++ [ ":start" ]
 
-    inputs = mapMaybe gateTxt (inputRefs c)
-    consts = mapMaybe gateTxt (constRefs c)
-    gates  = mapMaybe gateTxt (gateRefs c)
+    inputs  = mapMaybe gateTxt (inputRefs c)
+    consts  = mapMaybe gateTxt (constRefs c)
+    secrets = mapMaybe gateTxt (secretRefs c)
+    gates   = mapMaybe gateTxt (gateRefs c)
 
     gateTxt :: Ref -> Maybe T.Text
     gateTxt !ref =
         case c ^. circ_refcount . at (getRef ref) of
             Nothing -> Nothing
             Just ct -> Just $ case c ^. circ_refmap . at (getRef ref) . non (error "[gateTxt] unknown ref") of
-                (ArithBase (Input id)) -> F.sformat (F.shown % " input " % F.shown % " : " % F.stext) ref id (showCount ct)
-                (ArithBase (Const id)) -> F.sformat (F.shown % " const " % F.shown % " : " % F.stext) ref id (showCount ct)
-                (ArithAdd x y) -> F.sformat (F.shown % " ADD " % F.shown % " " % F.shown % " : " % F.stext) ref x y (showCount ct)
-                (ArithSub x y) -> F.sformat (F.shown % " SUB " % F.shown % " " % F.shown % " : " % F.stext) ref x y (showCount ct)
-                (ArithMul x y) -> F.sformat (F.shown % " MUL " % F.shown % " " % F.shown % " : " % F.stext) ref x y (showCount ct)
+                (ArithBase (Input  id)) -> F.sformat (F.shown % " input "  % F.shown % " : " % F.stext) ref id (showCount ct)
+                (ArithBase (Const  id)) -> F.sformat (F.shown % " const "  % F.shown % " : " % F.stext) ref id (showCount ct)
+                (ArithBase (Secret id)) -> F.sformat (F.shown % " secret " % F.shown % " : " % F.stext) ref id (showCount ct)
+                (ArithAdd x y) -> F.sformat (F.shown % " add " % F.shown % " " % F.shown % " : " % F.stext) ref x y (showCount ct)
+                (ArithSub x y) -> F.sformat (F.shown % " sub " % F.shown % " " % F.shown % " : " % F.stext) ref x y (showCount ct)
+                (ArithMul x y) -> F.sformat (F.shown % " mul " % F.shown % " " % F.shown % " : " % F.stext) ref x y (showCount ct)
 
     showCount ct = if ct == -1 then "inf" else showt ct
 
@@ -83,23 +101,25 @@ showTest (!inp, !out) = T.concat [":test ", T.pack (showInts inp), " ", T.pack (
 --------------------------------------------------------------------------------
 -- parser
 
-type AcircParser = ParseCirc ArithGate Int
-
-parse :: String -> (Acirc, [TestCase])
-parse s = runCircParser 0 parser s
+parse :: Gate g => String -> (Circuit g, [TestCase])
+parse s = runCircParser emptyAcircSt parser s
   where
-    parser   = preamble >> lines >> eof
-    preamble = many $ (char ':' >> (try parseTest <|> try parseSymlen <|> try parseBase <|>
-                                    try parseOutputs <|> try parseSecrets <|> try parseConsts <|>
-                                    skipParam))
-    lines    = many parseRefLine
+    parser = do
+        many $ char ':' >> choice [parseTest, parseOutputs, parseConsts, try parseSymlen,
+                                   try parseSigma, try parseSecrets, skipParam]
+        many parseRefLine
+        lift . B.outputs =<< mapM tr =<< view acirc_st_outputs <$> getSt -- translate the outputs
+        eof
 
-skipParam :: AcircParser ()
+tr :: Ref -> AcircParser g Ref
+tr x = (IM.! getRef x) . view acirc_st_tr <$> getSt
+
+skipParam :: AcircParser g ()
 skipParam = do
     skipMany (oneOf " \t" <|> alphaNum)
     endLine
 
-parseTest :: AcircParser ()
+parseTest :: AcircParser g ()
 parseTest = do
     string "test"
     spaces
@@ -111,89 +131,115 @@ parseTest = do
     addTest (inp, res)
     endLine
 
-parseBase :: AcircParser ()
-parseBase = do
-    string "base"
-    spaces
-    n <- Prelude.read <$> many digit
-    lift (B.setBase n)
-    endLine
-
-parseSymlen :: AcircParser ()
-parseSymlen = do
-    string "symlen"
-    spaces
-    symlens <- many (spaces >> int)
-    lift $ zipWithM B.setSymlen [0..] symlens
-    endLine
-
-parseOutputs :: AcircParser ()
+parseOutputs :: AcircParser g ()
 parseOutputs = do
     string "outputs"
     spaces
     refs <- many (parseRef <* spaces)
-    lift $ mapM_ B.markOutput refs
+    modifySt (acirc_st_outputs .~ refs)
     endLine
 
-parseSecrets :: AcircParser ()
+parseSecrets :: AcircParser g ()
 parseSecrets = do
     string "secrets"
     spaces
-    secs <- many (parseRef <* spaces)
-    lift $ mapM B.markSecret secs
+    secs <- many (int <* spaces)
+    modifySt (acirc_st_secret_vals .~ IM.fromList (zip [0..] secs))
     endLine
 
-parseConsts :: AcircParser ()
+parseConsts :: AcircParser g ()
 parseConsts = do
     string "consts"
     cs <- many (spaces >> int)
-    forM_ (zip [0..] cs) $ \(id, val) -> do
-        lift $ B.insertConstVal (Id id) (fromIntegral val)
+    modifySt (acirc_st_const_vals .~ IM.fromList (zip [0..] cs))
     endLine
 
-parseRef :: AcircParser Ref
-parseRef = do
-    ref <- int
-    lift $ B.bs_circ . circ_maxref %= max ref
-    return (Ref ref)
-
-parseRefLine :: AcircParser ()
-parseRefLine = do
-    ref <- parseRef
+parseSymlen :: AcircParser g ()
+parseSymlen = do
+    string "symlen"
     spaces
-    choice [parseConst ref, parseInput ref, parseGate ref]
+    symlens <- many (spaces >> int)
+    lift $ zipWithM B.setSymlen [0::SymId ..] symlens
+    endLine
+
+parseSigma :: AcircParser g ()
+parseSigma = do
+    string "sigma"
+    spaces
+    syms <- many (spaces >> SymId <$> int)
+    lift $ mapM B.setSigma syms
+    endLine
+
+parseRef :: AcircParser g Ref
+parseRef = Ref <$> int
+
+parseRefLine :: Gate g => AcircParser g ()
+parseRefLine = do
+    z <- parseRef
+    spaces
+    z' <- choice [parseConst, try parseSecret, parseInput, parseAdd, parseSub, parseMul]
+    modifySt (acirc_st_tr . at (getRef z) ?~ z')
     parseTimesUsed
     endLine
 
-parseInput :: Ref -> AcircParser ()
-parseInput ref = do
+parseInput :: Gate g => AcircParser g Ref
+parseInput = do
     string "input"
     spaces
-    id <- Id <$> int
-    lift $ B.insertInput ref id
+    id <- InputId <$> int
+    lift $ B.inputBitN id
 
-parseConst :: Ref -> AcircParser ()
-parseConst ref = do
+parseConst :: Gate g => AcircParser g Ref
+parseConst = do
     string "const"
     spaces
-    id <- Id <$> int
-    lift $ B.insertConst ref id
+    id  <- int
+    val <- (IM.! id) . view acirc_st_const_vals <$> getSt
+    lift $ B.constant val
 
-parseGate :: Ref -> AcircParser ()
-parseGate ref = do
-    opType <- oneOfStr ["ADD", "SUB", "MUL"]
+parseSecret :: Gate g => AcircParser g Ref
+parseSecret = do
+    string "secret"
     spaces
-    x <- Ref . Prelude.read <$> many1 digit
-    spaces
-    y <- Ref . Prelude.read <$> many1 digit
-    let gate = case opType of
-            "ADD" -> ArithAdd x y
-            "MUL" -> ArithMul x y
-            "SUB" -> ArithSub x y
-            g     -> error ("[parser] unkonwn gate type " ++ g)
-    lift $ B.insertGate ref gate
+    id  <- int
+    val <- (IM.! id) . view acirc_st_secret_vals <$> getSt
+    lift $ B.secret val
 
-parseTimesUsed :: AcircParser ()
+parseNot :: Gate g => AcircParser g Ref
+parseNot = do
+    string "not"
+    spaces
+    x <- tr =<< parseRef
+    lift $ B.circNot x
+
+parseMul :: Gate g => AcircParser g Ref
+parseMul = do
+    string "mul"
+    spaces
+    x <- tr =<< parseRef
+    spaces
+    y <- tr =<< parseRef
+    lift $ B.circMul x y
+
+parseAdd :: Gate g => AcircParser g Ref
+parseAdd = do
+    string "add"
+    spaces
+    x <- tr =<< parseRef
+    spaces
+    y <- tr =<< parseRef
+    lift $ B.circAdd x y
+
+parseSub :: Gate g => AcircParser g Ref
+parseSub = do
+    string "sub"
+    spaces
+    x <- tr =<< parseRef
+    spaces
+    y <- tr =<< parseRef
+    lift $ B.circSub x y
+
+parseTimesUsed :: AcircParser g ()
 parseTimesUsed = optional $ do
     spaces
     char ':'

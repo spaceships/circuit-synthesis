@@ -18,8 +18,9 @@ type Builder g = BuilderT g Identity
 
 data BuildSt g = BuildSt
     { _bs_circ        :: !(Circuit g)
-    , _bs_next_inp    :: !Id
-    , _bs_next_const  :: !Id
+    , _bs_next_inp    :: !InputId
+    , _bs_next_const  :: !ConstId
+    , _bs_next_secret :: !SecretId
     , _bs_next_sym    :: !Int
     , _bs_dedup       :: !(M.Map g Ref)
     , _bs_constants   :: !(M.Map Int Ref)
@@ -28,7 +29,7 @@ data BuildSt g = BuildSt
 makeLenses ''BuildSt
 
 emptyBuild :: BuildSt g
-emptyBuild = BuildSt emptyCirc 0 0 0 M.empty M.empty
+emptyBuild = BuildSt emptyCirc 0 0 0 0 M.empty M.empty
 
 runCircuitT :: Monad m => BuilderT g m a -> m (Circuit g, a)
 runCircuitT b = do
@@ -47,14 +48,14 @@ buildCircuit = view bs_circ . flip execState emptyBuild
 --------------------------------------------------------------------------------
 -- operations
 
-setSymlen :: Monad m => Int -> Int -> BuilderT g m ()
-setSymlen !i !n = bs_circ . circ_symlen . at i ?= n
+setSymlen :: Monad m => SymId -> Int -> BuilderT g m ()
+setSymlen !id !n = bs_circ . circ_symlen . at (getSymId id) ?= n
 
 setBase :: Monad m => Int -> BuilderT g m ()
 setBase !n = bs_circ . circ_base .= n
 
-setSigma :: Monad m => Int -> BuilderT g m ()
-setSigma !n = bs_circ . circ_sigma_vecs %= IS.insert n
+setSigma :: Monad m => SymId -> BuilderT g m ()
+setSigma !id = bs_circ . circ_sigma_vecs %= IS.insert (getSymId id)
 
 insertGate :: (Gate g, Ord g, Monad m) => Ref -> g -> BuilderT g m ()
 insertGate !ref !gate = do
@@ -65,17 +66,25 @@ insertGate !ref !gate = do
     bs_dedup . at gate ?= ref
     mapM_ bumpRefCount (gateArgs gate)
 
-insertConst :: (Gate g, Monad m) => Ref -> Id -> BuilderT g m ()
+insertConst :: (Gate g, Monad m) => Ref -> ConstId -> BuilderT g m ()
 insertConst !ref !id = do
-    bs_circ . circ_consts . at (getRef ref) ?= id
+    bs_circ . circ_consts . at (getConstId id) ?= ref
     insertGate ref (gateBase (Const id))
 
-insertConstVal :: Monad m => Id -> Int -> BuilderT g m ()
-insertConstVal !id !val = bs_circ . circ_const_vals . at (getId id) ?= val
+insertSecret :: (Gate g, Monad m) => Ref -> SecretId -> BuilderT g m ()
+insertSecret !ref !id = do
+    bs_circ . circ_secrets . at (getSecretId id) ?= ref
+    insertGate ref (gateBase (Secret id))
 
-insertInput :: (Gate g, Monad m) => Ref -> Id -> BuilderT g m ()
+insertConstVal :: Monad m => ConstId -> Int -> BuilderT g m ()
+insertConstVal !id !val = bs_circ . circ_const_vals . at (getConstId id) ?= val
+
+insertSecretVal :: Monad m => SecretId -> Int -> BuilderT g m ()
+insertSecretVal !id !val = bs_circ . circ_secret_vals . at (getSecretId id) ?= val
+
+insertInput :: (Gate g, Monad m) => Ref -> InputId -> BuilderT g m ()
 insertInput !ref !id = do
-    bs_circ . circ_inputs . at (getId id) ?= ref
+    bs_circ . circ_inputs . at (getInputId id) ?= ref
     insertGate ref (gateBase (Input id))
 
 newGate :: (Ord g, Monad m, Gate g) => g -> BuilderT g m Ref
@@ -95,23 +104,29 @@ nextRef = do
     bs_circ . circ_maxref += 1
     return (Ref ref)
 
-nextInputId :: Monad m => BuilderT g m Id
+nextInputId :: Monad m => BuilderT g m InputId
 nextInputId = do
     id <- use bs_next_inp
     bs_next_inp += 1
     return id
 
-nextConstId :: Monad m => BuilderT g m Id
+nextConstId :: Monad m => BuilderT g m ConstId
 nextConstId = do
     id <- use bs_next_const
     bs_next_const += 1
     return id
 
-nextSymbol :: Monad m => BuilderT g m Int
+nextSecretId :: Monad m => BuilderT g m SecretId
+nextSecretId = do
+    id <- use bs_next_secret
+    bs_next_secret += 1
+    return id
+
+nextSymbol :: Monad m => BuilderT g m (SymId)
 nextSymbol = do
     i <- use bs_next_sym
     bs_next_sym += 1
-    return i
+    return (SymId i)
 
 bumpRefCount :: Monad m => Ref -> BuilderT g m ()
 bumpRefCount ref = bs_circ . circ_refcount %= IM.insertWith add (getRef ref) 1
@@ -126,9 +141,6 @@ markOutput :: Monad m => Ref -> BuilderT g m ()
 markOutput !ref = do
     bs_circ . circ_outputs %= flip V.snoc ref
     bumpRefCount ref
-
-markSecret :: Monad m => Ref -> BuilderT g m ()
-markSecret !ref = bs_circ . circ_secret_refs %= IS.insert (getRef ref)
 
 markConstant :: Monad m => Int -> Ref -> BuilderT g m ()
 markConstant !x !ref = bs_constants . at x ?= ref

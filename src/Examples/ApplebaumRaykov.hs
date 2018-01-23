@@ -119,7 +119,7 @@ loadMapper n = buildCircuitT $ do
     k2 <- lift $ randKeyIO n
     xs <- inputs n
     ks <- secrets ([1] ++ k1 ++ k2)
-    zs <- subcircuit' c xs ks
+    zs <- subcircuit' c xs [] ks
     outputs zs
 
 genMapper :: Int -> IO Acirc

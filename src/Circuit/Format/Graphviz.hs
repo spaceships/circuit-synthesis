@@ -63,11 +63,14 @@ isRendered i = state $ \s -> (i `S.member` s, S.insert i s)
 label :: Doc -> Doc
 label t = text "[label=\"" <> t <> text "\"];"
 
-pprInput :: Int -> Id -> Doc
-pprInput i id = int i <+> label (text "input" <+> int (getId id))
+pprInput :: Int -> InputId -> Doc
+pprInput i id = int i <+> label (text "input" <+> int (getInputId id))
 
-pprSecret :: Int -> Id -> Doc
-pprSecret i id = int i <+> label (text "secret" <+> int (getId id))
+pprConst :: Int -> ConstId -> Doc
+pprConst i id = int i <+> label (text "const" <+> int (getConstId id))
+
+pprSecret :: Int -> SecretId -> Doc
+pprSecret i id = int i <+> label (text "secret" <+> int (getSecretId id))
 
 mkGroup :: [Doc] -> Doc
 mkGroup [d] = d
@@ -107,8 +110,9 @@ pprOp :: Int -> ArithGate -> PrettyPr Doc
 pprOp i (ArithAdd x y)  = pprOp' i [x,y] (text "+")
 pprOp i (ArithSub x y)  = pprOp' i [x,y] (text "-")
 pprOp i (ArithMul x y)  = pprOp' i [x,y] (text "*")
-pprOp i (ArithBase (Input id)) = pure $ pprInput  i id
-pprOp i (ArithBase (Const id)) = pure $ pprSecret i id
+pprOp i (ArithBase (Input  id)) = pure $ pprInput  i id
+pprOp i (ArithBase (Secret id)) = pure $ pprSecret i id
+pprOp i (ArithBase (Const  id)) = pure $ pprConst i id
 
 pprOp' :: Int -> [Ref] -> Doc -> PrettyPr Doc
 pprOp' i rs op = do

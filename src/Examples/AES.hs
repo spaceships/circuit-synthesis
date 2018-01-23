@@ -322,7 +322,7 @@ buildAesRound n = buildCircuitT $ do
         let fixed = replicate (128 - n) zero
         let state = chunksOf 8 (inp ++ fixed)
         xs   <- concat <$> mapM (subcircuit subByte) state
-        xs'  <- subcircuit' linearParts xs [one]
+        xs'  <- subcircuit linearParts xs
         xs'' <- zipWithM circXor xs' key -- addRoundKey
         outputs xs''
 

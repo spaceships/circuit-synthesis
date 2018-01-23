@@ -108,7 +108,7 @@ naiveGarbler nseeds c' = buildCircuitT $ do
     outputs $ (concat.concat) gs
 
   where
-    eval g x y = gateEval (\_ -> error "FOO") (\_ -> error "BAR") g [fromIntegral x, fromIntegral y]
+    eval g x y = gateEval (\_ -> error "FOO") g [fromIntegral x, fromIntegral y]
 
 
 -- XXX: only fan-out one is secure at the moment
@@ -176,4 +176,4 @@ indexedGarbler nseeds nindices c' = buildCircuitT $ do
     outputs (concat garbledRows)
 
   where
-    eval g x y = gateEval (\_ -> error "FOO") (\_ -> error "BAR") g [fromIntegral x, fromIntegral y]
+    eval g x y = gateEval (\_ -> error "BAR") g [fromIntegral x, fromIntegral y]

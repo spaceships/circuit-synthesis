@@ -43,10 +43,9 @@ circToSage c = foldCirc eval c
     eval (ArithAdd _ _) [x,y] = printf "(%s) + (%s)" x y
     eval (ArithSub _ _) [x,y] = printf "(%s) - (%s)" x y
     eval (ArithMul _ _) [x,y] = printf "(%s) * (%s)" x y
-    eval (ArithBase (Input i)) []   = printf "var('x%d')" (getId i)
-    eval (ArithBase (Const i)) []   = if secretConst c i
-                                         then printf "var('y%d')" (getId i)
-                                         else show (getConst c i)
+    eval (ArithBase (Input  i)) [] = printf "var('x%d')" (getInputId i)
+    eval (ArithBase (Secret i)) [] = printf "var('y%d')" (getSecretId i)
+    eval (ArithBase (Const  i)) [] = show (getConst c i)
     eval op args  = error ("[circToSexp] weird input: " ++ show op ++ " " ++ show args)
 
 callSage :: Int -> String -> IO (Circuit ArithGate)
@@ -89,10 +88,8 @@ find maxDepth c = snd $ execState (foldCircM eval c) (0, Ref 0)
         return (degs, depth)
 
     eval op@(ArithBase (Input _))   _ _ = return (M.singleton op 1, 0)
-
-    eval op@(ArithBase (Const id)) _ _ = if secretConst c id
-                                            then return (M.singleton op 1, 0)
-                                            else return (M.empty         , 0)
+    eval op@(ArithBase (Secret id)) _ _ = return (M.singleton op 1, 0)
+    eval op@(ArithBase (Const  id)) _ _ = return (M.empty         , 0)
 
     eval _ _ _ = undefined
 
@@ -125,9 +122,10 @@ hasHighSingleVarDeg deg c = any ((>= deg) . fromIntegral) (nonPublicDegs c)
 nonPublicDegs :: Circuit ArithGate -> [Integer]
 nonPublicDegs c = map (maxVarDegree c) ids
   where
-    allIds = map (Input . Id) [0 .. ninputs c-1]
-    ok (Const id) = not (secretConst c id)
-    ok (Input _ ) = True
+    allIds = map (Input . InputId) [0 .. ninputs c-1]
+    ok (Secret _ ) = False
+    ok (Const _)   = True
+    ok (Input _ )  = True
     ids = filter ok allIds
 
 -- find the highest degree subcircuit within a given depth
@@ -153,11 +151,9 @@ findFirstHSVD maxDepth minDeg c = execWriter (foldCircM eval c)
         check ref degs depth
         return (degs, depth)
 
-    eval op@(ArithBase (Input _))  _ _ = return (M.singleton op 1, 0)
-
-    eval op@(ArithBase (Const id)) _ _ = if secretConst c id
-                                            then return (M.singleton op 1, 0)
-                                            else return (M.empty         , 0)
+    eval op@(ArithBase (Input   _)) _ _ = return (M.singleton op 1, 0)
+    eval op@(ArithBase (Secret id)) _ _ = return (M.singleton op 1, 0)
+    eval op@(ArithBase (Const  id)) _ _ = return (M.empty         , 0)
 
     eval _ _ _ = undefined
 
@@ -176,11 +172,9 @@ slice ref c = B.buildCircuit $ do
     eval (ArithAdd _ _) _ [x,y] = B.circAdd x y
     eval (ArithSub _ _) _ [x,y] = B.circSub x y
     eval (ArithMul _ _) _ [x,y] = B.circMul x y
-    eval (ArithBase (Input i)) _ _ = B.input_n i
-    eval (ArithBase (Const i)) _ _ = let sec = getConst c i
-                                     in if secretConst c i
-                                           then B.secret sec
-                                           else B.constant sec
+    eval (ArithBase (Input  i)) _ _ = B.inputN i
+    eval (ArithBase (Secret i)) _ _ = B.secret (getSecret c i)
+    eval (ArithBase (Const  i)) _ _ = B.constant (getConst c i)
     eval _ _ _ = error "[slice] oops"
 
 -- get a slice without rebuilding!
@@ -194,19 +188,22 @@ patch loc c1 c2
   | otherwise = B.buildCircuit $ do
     B.exportParams c1
     xs <- B.inputs (ninputs c1)
-    ys <- B.exportConsts c1
-    zs <- B.exportConsts c2
+    ys1 <- B.exportConsts c1
+    ys2 <- B.exportConsts c2
+    zs1 <- B.exportSecrets c1
+    zs2 <- B.exportSecrets c2
 
     -- when we get to loc, eval c2 as subcircuit and return that output
     let catch ref other = if ref == loc
-                             then head <$> B.subcircuit' c2 xs (ys ++ zs)
+                             then head <$> B.subcircuit' c2 xs (ys1 ++ zs2) (zs1 ++ zs2)
                              else other
 
     let eval (ArithAdd _ _) ref [x,y] = catch ref $ B.circAdd x y
         eval (ArithSub _ _) ref [x,y] = catch ref $ B.circSub x y
         eval (ArithMul _ _) ref [x,y] = catch ref $ B.circMul x y
-        eval (ArithBase (Input i)) ref _ = catch ref $ B.input_n i
-        eval (ArithBase (Const i)) ref _ = catch ref $ B.secret_n i
+        eval (ArithBase (Input  i)) ref _ = catch ref $ B.inputN i
+        eval (ArithBase (Const  i)) ref _ = catch ref $ B.constant (getConst c1 i)
+        eval (ArithBase (Secret i)) ref _ = catch ref $ B.secret_n i
         eval _ _ _ = error "[slice] oops"
 
     outs <- foldCircM eval c1
@@ -216,6 +213,7 @@ foldConsts :: Circuit ArithGate -> Circuit ArithGate
 foldConsts c = B.buildCircuit $ do
     _ <- B.inputs (ninputs c)
     _ <- B.exportConsts c
+    _ <- B.exportSecrets c
     B.exportParams c
     zs <- foldCircM eval c
     B.outputs (map fst zs)
@@ -238,11 +236,9 @@ foldConsts c = B.buildCircuit $ do
         (_     , Just 1) -> return x
         (_     , _     ) -> do z <- B.circMul (fst x) (fst y); return (z, Nothing)
 
-    eval (ArithBase (Input i)) _ _ = do z <- B.input_n i; return (z, Nothing)
-    eval (ArithBase (Const i)) _ _ = do
-        let sec = if secretConst c i then Nothing else Just (getConst c i)
-        z <- B.secret_n i -- exists already due to export consts
-        return (z, sec)
+    eval (ArithBase (Input  i)) _ _ = do z <- B.inputN i; return (z, Nothing)
+    eval (ArithBase (Const  i)) _ _ = do z <- B.constant (getConst c i); return (z, Just (getConst c i))
+    eval (ArithBase (Secret i)) _ _ = do z <- B.secret (getSecret c i); return (z, Nothing)
 
     eval _ _ _ = error "[foldConsts] oops"
 
@@ -368,11 +364,11 @@ pushDown c = B.buildCircuit $ do
             return (z, Nothing)
 
     eval (ArithBase (Input i)) _ _ = do
-        z <- B.input_n i
+        z <- B.inputN i
         return (z, Nothing)
 
-    eval (ArithBase (Const i)) _ _ = do
-        z <- B.secret_n i
+    eval (ArithBase (Secret i)) _ _ = do
+        z <- B.secret (getSecret c i)
         return (z, Nothing)
 
-    eval _ _ _ = error "[foldConsts] oops"
+    eval _ _ _ = error "[pushDown] oops"
