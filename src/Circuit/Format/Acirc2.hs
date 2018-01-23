@@ -6,14 +6,13 @@ import Circuit
 import Circuit.Conversion
 import qualified Circuit.Format.Acirc as Acirc
 
-import Lens.Micro.Platform
 import qualified Data.Text as T
 
-showWithTests :: Acirc2 -> [TestCase] -> T.Text
-showWithTests c ts = T.append ":binary\n" (Acirc.showWithTests (toAcirc c) ts)
+showWithTests :: ToAcirc2 g => Circuit g -> [TestCase] -> T.Text
+showWithTests c ts = T.append ":binary\n" (Acirc.showWithTests (toAcirc2 c) ts)
 
-readWithTests :: FilePath -> IO (Acirc2, [TestCase])
-readWithTests fp = over _1 toAcirc2 <$> Acirc.readWithTests fp
+readWithTests :: Gate g => FilePath -> IO (Circuit g, [TestCase])
+readWithTests = Acirc.readWithTests
 
-read :: FilePath -> IO Acirc2
-read = fmap fst . readWithTests
+read :: Gate g => FilePath -> IO (Circuit g)
+read = Acirc.read

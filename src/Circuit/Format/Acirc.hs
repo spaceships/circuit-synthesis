@@ -13,11 +13,12 @@ module Circuit.Format.Acirc
   ) where
 
 import Circuit
+import Circuit.Conversion
 import Circuit.Parser
 import Circuit.Utils hiding ((%))
 import qualified Circuit.Builder           as B
-import Prelude hiding (show)
 
+import Prelude hiding (show)
 import Control.Monad
 import Control.Monad.Trans (lift)
 import Data.Maybe (mapMaybe)
@@ -45,26 +46,28 @@ type AcircParser g = ParseCirc g AcircSt
 
 --------------------------------------------------------------------------------
 
-read :: FilePath -> IO Acirc
+read :: Gate g => FilePath -> IO (Circuit g)
 read = fmap fst . readWithTests
 
-readWithTests :: FilePath -> IO (Acirc, [TestCase])
+readWithTests :: Gate g => FilePath -> IO (Circuit g, [TestCase])
 readWithTests fp = parse <$> readFile fp
 
-write :: FilePath -> Acirc -> IO ()
+write :: ToAcirc g => FilePath -> Circuit g -> IO ()
 write fp c = T.writeFile fp (show c)
 
-writeWithTests :: FilePath -> Acirc -> IO ()
+writeWithTests :: (Gate g, ToAcirc g) => FilePath -> Circuit g -> IO ()
 writeWithTests fp c = do
     ts <- replicateM 10 (genTest c)
     T.writeFile fp (showWithTests c ts)
 
-show :: Acirc -> T.Text
+show :: ToAcirc g => Circuit g -> T.Text
 show c = showWithTests c []
 
-showWithTests :: Acirc -> [TestCase] -> T.Text
-showWithTests !c !ts = T.unlines (header ++ inputs ++ secrets ++ consts ++ gates)
+showWithTests :: ToAcirc g => Circuit g -> [TestCase] -> T.Text
+showWithTests !c' !ts = T.unlines (header ++ inputs ++ secrets ++ consts ++ gates)
   where
+    c = toAcirc c'
+
     header = [ T.append ":ninputs " (showt (ninputs c))
              , T.append ":nrefs "   (showt (c ^. circ_maxref))
              , T.append ":consts "  (T.unwords (map showt (IM.elems (_circ_const_vals c))))
