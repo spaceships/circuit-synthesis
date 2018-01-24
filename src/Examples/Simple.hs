@@ -10,10 +10,10 @@ import Control.Monad
 
 export :: Gate g => [(String, [IO (String, Circuit g)])]
 export = [ ("simple",  [("simple",)  <$> return simple])
-         , ("and1",    [("and1",)    <$> return andCirc 1])
-         , ("and10",   [("and10",)   <$> return andCirc 10])
-         , ("and100",  [("and100",)  <$> return andCirc 100])
-         , ("and1000", [("and1000",) <$> return andCirc 1000])
+         , ("and1",    [("and1",)    <$> return (andCirc 1)])
+         , ("and10",   [("and10",)   <$> return (andCirc 10)])
+         , ("and100",  [("and100",)  <$> return (andCirc 100)])
+         , ("and1000", [("and1000",) <$> return (andCirc 1000)])
          ]
 
 andCirc :: Gate g => Int -> Circuit g
