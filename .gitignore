@@ -2,6 +2,7 @@
 .ghc*
 .tags
 cabal.sandbox.config
+cabal.project.local
 Setup.hs
 dist
 work
@@ -10,3 +11,7 @@ dist-newstyle
 todo
 cxs
 boots
+obf
+*.acirc
+*.acirc2
+*.circ
