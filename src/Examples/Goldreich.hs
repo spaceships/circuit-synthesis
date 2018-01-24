@@ -51,7 +51,7 @@ xorMaj xs = do
 
 xorAnd :: (Gate g, Monad m) => [Ref] -> BuilderT g m Ref
 xorAnd (x0:x1:xs) = do
-    y <- circMul x0 x1
+    y <- circAnd x0 x1
     circXors (y : xs)
 xorAnd _ = error "[xorAnd] need at least three inputs!"
 

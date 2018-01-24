@@ -157,8 +157,8 @@ instance Gate BoolGate where
     gateGetBase _ = Nothing
 
     gateEval _ (BoolXor _ _) [x,y] = b2i (i2b x `xor` i2b y)
-    gateEval _ (BoolAnd _ _) [x,y] = x * y
-    gateEval _ (BoolNot _)   [x]   = 1 - x
+    gateEval _ (BoolAnd _ _) [x,y] = b2i (i2b x && i2b y)
+    gateEval _ (BoolNot _)   [x]   = b2i (not (i2b x))
     gateEval getBase (BoolBase b) [] = getBase b
 
     gateAdd x y = BoolXor x y

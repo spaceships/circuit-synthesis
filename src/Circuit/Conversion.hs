@@ -25,8 +25,8 @@ class ToCirc g where
     toCirc :: Circuit g -> Circ
     toCirc = error "no conversion to binary circuit defined"
 
-instance ToCirc ArithGate  where
-instance ToCirc ArithGate2 where
+instance ToCirc ArithGate  where toCirc = fromAcirc
+instance ToCirc ArithGate2 where toCirc = fromAcirc . toAcirc
 instance ToCirc BoolGate   where toCirc = id
 instance ToCirc BoolGate2  where toCirc = fromCirc2
 
@@ -47,8 +47,8 @@ class ToCirc2 g where
     toCirc2 :: Circuit g -> Circ2
     toCirc2 = error "no conversion to Circ2 defined"
 
-instance ToCirc2 ArithGate  where
-instance ToCirc2 ArithGate2 where
+instance ToCirc2 ArithGate  where toCirc2 = fromAcirc
+instance ToCirc2 ArithGate2 where toCirc2 = fromAcirc . toAcirc
 instance ToCirc2 BoolGate   where toCirc2 = fromCirc
 instance ToCirc2 BoolGate2  where toCirc2 = id
 
@@ -94,3 +94,16 @@ fromCirc2 c = B.buildCircuit $ do
     outs <- foldCircM eval c
     B.outputs outs
 
+fromAcirc :: Gate g => Acirc -> Circuit g
+fromAcirc c = B.buildCircuit $ do
+    xs <- A.listArray (InputId 0,  InputId (ninputs c-1))   <$> B.inputs (ninputs c)
+    ys <- A.listArray (ConstId 0,  ConstId (nconsts c-1))   <$> B.exportConsts c
+    zs <- A.listArray (SecretId 0, SecretId (nsecrets c-1)) <$> B.exportSecrets c
+    let eval (ArithAdd _ _) _ [x,y] = B.circAdd x y
+        eval (ArithSub _ _) _ [x,y] = B.circSub x y
+        eval (ArithMul _ _) _ [x,y] = B.circMul x y
+        eval (ArithBase (Input  id)) _ _ = return $ xs A.! id
+        eval (ArithBase (Const  id)) _ _ = return $ ys A.! id
+        eval (ArithBase (Secret id)) _ _ = return $ zs A.! id
+    outs <- foldCircM eval c
+    B.outputs outs

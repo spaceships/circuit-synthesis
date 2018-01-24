@@ -5,6 +5,7 @@ module Examples.Garbler where
 import Circuit
 import Circuit.Builder
 import Circuit.Builder.Internals (runCircuitT)
+import Circuit.Conversion
 import Circuit.Utils
 import Examples.Goldreich
 import Examples.Simple
@@ -58,7 +59,7 @@ export =
 
 -- XXX: only fan-out one is secure at the moment
 -- garbler that does not use permutation bits
-naiveGarbler :: Int -> Circ2 -> IO (Acirc2, String)
+naiveGarbler :: Int -> Circ2 -> IO (Acirc2, (Circ, Circ))
 naiveGarbler nseeds c = runCircuitT $ do
     let k = 80 -- security parameter, wirelabel & prg seed size
         paddingSize = 10
@@ -66,15 +67,17 @@ naiveGarbler nseeds c = runCircuitT $ do
     -- the seed to the PRGs
     s <- foldM1 (zipWithM circAdd) =<< replicateM nseeds (symbol k)
 
-    g1 <- do
-        (g,_) <- prgBuilder' k (2*k*nwires c) 5 xorAnd -- prg for generating wires
+    (g1, g1Save) <- do
+        g <- prgBuilder k (2*k*nwires c) 5 xorAnd -- prg for generating wires
         let g' xs = pairsOf . safeChunksOf k <$> g xs
-        return g'
+        asCirc <- lift $ buildCircuitT (inputs k >>= g >>= outputs)
+        return (g', toCirc asCirc)
 
-    (g2, g2Desc) <- do
-        (g,s) <- prgBuilder' k (2*(k+paddingSize)) 5 xorAnd
+    (g2, g2Save) <- do
+        g <- prgBuilder k (2*(k+paddingSize)) 5 xorAnd
         let g' i xs = (!! i) . safeChunksOf (k+paddingSize) <$> g xs
-        return (g',s)
+        asCirc <- lift $ buildCircuitT (inputs k >>= g >>= outputs)
+        return (g', toCirc asCirc)
 
     wires <- IM.fromList . (zip (map getRef (wireRefs c))) <$> g1 s
 
@@ -102,12 +105,12 @@ naiveGarbler nseeds c = runCircuitT $ do
             foldM1 (zipWithM circXor) [mx, my, zwire (gateEval (const undefined) g [i',j'])]
 
     outputs $ (concat.concat) gs
-    return g2Desc
+    return (g1Save, g2Save)
 
 
 -- XXX: only fan-out one is secure at the moment
 -- garbler that does not use permutation bits
-indexedGarbler :: Int -> Int -> Circ2 -> IO (Acirc2, String)
+indexedGarbler :: Int -> Int -> Circ2 -> IO (Acirc2, (Circ, Circ))
 indexedGarbler nseeds nindices c = runCircuitT $ do
     -- params
     let k = 80 -- security parameter, wirelabel & prg seed size
@@ -118,14 +121,17 @@ indexedGarbler nseeds nindices c = runCircuitT $ do
     s  <- foldM1 (zipWithM circAdd) =<< replicateM nseeds (symbol k)
     ix <- sigmaProd =<< replicateM nindices (sigma ixLen) -- the index of the gate to evaluate
 
-    g1 <- do
+    (g1, g1Save) <- do
         g <- prgBuilder k (2*k*nwires c) 5 xorAnd
-        return $ \xs -> safeChunksOf (2*k) <$> g xs
+        let g' xs = safeChunksOf (2*k) <$> g xs
+        asCirc <- lift $ buildCircuitT (inputs k >>= g >>= outputs)
+        return (g', toCirc asCirc)
 
-    (g2, g2Desc) <- do
-        (g,s) <- prgBuilder' k (2*(k+paddingSize)) 5 xorAnd
+    (g2, g2Save) <- do
+        g <- prgBuilder k (2*(k+paddingSize)) 5 xorAnd
         let g' i xs = (!! i) . safeChunksOf (k+paddingSize) <$> g xs
-        return (g',s)
+        asCirc <- lift $ buildCircuitT (inputs k >>= g >>= outputs)
+        return (g', toCirc asCirc)
 
     allWires <- listArray (0, nwires c - 1) <$> g1 s
     (mapM . mapM) markPersistant allWires
@@ -163,4 +169,4 @@ indexedGarbler nseeds nindices c = runCircuitT $ do
 
     outputs (concat garbledRows)
 
-    return g2Desc -- the description of the PRG for evaluation
+    return (g1Save, g2Save) -- the PRG for evaluation

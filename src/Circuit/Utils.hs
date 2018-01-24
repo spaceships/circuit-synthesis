@@ -96,7 +96,7 @@ readInts = map fromAlpha
 readBits :: String -> [Bool]
 readBits s = if take 2 s == "0b"
                      then map (== '1') (drop 2 s)
-                     else error "[readBitstring] unknown bitstring"
+                     else error "[readBits] unknown bitstring"
 
 readBits' :: String -> [Bool]
 readBits' = map (\c -> if c `notElem` "01"
@@ -160,7 +160,7 @@ xor :: Bool -> Bool -> Bool
 xor False False = False
 xor False True  = True
 xor True  False = True
-xor True  True  = True
+xor True  True  = False
 
 --------------------------------------------------------------------------------
 -- random generation
@@ -229,7 +229,7 @@ randBitsIO :: Int -> IO [Bool]
 randBitsIO n = randIO (randBits n)
 
 randKeyIO :: Int -> IO [Int]
-randKeyIO n = map b2i <$> randBitsIO n
+randKeyIO n = randIO $ map b2i <$> randBits n
 
 randIntegerMod :: Integer -> Rand Integer
 randIntegerMod q = do
