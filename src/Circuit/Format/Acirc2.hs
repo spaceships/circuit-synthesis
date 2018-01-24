@@ -16,3 +16,6 @@ readWithTests = Acirc.readWithTests
 
 read :: Gate g => FilePath -> IO (Circuit g)
 read = Acirc.read
+
+write :: ToAcirc2 g => FilePath -> Circuit g -> IO ()
+write fp c = Acirc.write fp (toAcirc2 c)

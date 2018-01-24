@@ -147,16 +147,16 @@ genTest c
 printCircInfo :: Gate g => Circuit g -> IO ()
 printCircInfo c = do
     let n = ninputs c
-    printf "circuit info\n"
-    printf "============\n"
-    printf "ninputs=%d noutputs=%d nconsts=%d nsecrets=%d\n" n (noutputs c) (nconsts c) (nsecrets c)
-    printf "symlen=%s\n" (unwords (map show (IM.elems (c^.circ_symlen))))
-    printf "sigma=%s\n" (unwords (map show (IS.toList (c^.circ_sigma_vecs))))
-    printf "consts=%s\n" (unwords (map show (IM.elems (c^.circ_const_vals))))
-    printf "secrets=%s\n" (unwords (map show (IM.elems (c^.circ_secret_vals))))
-    printf "nwires=%d\n" (nwires c)
-    printf "depth=%d\n" (depth c)
-    printf "degree=%d\n" (circDegree c)
+    printf "\tcircuit info\n"
+    printf "\t============\n"
+    printf "\tninputs=%d noutputs=%d nconsts=%d nsecrets=%d nwires=%d\n"
+           n (noutputs c) (nconsts c) (nsecrets c) (nwires c)
+    printf "\tdepth=%d degree=%d\n" (depth c) (circDegree c)
+    printf "\tsymlens = %s\n" (unwords (map show (IM.elems (c^.circ_symlen))))
+    printf "\tsigmas  = %s\n" (unwords (map (show . (b2i :: Bool -> Int)
+                                    . flip IS.member (c^.circ_sigma_vecs)) [0..nsymbols c-1]))
+    printf "\tconsts  = %s\n" (unwords (map show (IM.elems (c^.circ_const_vals))))
+    printf "\tsecrets = %s\n" (unwords (map show (IM.elems (c^.circ_secret_vals))))
 
 printTruthTable :: Gate gate => Circuit gate -> IO ()
 printTruthTable c = do

@@ -16,7 +16,7 @@ import Circuit
 import Circuit.Conversion
 import Circuit.Parser
 import Circuit.Utils hiding ((%))
-import qualified Circuit.Builder           as B
+import qualified Circuit.Builder as B
 
 import Prelude hiding (show)
 import Control.Monad
