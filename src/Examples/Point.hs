@@ -10,7 +10,7 @@ import Data.List.Split (chunksOf)
 import Control.Monad
 import Control.Monad.Trans (lift)
 
-export = [("point", [ ("point.dsl.acirc",) <$> point 25 10
+export = [("point", [ ("point",) <$> point 25 10
                     ] )]
 
 point :: Int -> Int -> IO Acirc

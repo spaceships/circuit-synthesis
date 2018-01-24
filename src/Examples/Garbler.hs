@@ -22,14 +22,14 @@ export =
     [ ("garbled-andn",  [ garblerQuery ] )
     , ("igarbled-andn", [ indexedGarblerQuery ] )
 
-    , ("garbled-ands", [ ("garbled_and1.acirc2",)   <$> naiveGarbler 1 (andCirc 1)
-                       , ("garbled_and10.acirc2",)  <$> naiveGarbler 1 (andCirc 10)
-                       , ("garbled_and100.acirc2",) <$> naiveGarbler 1 (andCirc 100)
+    , ("garbled-ands", [ ("garbled_and1",)   <$> naiveGarbler 1 (andCirc 1)
+                       , ("garbled_and10",)  <$> naiveGarbler 1 (andCirc 10)
+                       , ("garbled_and100",) <$> naiveGarbler 1 (andCirc 100)
                        ] )
 
-    , ("igarbled-ands", [ ("igarbled_and1.acirc2",)   <$> indexedGarbler 1 1 (andCirc 1)
-                        , ("igarbled_and10.acirc2",)  <$> indexedGarbler 1 1 (andCirc 10)
-                        , ("igarbled_and100.acirc2",) <$> indexedGarbler 1 1 (andCirc 100)
+    , ("igarbled-ands", [ ("igarbled_and1",)   <$> indexedGarbler 1 1 (andCirc 1)
+                        , ("igarbled_and10",)  <$> indexedGarbler 1 1 (andCirc 10)
+                        , ("igarbled_and100",) <$> indexedGarbler 1 1 (andCirc 100)
                         ] )
     ]
   where
@@ -38,7 +38,7 @@ export =
         nands <- read <$> getLine
         putStr "How many seeds? " >> hFlush stdout
         nseeds <- read <$> getLine
-        let s = printf "garbler_and%d_s%d.acirc2" nands nseeds
+        let s = printf "garbler_and%d_s%d" nands nseeds
         c <- naiveGarbler nseeds (andCirc nands)
         return (s,c)
 
@@ -49,7 +49,7 @@ export =
         nseeds <- read <$> getLine
         putStr "How many indices? " >> hFlush stdout
         nindices <- read <$> getLine
-        let s = printf "igarbler_and%d_s%d_i%d.acirc2" nands nseeds nindices
+        let s = printf "igarbler_and%d_s%d_i%d" nands nseeds nindices
         c <- indexedGarbler nseeds nindices (andCirc nands)
         return (s,c)
 

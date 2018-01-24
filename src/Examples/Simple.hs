@@ -9,7 +9,7 @@ import Circuit.Utils
 import Control.Monad
 
 export :: Gate g => [(String, [IO (String, Circuit g)])]
-export = [("simple", [("simple.acirc2",) <$> return simple])]
+export = [("simple", [("simple",) <$> return simple])]
 
 andCirc :: Gate g => Int -> Circuit g
 andCirc n = buildCircuit (inputs (n+1) >>= foldM1 circMul >>= output)

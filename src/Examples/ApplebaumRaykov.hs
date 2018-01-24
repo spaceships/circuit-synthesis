@@ -16,14 +16,14 @@ import Control.Monad
 import Control.Monad.Trans
 import Data.List.Split
 
-makeApplebaum =
-    [ ("f1_16.dsl.acirc"    ,) <$> f1 16 1
-    , ("f1_32.dsl.acirc"    ,) <$> f1 32 1
-    , ("f1_64.dsl.acirc"    ,) <$> f1 64 1
-    , ("f1_128_1.dsl.acirc" ,) <$> f1 128 1
-    , ("f1_128_2.dsl.acirc" ,) <$> f1 128 2
-    -- , ("f3_4.dsl.acirc"     ,) <$> f3 4 1
-    ]
+export :: [(String, [IO (String, Acirc)])]
+export = [("applebaum", [ ("f1_16"    ,) <$> f1 16 1
+                        , ("f1_32"    ,) <$> f1 32 1
+                        , ("f1_64"    ,) <$> f1 64 1
+                        , ("f1_128_1" ,) <$> f1 128 1
+                        , ("f1_128_2" ,) <$> f1 128 2
+                        -- , ("f3_4"     ,) <$> f3 4 1
+                        ])]
 
 --------------------------------------------------------------------------------
 -- f1

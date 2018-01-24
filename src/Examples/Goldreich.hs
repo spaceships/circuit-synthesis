@@ -17,20 +17,20 @@ import Text.Printf
 
 export :: Gate g => [(String, [IO (String, Circuit g)])]
 export =
-    [("goldreich", [ ("prg_xormaj_32_32.dsl.acirc"   ,) <$> prg'  32  32 5 xorMaj
-                   , ("prg_xormaj_32_128.dsl.acirc"  ,) <$> prg'  32 128 5 xorMaj
-                   , ("prg_xormaj_64_64.dsl.acirc"   ,) <$> prg'  64  64 6 xorMaj
-                   , ("prg_xormaj_64_128.dsl.acirc"  ,) <$> prg'  64 128 6 xorMaj
-                   , ("prg_xormaj_128_128.dsl.acirc" ,) <$> prg' 128 128 7 xorMaj
+    [("goldreich", [ ("prg_xormaj_32_32"   ,) <$> prg'  32  32 5 xorMaj
+                   , ("prg_xormaj_32_128"  ,) <$> prg'  32 128 5 xorMaj
+                   , ("prg_xormaj_64_64"   ,) <$> prg'  64  64 6 xorMaj
+                   , ("prg_xormaj_64_128"  ,) <$> prg'  64 128 6 xorMaj
+                   , ("prg_xormaj_128_128" ,) <$> prg' 128 128 7 xorMaj
 
-                   , ("prg_xorand_32_32.dsl.acirc"   ,) <$> prg'  32  32 5 xorAnd
-                   , ("prg_xorand_32_128.dsl.acirc"  ,) <$> prg'  32 128 5 xorAnd
-                   , ("prg_xorand_64_64.dsl.acirc"   ,) <$> prg'  64  64 5 xorAnd
-                   , ("prg_xorand_64_128.dsl.acirc"  ,) <$> prg'  64 128 5 xorAnd
-                   , ("prg_xorand_128_128.dsl.acirc" ,) <$> prg' 128 128 5 xorAnd
+                   , ("prg_xorand_32_32"   ,) <$> prg'  32  32 5 xorAnd
+                   , ("prg_xorand_32_128"  ,) <$> prg'  32 128 5 xorAnd
+                   , ("prg_xorand_64_64"   ,) <$> prg'  64  64 5 xorAnd
+                   , ("prg_xorand_64_128"  ,) <$> prg'  64 128 5 xorAnd
+                   , ("prg_xorand_128_128" ,) <$> prg' 128 128 5 xorAnd
                    ])
 
-    ,("prg_test", [("prg_test.acirc",) <$> prgTest])
+    ,("prg_test", [("prg_test",) <$> prgTest])
     ]
 
 --------------------------------------------------------------------------------

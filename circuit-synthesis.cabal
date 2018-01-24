@@ -30,13 +30,11 @@ library
                         , Circuit.Format.Sexp
                         , Examples.AES
                         , Examples.ApplebaumRaykov
-                        , Examples.BBKK
                         , Examples.Comparison
                         , Examples.Garbler
                         , Examples.Goldreich
                         , Examples.GGM
                         , Examples.Point
-                        , Examples.Tribes
                         , Examples.Simple
 
     build-depends:        base
@@ -64,7 +62,7 @@ library
                         , wl-pprint-text
 
     default-extensions:   DoAndIfThenElse
-    ghc-options: -fwarn-unused-imports
+    ghc-options: -fwarn-unused-imports -freverse-errors
 
 executable cxs
     default-language: Haskell2010
@@ -78,7 +76,7 @@ executable cxs
                         , optparse-applicative
                         , split
                         , text
-    ghc-options: -O3 -fllvm
+    ghc-options: -O3 -fllvm -freverse-errors
 
 executable boots
     default-language: Haskell2010
@@ -87,9 +85,10 @@ executable boots
     build-depends:        base
                         , circuit-synthesis
                         , containers
+                        , directory
                         , filepath
                         , microlens-platform
                         , optparse-applicative
                         , split
                         , text
-    ghc-options: -O2
+    ghc-options: -O3 -fllvm -freverse-errors

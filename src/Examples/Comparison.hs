@@ -6,8 +6,8 @@ import Circuit
 import Circuit.Builder
 import Control.Monad
 
-make :: [IO (String, Acirc)]
-make = [ return ("comparison.dsl.acirc", comparison 9 22) ]
+export :: [(String, [IO (String, Acirc)])]
+export = [("comparison", [return ("comparison", comparison 9 22)])]
 
 -- returns less-than-or-equals
 -- first input comes in unary form for instance 0 -> [1,0,0,0] or 3 -> [0,0,0,1]
