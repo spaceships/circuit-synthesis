@@ -74,9 +74,11 @@ showWithTests !c' !ts = T.unlines (header ++ inputs ++ secrets ++ consts ++ gate
              , T.append ":secrets " (T.unwords (map showt (IM.elems (_circ_secret_vals c))))
              , T.append ":outputs " (T.unwords (map (showt.getRef) (outputRefs c)))
              , T.append ":symlens " (T.unwords (map showt (c^..circ_symlen.each)))
-             , T.append ":sigmas "  (T.unwords (map showt (IS.toList (c^.circ_sigma_vecs))))
+             , T.append ":sigmas "  (T.unwords (map (showt . (b2i :: Bool -> Int)
+                                    . flip IS.member (c^.circ_sigma_vecs)) [0..nsymbols c-1]))
              ] ++ map showTest ts
                ++ [ ":start" ]
+
 
     inputs  = mapMaybe gateTxt (inputRefs c)
     consts  = mapMaybe gateTxt (constRefs c)
@@ -158,7 +160,7 @@ parseConsts = do
 
 parseSymlen :: AcircParser g ()
 parseSymlen = do
-    string "symlen"
+    string "symlens"
     spaces
     symlens <- many (spaces >> int)
     lift $ zipWithM B.setSymlen [0::SymId ..] symlens
@@ -166,10 +168,11 @@ parseSymlen = do
 
 parseSigma :: AcircParser g ()
 parseSigma = do
-    string "sigma"
+    string "sigmas"
     spaces
-    syms <- many (spaces >> SymId <$> int)
-    lift $ mapM B.setSigma syms
+    sigs <- many (spaces >> i2b <$> int)
+    lift $ forM (zip [0::SymId ..] sigs) $ \(id, sig) -> do
+        when sig (B.setSigma id)
     endLine
 
 parseRef :: AcircParser g Ref
