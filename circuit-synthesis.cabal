@@ -84,6 +84,7 @@ executable boots
     main-is: Boots.hs
     build-depends:        base
                         , circuit-synthesis
+                        , array
                         , containers
                         , directory
                         , filepath
@@ -91,4 +92,4 @@ executable boots
                         , optparse-applicative
                         , split
                         , text
-    ghc-options: -O3 -fllvm -freverse-errors
+    ghc-options: -O2 -fllvm -freverse-errors

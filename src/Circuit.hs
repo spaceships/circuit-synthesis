@@ -115,8 +115,17 @@ getSecret c id = case c^.circ_secret_vals.at (getSecretId id) of
     Just x  -> x
     Nothing -> error ("[getSecret] no secret known for secret " ++ show id)
 
+constIds :: Circuit gate -> [ConstId]
+constIds = map ConstId . IM.keys . view circ_consts
+
 secretIds :: Circuit gate -> [SecretId]
 secretIds = map SecretId . IM.keys . view circ_secrets
+
+constVals :: Circuit gate -> [Int]
+constVals c = map (getConst c) (constIds c)
+
+secretVals :: Circuit gate -> [Int]
+secretVals c = map (getSecret c) (secretIds c)
 
 getGate :: Circuit gate -> Ref -> gate
 getGate c ref = case c^.circ_refmap.at (getRef ref) of

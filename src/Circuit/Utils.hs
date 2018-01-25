@@ -334,3 +334,7 @@ safeChunksOf n xs = safeTake n xs : safeChunksOf n (drop n xs)
 
 sigmaVector :: Int -> Int -> [Int]
 sigmaVector len x = [ if i == x then 1 else 0 | i <- [ 0 .. len - 1 ] ]
+
+choosePair :: Int -> (a,a) -> a
+choosePair 0 = fst
+choosePair 1 = snd

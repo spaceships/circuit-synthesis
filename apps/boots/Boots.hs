@@ -14,6 +14,7 @@ import qualified Circuit.Format.Acirc2 as Acirc2
 import qualified Circuit.Format.Circ as Circ
 
 import Control.Monad
+import Data.Array
 import Data.Semigroup ((<>))
 import Options.Applicative
 import System.Directory
@@ -121,7 +122,6 @@ garble fp naive opts = do
 
     when (verbose opts) $ putStrLn "ok"
 
--- TODO: give out const and secret wirelabels here too
 genWires :: String -> GlobalOpts -> IO ()
 genWires inpStr opts = do
     setCurrentDirectory (directory opts)
@@ -145,13 +145,14 @@ genWires inpStr opts = do
     writeFile "seed" (showInts seed)
 
     when (verbose opts) $ putStrLn "evaluating g1 on seed"
-    let wirePairs = pairsOf $ safeChunksOf 80 $ plainEval g1 seed
+    let wirePairs = listArray (Ref 0, Ref (nwires c-1)) $ pairsOf $ safeChunksOf 80 $ plainEval g1 seed
 
     when (verbose opts) $ putStrLn "writing wires"
-    let choose False = fst
-        choose True  = snd
-        wires = zipWith choose (readBits' inpStr) wirePairs
-    writeFile "wires" (unlines (map showInts wires))
+    let inputWires  = zipWith choosePair (readInts inpStr) (map (wirePairs !) (inputRefs c))
+        constWires  = zipWith choosePair (constVals c)     (map (wirePairs !) (constRefs c))
+        secretWires = zipWith choosePair (secretVals c)    (map (wirePairs !) (secretRefs c))
+        wires = inputWires ++ constWires ++ secretWires
+    writeFile "wires" $ unlines (map showInts wires)
 
     when (verbose opts) $ putStrLn "ok"
 
