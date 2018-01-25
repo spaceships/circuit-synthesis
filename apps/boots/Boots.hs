@@ -121,6 +121,7 @@ garble fp naive opts = do
 
     when (verbose opts) $ putStrLn "ok"
 
+-- TODO: give out const and secret wirelabels here too
 genWires :: String -> GlobalOpts -> IO ()
 genWires inpStr opts = do
     setCurrentDirectory (directory opts)
