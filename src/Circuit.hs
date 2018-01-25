@@ -46,7 +46,7 @@ nwires :: Circuit gate -> Int
 nwires = IM.size . view circ_refmap
 
 ngates :: Circuit gate -> Int
-ngates c = nwires c - ninputs c - nconsts c
+ngates c = nwires c - ninputs c - nconsts c - nsecrets c
 
 ninputs :: Circuit gate -> Int
 ninputs = IM.size . view circ_inputs
@@ -138,7 +138,7 @@ genTest c
         inp <- fmap concat $ randIO $ forM (IM.toList (c^.circ_symlen)) $ \(i,len) -> do
             if IS.member i (c^.circ_sigma_vecs) then do
                 x <- randIntMod len
-                return [ if j == x then 1 else 0 | j <- [0..len-1] ]
+                return (sigmaVector len x)
             else do
                 randIntsMod len 2
         return (inp, plainEval c inp)
@@ -146,12 +146,10 @@ genTest c
 
 printCircInfo :: Gate g => Circuit g -> IO ()
 printCircInfo c = do
-    let n = ninputs c
     printf "\tcircuit info\n"
     printf "\t============\n"
-    printf "\tninputs=%d noutputs=%d nconsts=%d nsecrets=%d nwires=%d\n"
-           n (noutputs c) (nconsts c) (nsecrets c) (nwires c)
-    printf "\tdepth=%d degree=%d\n" (depth c) (circDegree c)
+    printf "\tninputs=%d noutputs=%d nconsts=%d nsecrets=%d\n" (ninputs c) (noutputs c) (nconsts c) (nsecrets c)
+    printf "\tnwires=%d ngates=%d depth=%d degree=%d\n" (nwires c) (ngates c) (depth c) (circDegree c)
     printf "\tsymlens = %s\n" (unwords (map show (IM.elems (c^.circ_symlen))))
     printf "\tsigmas  = %s\n" (unwords (map (show . (b2i :: Bool -> Int)
                                     . flip IS.member (c^.circ_sigma_vecs)) [0..nsymbols c-1]))
@@ -168,9 +166,8 @@ printTruthTable c = do
     possibleInputs c i = case symlen c i of
         1   -> [[0],[1]]
         len -> if IS.member i (c^.circ_sigma_vecs)
-                    then map (sigma len) [0..len-1]
+                    then map (sigmaVector len) [0..len-1]
                     else permutations len [0,1]
-    sigma len x = [ if i == x then 1 else 0 | i <- [ 0 .. len - 1 ] ]
 
 circEq :: Gate gate => Circuit gate -> Circuit gate -> IO Bool
 circEq c0 c1
@@ -234,8 +231,8 @@ zeroTest _ = 1
 plainEval :: Gate gate => Circuit gate -> [Int] -> [Int]
 plainEval c inps
     | ninputs c /= length inps =
-        error (printf "[plainEval] incorrect number of inputs: expected %d, got %s"
-                      (ninputs c) (show inps))
+        error (printf "[plainEval] incorrect number of inputs: expected %d, got %d"
+                      (ninputs c) (length inps))
     | otherwise = map zeroTest $ foldCirc (gateEval getBase) c
   where
     inps' = A.listArray (0 :: InputId, InputId (length inps-1)) inps

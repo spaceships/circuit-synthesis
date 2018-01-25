@@ -331,3 +331,6 @@ safeChunksOf n xs = safeTake n xs : safeChunksOf n (drop n xs)
     safeTake 0 xs = []
     safeTake n (x:xs) = x : safeTake (n-1) xs
     safeTake n [] = error "[safeChunksOf] not enough elements!"
+
+sigmaVector :: Int -> Int -> [Int]
+sigmaVector len x = [ if i == x then 1 else 0 | i <- [ 0 .. len - 1 ] ]

@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE Strict #-}
 
 module Main where
 
@@ -157,26 +158,37 @@ evalTest :: GlobalOpts -> IO ()
 evalTest opts = do
     setCurrentDirectory (directory opts)
 
-    when (verbose opts) $ do
-        putStrLn "reading gb.acirc2"
+    when (verbose opts) $ putStrLn "reading seed"
+    seed <- readInts <$> readFile "seed"
+
+    when (verbose opts) $ putStrLn "reading c.circ"
+    c <- Circ.read "c.circ" :: IO Circ
+
+    when (print_info opts) $ do
+        printf "info for c.circ\n"
+        printCircInfo c
+
+    when (verbose opts) $ putStrLn "reading gb.acirc2"
     gb <- Acirc2.read "gb.acirc2" :: IO Acirc2
 
+    when (print_info opts) $ do
+        printf "info for garbler\n"
+        printCircInfo gb
+
+    when (verbose opts) $ putStrLn "evaluating garbler"
     naive <- doesFileExist "naive"
+    let gs = if naive
+                then safeChunksOf 90 (plainEval gb seed)
+                else let indices i  = map (sigmaVector (symlen gb i)) [0..symlen gb i-1]
+                         --  every sigma vector combination
+                         allIndices = map concat $ sequence (map indices [1..nsymbols gb - 1])
+                         garble  ix = plainEval gb (seed ++ ix)
+                     -- XXX: probably going to want a progress bar here eventually
+                     in map garble allIndices -- outputs for all indices
 
-    undefined
-
-    -- if naive then do
-
-    -- get outputs for all indices
-
-    -- pick a random seed
-
-
-    -- run every sigma vector combination
-
-
-    when (verbose opts) $ putStrLn "ok"
+    when (verbose opts) $ putStrLn "writing gates"
+    writeFile "gates" (unlines (map showInts gs))
 
 eval :: GlobalOpts -> IO ()
 eval = undefined
-
+    -- when (verbose opts) $ putStrLn "ok"
