@@ -6,6 +6,7 @@
 module Main where
 
 import Circuit
+import Circuit.Builder
 import Circuit.Conversion
 import Circuit.Optimizer
 import Circuit.Utils
@@ -16,10 +17,14 @@ import qualified Circuit.Format.Circ as Circ
 import Control.Monad
 import Data.Array
 import Data.Semigroup ((<>))
-import Options.Applicative
+import Options.Applicative hiding (Const)
 import System.Directory
 import System.Exit
 import Text.Printf
+import qualified System.ProgressBar as P
+import qualified Data.IntMap as IM
+
+import Debug.Trace
 
 data Mode = Garble { target :: FilePath
                    , naive  :: Bool
@@ -177,20 +182,88 @@ evalTest opts = do
         printf "info for garbler\n"
         printCircInfo gb
 
-    when (verbose opts) $ putStrLn "evaluating garbler"
+    when (verbose opts) $ putStr "evaluating garbler "
     naive <- doesFileExist "naive"
-    let gs = if naive
-                then safeChunksOf 90 (plainEval gb seed)
-                else let indices i  = map (sigmaVector (symlen gb i)) [0..symlen gb i-1]
-                         --  every sigma vector combination
-                         allIndices = map concat $ sequence (map indices [1..nsymbols gb - 1])
-                         garble  ix = plainEval gb (seed ++ ix)
-                     -- XXX: probably going to want a progress bar here eventually
-                     in map garble allIndices -- outputs for all indices
+    gs <- if naive
+            then do
+                when (verbose opts) $ putStrLn "(naive)"
+                return $ safeChunksOf 90 (plainEval gb seed)
+            else do
+                when (verbose opts) $ putStrLn "(compact)"
+                --  generate every sigma vector combination
+                let indices i  = map (sigmaVector (symlen gb i)) [0..symlen gb i-1]
+                    allIndices = map concat $ sequence (map indices [1..nsymbols gb - 1])
+
+                forM (zip [1..] allIndices) $ \(done, ix) -> do
+                    progress done (length allIndices)
+                    return $ plainEval gb (seed ++ ix)
 
     when (verbose opts) $ putStrLn "writing gates"
     writeFile "gates" (unlines (map showInts gs))
 
 eval :: GlobalOpts -> IO ()
-eval = undefined
-    -- when (verbose opts) $ putStrLn "ok"
+eval opts = do
+    setCurrentDirectory (directory opts)
+
+    when (verbose opts) $ putStrLn "reading c.circ"
+    c <- Circ.read "c.circ" :: IO Circ
+
+    when (verbose opts) $ putStrLn "reading g2.circ"
+    g2 <- Circ.read "g2.circ" :: IO Circ
+
+    when (print_info opts) $ do
+        printf "info for c.circ\n"
+        printCircInfo c
+        printf "info for g2.circ\n"
+        printCircInfo g2
+
+    when (verbose opts) $ putStrLn "reading wires"
+    wires <- map readInts <$> lines <$> readFile "wires"
+
+    when (verbose opts) $ putStrLn "reading gates"
+    gates <- map readInts . lines <$> readFile "gates"
+    let gs = IM.fromList $ zip (map getRef (gateRefs c)) gates
+
+    let inputs  = arr $ take (ninputs c) wires
+        consts  = arr $ take (nconsts c) (drop (ninputs c) wires)
+        secrets = arr $ take (nsecrets c) (drop (ninputs c + nconsts c) wires)
+
+    let ev (BoolBase (Input  id)) _ _ = inputs ! getInputId id
+        ev (BoolBase (Const  id)) _ _ = inputs ! getConstId id
+        ev (BoolBase (Secret id)) _ _ = inputs ! getSecretId id
+
+        ev _ ref [x,y] = drop 10 $ head $
+                            filter ((== replicate 10 0). take 10) $
+                            traceShowId $ safeChunksOf 90 $
+                            openGate g2 x y (gs IM.! getRef ref)
+
+        res = foldCircRef ev c
+
+    putStrLn (unlines (map showInts res))
+
+    when (verbose opts) $ putStrLn "ok"
+
+openGate :: Circ -> [Int] -> [Int] -> [Int] -> [Int]
+openGate g2 x y g = plainEval (opener g2) (x ++ y ++ g)
+
+opener :: Circ -> Circ
+opener g2 = buildCircuit $ do
+    x <- inputs 80
+    y <- inputs 80
+    zs <- replicateM 4 $ inputs 90 -- garbled tables
+    let g 0 x = take 90 <$> subcircuit g2 x
+        g 1 x = drop 90 <$> subcircuit g2 x
+    forM_ (zip zs (permutations 2 [0,1])) $ \(z, [i,j]) -> do
+        gx <- g j x
+        gy <- g i y
+        gz <- foldM1 (zipWithM circXor) [gx, gy, z]
+        outputs gz
+
+--------------------------------------------------------------------------------
+
+progress :: Int -> Int -> IO ()
+progress done total = P.autoProgressBar P.percentage P.exact 80 $
+                      P.Progress (fromIntegral done) (fromIntegral total)
+
+arr :: [a] -> Array Int a
+arr xs = listArray (0,length xs-1) xs

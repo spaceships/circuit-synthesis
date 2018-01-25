@@ -95,7 +95,7 @@ naiveGarbler nseeds c = runCircuitT $ do
 
         let xwire i = if i == 0 then x0 else x1
             ywire i = if i == 0 then y0 else y1
-            zwire i = (if i == 0 then z0 else z1) ++ pad
+            zwire i = pad ++ (if i == 0 then z0 else z1)
 
         tt <- lift $ randIO (randomize (permutations 2 [0,1]))
 
@@ -165,7 +165,7 @@ indexedGarbler nseeds nindices c = runCircuitT $ do
         mx <- g2 j x
         my <- g2 i y
 
-        foldM1 (zipWithM circXor) [mx, my, z ++ pad]
+        foldM1 (zipWithM circXor) [mx, my, pad ++ z]
 
     outputs (concat garbledRows)
 
