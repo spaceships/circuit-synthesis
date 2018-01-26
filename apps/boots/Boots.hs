@@ -247,7 +247,7 @@ eval opts = do
 
         res = foldCircRef ev c
 
-    putStr $ unlines (map showInts res)
+    putStrLn $ unwords (map (show.last) res)
 
     when (verbose opts) $ putStrLn "ok"
 

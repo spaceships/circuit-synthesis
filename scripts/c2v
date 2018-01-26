@@ -30,6 +30,9 @@ while [[ $# -gt 0 ]]; do
             shift
             shift
             ;;
+        -h)
+            usage 0
+            ;;
         *)
             POSITIONAL+=("$1")
             shift
