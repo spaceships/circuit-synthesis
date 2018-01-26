@@ -18,6 +18,7 @@ export = [ ("simple",  [("simple",)  <$> return simple])
          , ("xor10",   [("xor10",)   <$> return (xorCirc 10)])
          , ("xor100",  [("xor100",)  <$> return (xorCirc 100)])
          , ("xor1000", [("xor1000",) <$> return (xorCirc 1000)])
+         , ("simple2", [("simple2",) <$> return simple2])
          ]
 
 xorCirc :: Gate g => Int -> Circuit g
@@ -37,3 +38,9 @@ simple = buildCircuit $ do
     z   <- circAdd w' one
     output z
 
+simple2 :: Gate g => Circuit g
+simple2 = buildCircuit $ do
+    x <- input
+    y <- constant 1
+    z <- circXor x y
+    output z

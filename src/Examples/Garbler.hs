@@ -85,7 +85,11 @@ naiveGarbler nseeds c = runCircuitT $ do
         xPairs = map head pairs
         yPairs = map last pairs
 
-    pad <- constants (replicate paddingSize 0)
+    -- plaintext outputs for the output gates
+    one  <- constant 1
+    zero <- constant 0
+
+    let pad = replicate paddingSize zero
 
     gs <- forM (zip [0..] (gates c)) $ \(i, (zref, g)) -> do
         let [xref, yref] = gateArgs g
@@ -96,13 +100,15 @@ naiveGarbler nseeds c = runCircuitT $ do
         let xwire i = if i == 0 then x0 else x1
             ywire i = if i == 0 then y0 else y1
             zwire i = pad ++ (if i == 0 then z0 else z1)
+            zOutWire i = pad ++ replicate (k-1) zero ++ [if i == 0 then zero else one]
 
         tt <- lift $ randIO (randomize (permutations 2 [0,1]))
 
         forM (zip (permutations 2 [0,1]) tt) $ \([i,j], [i',j']) -> do
             mx <- g2 j (xwire i)
             my <- g2 i (ywire j)
-            foldM1 (zipWithM circXor) [mx, my, zwire (gateEval (const undefined) g [i',j'])]
+            let zf = if isOutputRef c zref then zOutWire else zwire
+            foldM1 (zipWithM circXor) [mx, my, zf (gateEval (const undefined) g [i',j'])]
 
     outputs $ (concat.concat) gs
     return (g1Save, g2Save)
@@ -136,6 +142,13 @@ indexedGarbler nseeds nindices c = runCircuitT $ do
     allWires <- listArray (0, nwires c - 1) <$> g1 s
     (mapM . mapM) markPersistant allWires
 
+    -- plaintext outputs for the output gates
+    outWires <- do
+        one  <- constant 1
+        zero <- constant 0
+        let zs = replicate (k-1) zero
+        return [zs++[zero], zs++[one]]
+
     -- gate wires is a list of lists of the wires needed for the ith garbled gate, in the correct order
     gateWires <- lift $ randIO $ forM (gates c) $ \(zref,g) -> do
         let [xref,yref] = gateArgs g
@@ -152,7 +165,9 @@ indexedGarbler nseeds nindices c = runCircuitT $ do
         fmap concat $ forM tt $ \[i,j] -> do
             let x = get xs i
                 y = get ys j
-                z = get zs (gateEval (const undefined) g [i,j])
+                z = if isOutputRef c zref
+                       then get outWires (gateEval (const undefined) g [i,j])
+                       else get zs (gateEval (const undefined) g [i,j])
             return (x ++ y ++ z)
 
     -- select the wires for the ith gate

@@ -187,7 +187,7 @@ evalTest opts = do
     gs <- if naive
             then do
                 when (verbose opts) $ putStrLn "(naive)"
-                return $ safeChunksOf 90 (plainEval gb seed)
+                return $ safeChunksOf (4*90) (plainEval gb seed)
             else do
                 when (verbose opts) $ putStrLn "(compact)"
                 --  generate every sigma vector combination
@@ -234,7 +234,7 @@ eval opts = do
 
         ev _ ref [x,y] = drop 10 $ head $
                             filter ((== replicate 10 0). take 10) $
-                            traceShowId $ safeChunksOf 90 $
+                            safeChunksOf 90 $
                             openGate g2 x y (gs IM.! getRef ref)
 
         res = foldCircRef ev c
