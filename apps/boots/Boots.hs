@@ -24,7 +24,8 @@ import Text.Printf
 import qualified System.ProgressBar as P
 import qualified Data.IntMap as IM
 
-import Debug.Trace
+--------------------------------------------------------------------------------
+-- command line options
 
 data Mode = Garble { target :: FilePath
                    , naive  :: Bool
@@ -39,6 +40,7 @@ data GlobalOpts = GlobalOpts
                 { directory  :: String
                 , print_info :: Bool
                 , verbose    :: Bool
+                , show_progress :: Bool
                 } deriving (Show)
 
 
@@ -78,12 +80,16 @@ parseArgs = execParser $ info (parser <**> helper)
                         <> help "Use DIR as the base directory for the obfuscation")
                     <*> switch (short 'i' <> help "Show circuit info")
                     <*> switch (short 'v' <> help "Set verbose mode")
+                    <*> switch (short 'p' <> help "Show progress")
 
 main = parseArgs >>= \case
     Garble {..}       -> garble target naive opts
     GenWires inp opts -> genWires inp opts
     EvalTest opts     -> evalTest opts
     Eval opts         -> eval opts
+
+--------------------------------------------------------------------------------
+-- protocol implementations
 
 -- produce a garbler for a circuit, then put everything in a nice directory for later
 garble :: FilePath -> Bool -> GlobalOpts -> IO ()
@@ -143,14 +149,15 @@ genWires inpStr opts = do
     g1 <- Circ.read "g1.circ" :: IO Circ
 
     when (verbose opts) $ putStrLn "generating seed"
-    seed <- randKeyIO 80
+    seed <- randKeyIO securityParam
     when (verbose opts) $ printf "seed = %s\n" (showInts seed)
 
     when (verbose opts) $ putStrLn "writing seed"
     writeFile "seed" (showInts seed)
 
     when (verbose opts) $ putStrLn "evaluating g1 on seed"
-    let wirePairs = listArray (Ref 0, Ref (nwires c-1)) $ pairsOf $ safeChunksOf 80 $ plainEval g1 seed
+    let wirePairs = listArray (Ref 0, Ref (nwires c-1)) $
+                    pairsOf $ safeChunksOf securityParam $ plainEval g1 seed
 
     when (verbose opts) $ putStrLn "writing wires"
     let inputWires  = zipWith choosePair (readInts inpStr) (map (wirePairs !) (inputRefs c))
@@ -187,7 +194,7 @@ evalTest opts = do
     gs <- if naive
             then do
                 when (verbose opts) $ putStrLn "(naive)"
-                return $ safeChunksOf (4*90) (plainEval gb seed)
+                return $ safeChunksOf (4*(securityParam+paddingSize)) (plainEval gb seed)
             else do
                 when (verbose opts) $ putStrLn "(compact)"
                 --  generate every sigma vector combination
@@ -195,7 +202,8 @@ evalTest opts = do
                     allIndices = map concat $ sequence (map indices [1..nsymbols gb - 1])
 
                 forM (zip [1..] allIndices) $ \(done, ix) -> do
-                    progress done (length allIndices)
+                    when (show_progress opts) $
+                        progress done (length allIndices)
                     return $ plainEval gb (seed ++ ix)
 
     when (verbose opts) $ putStrLn "writing gates"
@@ -232,9 +240,9 @@ eval opts = do
         ev (BoolBase (Const  id)) _ _ = inputs ! getConstId id
         ev (BoolBase (Secret id)) _ _ = inputs ! getSecretId id
 
-        ev _ ref [x,y] = drop 10 $ head $
-                            filter ((== replicate 10 0). take 10) $
-                            safeChunksOf 90 $
+        ev _ ref [x,y] = drop paddingSize $ head $
+                            filter ((== replicate paddingSize 0). take paddingSize) $
+                            safeChunksOf (securityParam+paddingSize) $
                             openGate g2 x y (gs IM.! getRef ref)
 
         res = foldCircRef ev c
@@ -248,11 +256,11 @@ openGate g2 x y g = plainEval (opener g2) (x ++ y ++ g)
 
 opener :: Circ -> Circ
 opener g2 = buildCircuit $ do
-    x <- inputs 80
-    y <- inputs 80
-    zs <- replicateM 4 $ inputs 90 -- garbled tables
-    let g 0 x = take 90 <$> subcircuit g2 x
-        g 1 x = drop 90 <$> subcircuit g2 x
+    x <- inputs securityParam
+    y <- inputs securityParam
+    zs <- replicateM 4 $ inputs (securityParam + paddingSize) -- garbled tables
+    let g 0 x = take (securityParam+paddingSize) <$> subcircuit g2 x
+        g 1 x = drop (securityParam+paddingSize) <$> subcircuit g2 x
     forM_ (zip zs (permutations 2 [0,1])) $ \(z, [i,j]) -> do
         gx <- g j x
         gy <- g i y
