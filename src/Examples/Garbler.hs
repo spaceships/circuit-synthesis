@@ -18,8 +18,6 @@ import System.IO
 import Text.Printf
 import qualified Data.IntMap as IM
 
-import Debug.Trace
-
 --------------------------------------------------------------------------------
 -- global constants
 
@@ -108,9 +106,9 @@ naiveGarbler nseeds c = runCircuitT $ do
 
         tt <- lift $ randIO (randomize (permutations 2 [0,1]))
 
-        forM tt $ \[i,j] -> do
-            mx <- g2 j (xwire i)
-            my <- g2 i (ywire j)
+        forM (zip tt (permutations 2 [0,1])) $ \([i,j], [i',j']) -> do
+            mx <- g2 j' (xwire i)
+            my <- g2 i' (ywire j)
             foldM1 (zipWithM circXor) [mx, my, zwire (gateEval (const undefined) g [i,j])]
 
     outputs $ (concat.concat) gs
