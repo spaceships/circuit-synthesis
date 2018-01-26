@@ -68,8 +68,9 @@ parseArgs = execParser $ info (parser <**> helper)
                     <*> globalOptsParser
 
     compileParser = Compile
-                    <$> strArgument (metavar "TYPE" <> help "The type of the circuit")
-                    <*> strArgument (metavar "NAME" <> help "The name of the compilation routine")
+                    <$> strArgument (metavar "TYPE" <> help "The type of the circuit [\"acirc\", \"acirc2\", \"circ\"]")
+                    <*> strArgument (metavar "NAME" <> help "The name of the compilation routine \
+                                                            \ (\"list\" to see available routines)")
                     <*> globalOptsParser
 
     globalOptsParser = GlobalOpts
@@ -113,13 +114,15 @@ chooseMode mode = do
             let m = include "circ" opts [ Simple.export :: [(String, [IO (String, Circ)])]]
             runExportedRoutine "circ" name m
 
-        Compile ty _ _ -> error (printf "[main] unsupported type: \"%s\"" ty)
+        Compile ty _ _ -> do
+            printf "[main] unsupported type: \"%s\"!\n" ty
+            putStrLn "available types for circuit compilation: \"acirc\", \"acirc2\", \"circ\""
+            exitFailure
 
         ReadCircuit inp opts -> do
-            let inputExt = takeExtension inp
 
             case target opts of
-                Nothing -> case inputExt of
+                Nothing -> case takeExtension inp of
                     ".acirc"   -> run opts (Acirc.readWithTests inp :: IO (Acirc, [TestCase]))
                     ".acirc2"  -> run opts (Acirc2.readWithTests inp :: IO (Acirc2, [TestCase]))
                     ".circ"    -> run opts (Circ.readWithTests inp :: IO (Circ, [TestCase]))
@@ -130,39 +133,18 @@ chooseMode mode = do
 
                 Just outputFile -> case takeExtension outputFile of
                     ".acirc" -> do
-                        (c,ts) <- case inputExt of
-                            ".acirc"   -> Acirc.readWithTests inp
-                            ".acirc2"  -> Acirc2.readWithTests inp
-                            ".circ"    -> Circ.readWithTests inp
-                            ".nigel"   -> Nigel.readNigel inp
-                            ".netlist" -> Netlist.readNetlist inp
-                            ".bench"   -> Bench.readBench inp
-                            other      -> error (printf "[main] unsupported input extension: \"%s\"!" other)
+                        (c,ts) <- readFormat inp
                         circuitMain opts (target opts) (c :: Acirc) ts
 
                     ".acirc2" -> do
-                        (c,ts) <- case inputExt of
-                            ".acirc"   -> Acirc2.readWithTests inp
-                            ".acirc2"  -> Acirc2.readWithTests inp
-                            ".circ"    -> Circ.readWithTests inp
-                            ".nigel"   -> Nigel.readNigel inp
-                            ".netlist" -> Netlist.readNetlist inp
-                            ".bench"   -> Bench.readBench inp
-                            other      -> error (printf "[main] unsupported input extension: \"%s\"!" other)
+                        (c,ts) <- readFormat inp
                         circuitMain opts (target opts) (c :: Acirc2) ts
 
                     -- boolean formats
                     outExt -> do
                         when (outExt `notElem` [".circ", ".nigel"])
-                            (error (printf "[main] unknown output extension \"%s\"!" outExt))
-                        (c,ts) <- case inputExt of
-                            ".acirc"   -> Acirc.readWithTests inp
-                            ".acirc2"  -> Acirc2.readWithTests inp
-                            ".circ"    -> Circ.readWithTests inp
-                            ".nigel"   -> Nigel.readNigel inp
-                            ".netlist" -> Netlist.readNetlist inp
-                            ".bench"   -> Bench.readBench inp
-                            other      -> error (printf "[main] unsupported input extension: \"%s\"!" other)
+                            (error (printf "[main] unsupported output extension \"%s\"!" outExt))
+                        (c,ts) <- readFormat inp
                         circuitMain opts (target opts) (c :: Circ) ts
 
   where
@@ -244,3 +226,13 @@ parseFixedInputsString s = map (f . splitOn ":") (words s)
   where
     f [sx,sy] = (InputId (read sx), read sy)
     f _ = error (printf "[parseFixedInputsString] couldn't read string \"%s\"!" s)
+
+readFormat :: Gate g => FilePath -> IO (Circuit g, [TestCase])
+readFormat inp = case takeExtension inp of
+    ".acirc"   -> Acirc.readWithTests inp
+    ".acirc2"  -> Acirc2.readWithTests inp
+    ".circ"    -> Circ.readWithTests inp
+    ".nigel"   -> Nigel.readNigel inp
+    ".netlist" -> Netlist.readNetlist inp
+    ".bench"   -> Bench.readBench inp
+    other      -> error (printf "[readFormat] unsupported input extension: \"%s\"!" other)
