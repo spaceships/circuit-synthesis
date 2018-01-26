@@ -232,13 +232,13 @@ eval opts = do
     gates <- map readInts . lines <$> readFile "gates"
     let gs = IM.fromList $ zip (map getRef (gateRefs c)) gates
 
-    let inputs  = arr $ take (ninputs c) wires
-        consts  = arr $ take (nconsts c) (drop (ninputs c) wires)
-        secrets = arr $ take (nsecrets c) (drop (ninputs c + nconsts c) wires)
+    let inputs  = listArray (0,InputId (ninputs c))   $ take (ninputs c) wires
+        consts  = listArray (0,ConstId (nconsts c))   $ take (nconsts c) (drop (ninputs c) wires)
+        secrets = listArray (0,SecretId (nsecrets c)) $ take (nsecrets c) (drop (ninputs c + nconsts c) wires)
 
-    let ev (BoolBase (Input  id)) _ _ = inputs ! getInputId id
-        ev (BoolBase (Const  id)) _ _ = inputs ! getConstId id
-        ev (BoolBase (Secret id)) _ _ = inputs ! getSecretId id
+    let ev (BoolBase (Input  id)) _ _ = inputs ! id
+        ev (BoolBase (Const  id)) _ _ = consts ! id
+        ev (BoolBase (Secret id)) _ _ = secrets ! id
 
         ev _ ref [x,y] = drop paddingSize $ head $
                             filter ((== replicate paddingSize 0). take paddingSize) $
