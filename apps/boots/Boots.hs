@@ -24,6 +24,8 @@ import Text.Printf
 import qualified System.ProgressBar as P
 import qualified Data.IntMap as IM
 
+import Debug.Trace
+
 --------------------------------------------------------------------------------
 -- command line options
 
@@ -242,6 +244,7 @@ eval opts = do
 
         ev _ ref [x,y] = drop paddingSize $ head $
                             filter ((== replicate paddingSize 0). take paddingSize) $
+                            traceShowId $
                             safeChunksOf (securityParam+paddingSize) $
                             openGate g2 x y (gs IM.! getRef ref)
 

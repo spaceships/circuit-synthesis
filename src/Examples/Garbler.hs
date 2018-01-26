@@ -18,6 +18,8 @@ import System.IO
 import Text.Printf
 import qualified Data.IntMap as IM
 
+import Debug.Trace
+
 --------------------------------------------------------------------------------
 -- global constants
 
@@ -66,7 +68,6 @@ export =
 -- a circuit for the garbler of a garbled circuit scheme
 
 -- XXX: only fan-out one is secure at the moment
--- garbler that does not use permutation bits
 naiveGarbler :: Int -> Circ2 -> IO (Acirc2, (Circ, Circ))
 naiveGarbler nseeds c = runCircuitT $ do
     -- the seed to the PRGs
@@ -93,27 +94,24 @@ naiveGarbler nseeds c = runCircuitT $ do
     -- plaintext outputs for the output gates
     one  <- constant 1
     zero <- constant 0
-
-    let pad = replicate paddingSize zero
+    let gatePad   = replicate paddingSize zero
+        outputPad = replicate (paddingSize+securityParam-1) zero
 
     gs <- forM (zip [0..] (gates c)) $ \(i, (zref, g)) -> do
         let [xref, yref] = gateArgs g
-            (x0, x1) = wires IM.! getRef xref
-            (y0, y1) = wires IM.! getRef yref
-            (z0, z1) = wires IM.! getRef zref
 
-        let xwire i = if i == 0 then x0 else x1
-            ywire i = if i == 0 then y0 else y1
-            zwire i = pad ++ (if i == 0 then z0 else z1)
-            zOutWire i = pad ++ replicate (securityParam-1) zero ++ [if i == 0 then zero else one]
+            xwire i = choosePair i (wires IM.! getRef xref)
+            ywire i = choosePair i (wires IM.! getRef yref)
+            zwire i = if isOutputRef c zref
+                         then outputPad ++ [choosePair i (zero, one)]
+                         else gatePad ++ choosePair i (wires IM.! getRef zref)
 
         tt <- lift $ randIO (randomize (permutations 2 [0,1]))
 
         forM tt $ \[i,j] -> do
             mx <- g2 j (xwire i)
             my <- g2 i (ywire j)
-            let zf = if isOutputRef c zref then zOutWire else zwire
-            foldM1 (zipWithM circXor) [mx, my, zf (gateEval (const undefined) g [i,j])]
+            foldM1 (zipWithM circXor) [mx, my, zwire (gateEval (const undefined) g [i,j])]
 
     outputs $ (concat.concat) gs
     return (g1Save, g2Save)
