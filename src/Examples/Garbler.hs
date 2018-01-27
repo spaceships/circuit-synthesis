@@ -139,7 +139,8 @@ indexedGarbler nseeds nindices c = runCircuitT $ do
         return (g', toCirc asCirc)
 
     allWires <- listArray (0, nwires c - 1) <$> g1 s
-    (mapM . mapM) markPersistant allWires
+    -- XXX: waiting for persistant ref implementation in mio
+    -- (mapM . mapM) markPersistant allWires
 
     -- plaintext outputs for the output gates
     outWires <- do
