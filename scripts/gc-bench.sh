@@ -68,6 +68,8 @@ else
     secparam_arg=""
 fi
 
+rm -rf obf
+
 # setup
 SECONDS=0
 if [[ $indexed ]]; then 
@@ -168,12 +170,12 @@ function sizes() {
     echo $total
 }
 
-keysize=$(sizes obf/*.circ obf/*.acirc2 obf/*.1.ct.ix* obf/*.ek)
-ctsize=$(sizes obf/wires obf/*.0.ct)
+keysize=$(sizes $dir/*.circ $dir/*.acirc2 $dir/*.1.ct.ix* $dir/*.ek)
+ctsize=$(sizes $dir/wires $dir/*.0.ct)
 
 echo
 echo "setup time:      $setup_time s"
 echo "enc time (avg):  $avg_enc_time s"
 echo "dec time (avg):  $avg_dec_time s"
-echo "key size:        $((keysize/1024/1024)) mb"
-echo "ciphertext size: $((ctsize/1024/1024)) mb"
+echo "key size:        $((keysize/1024)) kb"
+echo "ciphertext size: $((ctsize/1024)) kb"
