@@ -44,8 +44,8 @@ circuit=$(readlink -f $1)
 test_inp=()
 test_out=()
 while read -r line && [[ "$line" != ":start" ]]; do
-    inp=$(echo $line | perl -nE 'print $1 if /:test (\d+) (\d+)/')
-    out=$(echo $line | perl -nE 'print $2 if /:test (\d+) (\d+)/')
+    inp=$(perl -nE 'print $1 if /:test (\d+) (\d+)/' <<< $line)
+    out=$(perl -nE 'print $2 if /:test (\d+) (\d+)/' <<< $line)
     if [[ $inp ]] && [[ $out ]]; then
         test_inp+=($inp)
         test_out+=($out)
@@ -55,15 +55,6 @@ ntests=${#test_inp[@]}
 
 ################################################################################
 ## protocol
-
-if [[ $indexed ]]; then 
-    ./boots garble $circuit
-else
-    ./boots garble $circuit -n
-fi
-
-dir=$(readlink -f obf)
-gb=$(readlink -f obf/gb.acirc2)
 
 function unary() {
     perl -E "say '0'x$1, '1', '0'x$(( $2 - $1 - 1))"
@@ -76,6 +67,17 @@ else
     mmap="--mmap DUMMY"
     secparam_arg=""
 fi
+
+# setup
+SECONDS=0
+if [[ $indexed ]]; then 
+    ./boots garble $circuit
+else
+    ./boots garble $circuit -n
+fi
+
+dir=$(readlink -f obf)
+gb=$(readlink -f obf/gb.acirc2)
 
 # set up mife and generate indices
 if [[ $use_mife ]]; then
@@ -94,6 +96,7 @@ if [[ $use_mife ]]; then
         echo
     fi
 fi
+setup_time=$SECONDS
 
 function encrypt() {
     inp=$1
@@ -122,11 +125,19 @@ function decrypt() {
     ./boots eval
 }
 
+enc_times=()
+dec_times=()
+
 for (( i=0; i<${ntests}; i++)); do
     echo -n "test $i/$ntests: ${test_inp[$i]} -> ${test_out[$i]} ... "
 
+    SECONDS=0
     encrypt ${test_inp[$i]}
+    enc_times+=($SECONDS)
+
+    SECONDS=0
     res=$(decrypt)
+    dec_times+=($SECONDS)
 
     if [[ $res = ${test_out[$i]} ]]; then
         echo ok
@@ -134,3 +145,35 @@ for (( i=0; i<${ntests}; i++)); do
         echo FAILED
     fi
 done
+
+avg_enc_time=$(IFS="+"; bc<<<"(${enc_times[*]}) / ${#enc_times[@]}")
+avg_dec_time=$(IFS="+"; bc<<<"(${dec_times[*]}) / ${#dec_times[@]}")
+
+################################################################################
+## benchmark info
+
+function filesize() {
+    if [[ -f $1 ]]; then
+        stat $1 --printf="%s"
+    else
+        echo 0
+    fi
+}
+
+function sizes() {
+    total=0
+    for f in $@; do
+        total=$(( total + $(filesize $f) ))
+    done
+    echo $total
+}
+
+keysize=$(sizes obf/*.circ obf/*.acirc2 obf/*.1.ct.ix* obf/*.ek)
+ctsize=$(sizes obf/wires obf/*.0.ct)
+
+echo
+echo "setup time:      $setup_time s"
+echo "enc time (avg):  $avg_enc_time s"
+echo "dec time (avg):  $avg_dec_time s"
+echo "key size:        $((keysize/1024/1024)) mb"
+echo "ciphertext size: $((ctsize/1024/1024)) mb"
