@@ -21,6 +21,7 @@ import qualified Data.IntMap as IM
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Formatting as F
+import qualified Data.IntSet as IS
 
 data CircSt = CircSt { _circ_st_outputs     :: [Ref] -- old refs from the previous circuit
                      , _circ_st_const_vals  :: IM.IntMap Int
@@ -58,6 +59,9 @@ showWithTests !c' !ts = T.unlines (header ++ inputs ++ secrets ++ consts ++ gate
 
     header = [ T.append ":ninputs " (showt (ninputs c))
              , T.append ":outputs " (T.unwords (map (showt.getRef) (outputRefs c)))
+             , T.append ":symlens " (T.unwords (map showt (c^..circ_symlen.each)))
+             , T.append ":sigmas "  (T.unwords (map (showt . (b2i :: Bool -> Int)
+                                    . flip IS.member (c^.circ_sigma_vecs)) [0..nsymbols c-1]))
              , T.append ":nrefs "   (showt (c ^. circ_maxref))
              , T.append ":consts "  (T.unwords (map showt (IM.elems (c^.circ_const_vals))))
              , T.append ":secrets " (T.unwords (map showt (IM.elems (c^.circ_secret_vals))))
@@ -90,7 +94,7 @@ parse :: Gate g => String -> (Circuit g, [TestCase])
 parse s = runCircParser emptyCircSt parser s
   where
     parser = do
-        many $ char ':' >> choice [parseTest, parseOutputs, parseConsts, try parseSecrets, skipParam]
+        many $ char ':' >> choice [parseTest, parseOutputs, parseConsts, try parseSecrets, try parseSymlen, try parseSigmas, skipParam]
         many parseRefLine
         lift . B.outputs =<< mapM tr =<< _circ_st_outputs <$> getSt -- translate the outputs
         eof
@@ -155,7 +159,7 @@ parseInput = do
     string "input"
     spaces
     id <- InputId <$> int
-    lift $ B.inputN id
+    lift $ B.inputBitN id
 
 parseConst :: Gate g => CircParser g Ref
 parseConst = do
@@ -164,6 +168,23 @@ parseConst = do
     id  <- int
     val <- (IM.! id) . _circ_st_const_vals <$> getSt
     lift $ B.constant val
+
+parseSymlen :: Gate g => CircParser g ()
+parseSymlen = do
+    string "symlens"
+    spaces
+    symlens <- many (spaces >> int)
+    lift $ zipWithM B.setSymlen [0::SymId ..] symlens
+    endLine
+
+parseSigmas :: CircParser g ()
+parseSigmas = do
+    string "sigmas"
+    spaces
+    sigs <- many (spaces >> i2b <$> int)
+    lift $ forM (zip [0::SymId ..] sigs) $ \(id, sig) -> do
+        when sig (B.setSigma id)
+    endLine
 
 parseSecret :: Gate g => CircParser g Ref
 parseSecret = do

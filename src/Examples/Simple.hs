@@ -9,16 +9,19 @@ import Circuit.Utils
 import Control.Monad
 
 export :: Gate g => [(String, [IO (String, Circuit g)])]
-export = [ ("simple",  [("simple",)  <$> return simple])
-         , ("and1",    [("and1",)    <$> return (andCirc 1)])
-         , ("and10",   [("and10",)   <$> return (andCirc 10)])
-         , ("and100",  [("and100",)  <$> return (andCirc 100)])
-         , ("and1000", [("and1000",) <$> return (andCirc 1000)])
-         , ("xor1",    [("xor1",)    <$> return (xorCirc 1)])
-         , ("xor10",   [("xor10",)   <$> return (xorCirc 10)])
-         , ("xor100",  [("xor100",)  <$> return (xorCirc 100)])
-         , ("xor1000", [("xor1000",) <$> return (xorCirc 1000)])
-         , ("simple2", [("simple2",) <$> return simple2])
+export = [ ("simple",    [("simple",)    <$> return simple])
+         , ("and1",      [("and1",)      <$> return (andCirc 1)])
+         , ("and10",     [("and10",)     <$> return (andCirc 10)])
+         , ("and100",    [("and100",)    <$> return (andCirc 100)])
+         , ("and1000",   [("and1000",)   <$> return (andCirc 1000)])
+         , ("xor1",      [("xor1",)      <$> return (xorCirc 1)])
+         , ("xor10",     [("xor10",)     <$> return (xorCirc 10)])
+         , ("xor100",    [("xor100",)    <$> return (xorCirc 100)])
+         , ("xor1000",   [("xor1000",)   <$> return (xorCirc 1000)])
+         , ("simple2",   [("simple2",)   <$> return simple2])
+         , ("sym1",   [("sym1",)   <$> return (simpleSym 1)])
+         , ("sym10",  [("sym10",)  <$> return (simpleSym 10)])
+         , ("sym100", [("sym100",) <$> return (simpleSym 100)])
          ]
 
 xorCirc :: Gate g => Int -> Circuit g
@@ -44,3 +47,10 @@ simple2 = buildCircuit $ do
     y <- constant 1
     z <- circXor x y
     output z
+
+simpleSym :: Gate g => Int -> Circuit g
+simpleSym n = buildCircuit $ do
+    xs <- symbol n
+    ys <- symbol n
+    zs <- zipWithM circXor xs ys
+    outputs zs
