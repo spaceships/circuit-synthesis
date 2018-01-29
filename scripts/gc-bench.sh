@@ -111,7 +111,7 @@ function encrypt() {
 function decrypt() {
     if [[ $use_mife ]]; then
         if [[ $indexed ]]; then
-            rm $dir/gates
+            rm -f $dir/gates
             for (( i=0; i < $index_len; i++ )); do
                 cp $gb.1.ct.ix$i $gb.1.ct
                 mio mife decrypt $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
@@ -131,14 +131,18 @@ enc_times=()
 dec_times=()
 
 for (( i=0; i<${ntests}; i++)); do
-    echo -n "test $i/$ntests: ${test_inp[$i]} -> ${test_out[$i]} ... "
+    echo -n "test $((i+1))/$ntests: ${test_inp[$i]} -> ${test_out[$i]} ... "
 
     SECONDS=0
     encrypt ${test_inp[$i]}
     enc_times+=($SECONDS)
 
     SECONDS=0
-    res=$(decrypt)
+    if ! res=$(decrypt); then
+        echo $res
+        echo "decryption failed, skipping"
+        continue
+    fi
     dec_times+=($SECONDS)
 
     if [[ $res = ${test_out[$i]} ]]; then

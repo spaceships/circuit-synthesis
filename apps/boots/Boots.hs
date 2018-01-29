@@ -20,6 +20,7 @@ import Data.Semigroup ((<>))
 import Options.Applicative hiding (Const)
 import System.Directory
 import System.Exit
+import System.IO
 import Text.Printf
 import qualified System.ProgressBar as P
 import qualified Data.IntMap as IM
@@ -141,7 +142,7 @@ genWires inpStr opts = do
     c <- Circ.read "c.circ" :: IO Circ
 
     when (length inpStr /= ninputs c) $ do
-        printf "[genWires] circuit expects %d inputs, but got %d!\n"
+        hPrintf stderr "[genWires] circuit expects %d inputs, but got %d!\n"
             (ninputs c) (length inpStr)
         exitFailure
 
