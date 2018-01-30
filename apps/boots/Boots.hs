@@ -114,7 +114,7 @@ garble fp naive opts = do
         else do
             when (verbose opts) $ putStrLn "(compact)"
             removePathForcibly "naive"
-            indexedGarbler 1 1 c
+            indexedGarbler 1 c
 
     when (print_info opts) $ do
         printf "info for garbler\n"
@@ -200,7 +200,7 @@ evalTest opts = do
                 when (verbose opts) $ putStrLn "(compact)"
                 --  generate every sigma vector combination
                 let indices i  = map (sigmaVector (symlen gb i)) [0..symlen gb i-1]
-                    allIndices = map concat $ sequence (map indices [1..nsymbols gb - 1])
+                    allIndices = map concat $ sequence (map indices [1..SymId (nsymbols gb - 1)])
 
                 forM (zip [1..] allIndices) $ \(done, ix) -> do
                     when (show_progress opts) $

@@ -36,9 +36,9 @@ export =
                        , ("garbled_and100",) . view _1 <$> naiveGarbler 1 (andCirc 100)
                        ] )
 
-    , ("igarbled-ands", [ ("igarbled_and1",)   . view _1 <$> indexedGarbler 1 1 (andCirc 1)
-                        , ("igarbled_and10",)  . view _1 <$> indexedGarbler 1 1 (andCirc 10)
-                        , ("igarbled_and100",) . view _1 <$> indexedGarbler 1 1 (andCirc 100)
+    , ("igarbled-ands", [ ("igarbled_and1",)   . view _1 <$> indexedGarbler 1 (andCirc 1)
+                        , ("igarbled_and10",)  . view _1 <$> indexedGarbler 1 (andCirc 10)
+                        , ("igarbled_and100",) . view _1 <$> indexedGarbler 1 (andCirc 100)
                         ] )
     ]
   where
@@ -54,12 +54,10 @@ export =
     indexedGarblerQuery = do
         putStr "How many and-gates? " >> hFlush stdout
         nands <- read <$> getLine
-        putStr "How many seeds? " >> hFlush stdout
-        nseeds <- read <$> getLine
         putStr "How many indices? " >> hFlush stdout
         nindices <- read <$> getLine
-        let s = printf "igarbler_and%d_s%d_i%d" nands nseeds nindices
-        c <- view _1 <$> indexedGarbler nseeds nindices (andCirc nands)
+        let s = printf "igarbler_and%d_i%d" nands nindices
+        c <- view _1 <$> indexedGarbler nindices (andCirc nands)
         return (s,c)
 
 --------------------------------------------------------------------------------
@@ -117,28 +115,47 @@ naiveGarbler nseeds c = runCircuitT $ do
 
 -- XXX: only fan-out one is secure at the moment
 -- garbler that does not use permutation bits
-indexedGarbler :: Int -> Int -> Circ2 -> IO (Acirc2, (Circ, Circ))
-indexedGarbler nseeds nindices c = runCircuitT $ do
+indexedGarbler :: Int -> Circ2 -> IO (Acirc2, (Circ, Circ))
+indexedGarbler nindices c = runCircuitT $ do
     -- params
     let ixLen = ceiling (fromIntegral (ngates c) ** (1 / fromIntegral nindices))
 
-    -- the seed to the PRGs, as nseeds different inputs
-    s  <- foldM1 (zipWithM circAdd) =<< replicateM nseeds (symbol securityParam)
+    -- seeds to the PRGs. the number of seeds is determined by the number of symbols in c.
+    -- each seed corresponds to the inputs for each symbol, and is used to generate their wirelabels
+    seeds <- replicateM (nsymbols c) (symbol securityParam)
+
+    -- the main seed, used to generate all intermediate wirelabels
+    s <- foldM1 (zipWithM circXor) seeds
+
     ix <- sigmaProd =<< replicateM nindices (sigma ixLen) -- the index of the gate to evaluate
 
+    -- G1 is the PRG used to generate wirelabels
     (g1, g1Save) <- do
         g <- prgBuilder securityParam (2*securityParam*nwires c) 5 xorAnd
         let g' xs = safeChunksOf (2*securityParam) <$> g xs
         asCirc <- lift $ buildCircuitT (inputs securityParam >>= g >>= outputs)
         return (g', toCirc asCirc)
 
+    -- G2 is the PRG used to encrypt the garbled tables
     (g2, g2Save) <- do
         g <- prgBuilder securityParam (2*(securityParam+paddingSize)) 5 xorAnd
         let g' i xs = (!! i) . safeChunksOf (securityParam+paddingSize) <$> g xs
         asCirc <- lift $ buildCircuitT (inputs securityParam >>= g >>= outputs)
         return (g', toCirc asCirc)
 
-    allWires <- listArray (0, nwires c - 1) <$> g1 s
+    -- TODO: generate each symbol's wires based only on its corresponding seed
+    let inputWires = []
+    -- inputWires <- fmap concat $ forM (zip [SymId 0..] seeds) $ \(sym, seed) -> do
+    --     raw <- g1 seed
+    --     let refs = inputRefsForSymbol c sym
+    --         ws = selectsPT raw (map getRef refs)
+    --     return (zip refs ws)
+
+    initialWires <- listArray (0, Ref (nwires c-1)) <$> g1 s
+
+    -- update all wires with specially generated inputs
+    let allWires = initialWires // inputWires
+
     -- XXX: waiting for persistant ref implementation in mio
     -- (mapM . mapM) markPersistant allWires
 
@@ -152,9 +169,9 @@ indexedGarbler nseeds nindices c = runCircuitT $ do
     -- gate wires is a list of lists of the wires needed for the ith garbled gate, in the correct order
     gateWires <- lift $ randIO $ forM (gates c) $ \(zref,g) -> do
         let [xref,yref] = gateArgs g
-            xs = safeChunksOf securityParam $ allWires ! getRef xref
-            ys = safeChunksOf securityParam $ allWires ! getRef yref
-            zs = safeChunksOf securityParam $ allWires ! getRef zref
+            xs = safeChunksOf securityParam $ allWires ! xref
+            ys = safeChunksOf securityParam $ allWires ! yref
+            zs = safeChunksOf securityParam $ allWires ! zref
 
             get stuff 0 = head stuff
             get stuff 1 = last stuff

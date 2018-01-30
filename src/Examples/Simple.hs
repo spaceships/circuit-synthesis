@@ -25,10 +25,10 @@ export = [ ("simple",    [("simple",)    <$> return simple])
          ]
 
 xorCirc :: Gate g => Int -> Circuit g
-xorCirc n = buildCircuit (inputs (n+1) >>= foldM1 circXor >>= output)
+xorCirc n = buildCircuit (symbol (n+1) >>= foldM1 circXor >>= output)
 
 andCirc :: Gate g => Int -> Circuit g
-andCirc n = buildCircuit (inputs (n+1) >>= foldM1 circMul >>= output)
+andCirc n = buildCircuit (symbol (n+1) >>= foldM1 circMul >>= output)
 
 simple :: Gate g => Circuit g
 simple = buildCircuit $ do

@@ -63,8 +63,8 @@ nsymbols = IM.size . view circ_symlen
 noutputs :: Circuit gate -> Int
 noutputs = length . view circ_outputs
 
-symlen :: Circuit gate -> Int -> Int
-symlen c i = c ^. circ_symlen . at i . non (error $ "[symlen] no symbol " ++ show i)
+symlen :: Circuit gate -> SymId -> Int
+symlen c id = c ^. circ_symlen . at (getSymId id) . non (error $ "[symlen] no symbol " ++ show id)
 
 wires :: Gate gate => Circuit gate -> [(Ref, gate)]
 wires c = map (\ref -> (ref, getGate c ref)) (wireRefs c)
@@ -84,6 +84,11 @@ outputRefs c = V.toList (c^.circ_outputs)
 
 inputRefs :: Gate gate => Circuit gate -> [Ref]
 inputRefs c = IM.elems (c^.circ_inputs)
+
+inputRefsForSymbol :: Gate g => Circuit g -> SymId -> [Ref]
+inputRefsForSymbol c sym = take (symlen c sym) (drop (numIrrelevantInputs sym) (inputRefs c))
+  where
+    numIrrelevantInputs sym = sum (map (symlen c) [0..(sym-1)])
 
 constRefs :: Gate gate => Circuit gate -> [Ref]
 constRefs c = IM.elems (c^.circ_consts)
@@ -167,14 +172,14 @@ printCircInfo c = do
 
 printTruthTable :: Gate gate => Circuit gate -> IO ()
 printTruthTable c = do
-    let allCombos = map concat $ sequence $ map (possibleInputs c) ([0..nsymbols c-1] :: [Int])
+    let allCombos = map concat $ sequence $ map (possibleInputs c) ([0..SymId (nsymbols c-1)] :: [SymId])
     forM_ allCombos $ \inp -> do
         let out = plainEval c inp
         printf "%s -> %s\n" (showInts inp) (showInts out)
   where
     possibleInputs c i = case symlen c i of
         1   -> [[0],[1]]
-        len -> if IS.member i (c^.circ_sigma_vecs)
+        len -> if IS.member (getSymId i) (c^.circ_sigma_vecs)
                     then map (sigmaVector len) [0..len-1]
                     else permutations len [0,1]
 
