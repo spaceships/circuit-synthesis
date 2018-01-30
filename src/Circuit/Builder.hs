@@ -20,6 +20,15 @@ import Text.Printf
 import qualified Data.Map.Strict as M
 import qualified Data.IntMap.Strict as IM
 
+--------------------------------------------------------------------------------
+-- base gates
+
+output :: Monad m => Ref -> BuilderT g m ()
+output = markOutput
+
+outputs :: Monad m => [Ref] -> BuilderT g m ()
+outputs = mapM_ markOutput
+
 -- inputBit does not create a new symbol: useful as a primitive
 inputBit :: (Gate g, Monad m) => BuilderT g m Ref
 inputBit = do
@@ -113,6 +122,9 @@ constant val = do
 constants :: (Gate g, Monad m) => [Int] -> BuilderT g m [Ref]
 constants = mapM constant
 
+--------------------------------------------------------------------------------
+-- gates
+
 circAdd :: (Gate g, Monad m) => Ref -> Ref -> BuilderT g m Ref
 circAdd x y = newGate (gateAdd x y)
 
@@ -159,11 +171,10 @@ circNot x = case gateNot x of
         one <- constant 1
         circSub one x
 
-outputs :: Monad m => [Ref] -> BuilderT g m ()
-outputs = mapM_ markOutput
+circEq :: (Gate g, Monad m) => Ref -> Ref -> BuilderT g m Ref
+circEq x y = circNot =<< circXor x y
 
-output :: Monad m => Ref -> BuilderT g m ()
-output = markOutput
+--------------------------------------------------------------------------------
 
 -- NOTE: unconnected secrets from the subcircuit will be secrets in the
 -- resulting composite circuit.

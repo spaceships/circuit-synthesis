@@ -183,8 +183,8 @@ printTruthTable c = do
                     then map (sigmaVector len) [0..len-1]
                     else permutations len [0,1]
 
-circEq :: Gate gate => Circuit gate -> Circuit gate -> IO Bool
-circEq c0 c1
+equalCircuits :: Gate gate => Circuit gate -> Circuit gate -> IO Bool
+equalCircuits c0 c1
   | ninputs  c0 /= ninputs  c1 = return False
   | noutputs c0 /= noutputs c1 = return False
   | otherwise = do

@@ -36,6 +36,7 @@ library
                         , Examples.GGM
                         , Examples.Point
                         , Examples.Simple
+                        , Examples.Substring
 
     build-depends:        base
                         , array

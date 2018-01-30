@@ -15,7 +15,7 @@ import Control.Parallel.Strategies
 import Crypto.Random (newGenIO, genBytes, splitGen)
 import Crypto.Random.DRBG (CtrDRBG)
 import Crypto.Util (bs2i)
-import Data.Bits ((.&.), shift)
+import Data.Bits ((.&.), shift, Bits)
 import Data.Binary.Get (runGet, getWord64host)
 import Data.List.Split (chunksOf)
 import GHC.Types
@@ -71,10 +71,13 @@ num2Base base ndigits x = map fromIntegral $ reverse (map snd (take ndigits (tai
   where
     ds = (x, 0) : [ (div y (fromIntegral base), mod y (fromIntegral base)) | (y, _) <- ds ]
 
-num2Bits :: Int -> Integer -> [Bool]
+num2Bits :: (Bits a, Ord a, Num a) => Int -> a -> [Bool]
 num2Bits ndigits x = reverse bs
   where
     bs = [ x .&. 2^i > 0 | i <- [0 .. ndigits-1] ]
+
+str2Bits :: String -> [Bool]
+str2Bits = concatMap (num2Bits 8 . fromEnum)
 
 bits2Num :: Integral a => [Bool] -> a
 bits2Num bs = fromIntegral $ sum [ if b then shift 1 i :: Integer else 0 | b <- reverse bs | i <- [0..] ]
@@ -338,3 +341,4 @@ sigmaVector len x = [ if i == x then 1 else 0 | i <- [ 0 .. len - 1 ] ]
 choosePair :: Int -> (a,a) -> a
 choosePair 0 = fst
 choosePair 1 = snd
+

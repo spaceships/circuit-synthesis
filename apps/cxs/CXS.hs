@@ -24,6 +24,7 @@ import qualified Examples.Goldreich       as Goldreich
 import qualified Examples.GGM             as GGM
 import qualified Examples.Point           as Point
 import qualified Examples.Simple          as Simple
+import qualified Examples.Substring       as Substring
 
 import Control.Monad
 import Data.List.Split (splitOn)
@@ -111,7 +112,9 @@ chooseMode mode = do
             runExportedRoutine "acirc2" name m
 
         Compile "circ" name opts -> do
-            let m = include "circ" opts [ Simple.export :: [(String, [IO (String, Circ)])]]
+            let m = include "circ" opts [ Substring.export
+                                        , Simple.export :: [(String, [IO (String, Circ)])]
+                                        ]
             runExportedRoutine "circ" name m
 
         Compile ty _ _ -> do
