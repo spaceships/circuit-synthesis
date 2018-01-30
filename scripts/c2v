@@ -95,9 +95,9 @@ for i in $(seq $inputsize $((inputsize + keysize - 1))); do
     fixed_input+=" $i:0"
 done
 
-saw sawcmds.saw > /dev/null
-abc -f abccmds.abc > /dev/null
-yosys yosys.ys > /dev/null
+saw sawcmds.saw
+abc -f abccmds.abc
+yosys yosys.ys -q
 
 if [ "$opt_binary" ]; then
     cat $func.out.v > $dir/$func.c2v.netlist
