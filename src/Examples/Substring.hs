@@ -7,7 +7,11 @@ import Circuit.Utils
 import Control.Monad
 
 export :: Gate g => [(String, [IO (String, Circuit g)])]
-export = [("substring", [return ("progress", substring 10 "progress")])]
+export = [("substring", [ return ("progress8",  substring 8  "progress")
+                        , return ("progress16", substring 16 "progress")
+                        , return ("progress32", substring 32 "progress")
+                        , return ("progress64", substring 64 "progress")
+                        ])]
 
 -- XXX: input length is number of ascii characters!
 substring :: Gate g => Int -> String -> Circuit g

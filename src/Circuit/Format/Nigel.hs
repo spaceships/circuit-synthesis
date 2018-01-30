@@ -47,11 +47,11 @@ showCirc c = W.execWriter $ flip S.runStateT initial $ do
     foldCircM eval c
   where
     header1 = T.unwords $ map (T.pack . show) [nwires c - ninputs c, nwires c]
-    header2 = T.unwords $ map (T.pack . show) [ninputs c, nconsts c, noutputs c]
+    header2 = T.unwords $ map (T.pack . show) [ninputs c, nconsts c + nsecrets c, noutputs c]
 
     inputMappings  = M.fromList (zip (inputRefs c ++ map Ref (IM.keys (c^.circ_consts))) [0..])
     outputMappings = M.fromList (zip (outputRefs c) [nwires c - noutputs c..])
-    initial = (M.union inputMappings outputMappings, ninputs c + nconsts c)
+    initial = (M.union inputMappings outputMappings, ninputs c + nconsts c + nsecrets c)
 
     eval :: BoolGate -> Ref -> a -> S.StateT (M.Map Ref Int, Int) (W.Writer T.Text) ()
     eval gate ref _ = do

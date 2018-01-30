@@ -5,20 +5,23 @@
 
 set -e
 
+optimize=1
+ty="acirc"
+
 usage () {
     echo "C2A: Cryptol to acirc through AND-inverter graphs" > /dev/stderr
     echo "Usage: $0 <cryptol-file> <function>" > /dev/stderr
     echo "Options:" > /dev/stderr
-    echo "  -n      skip optimization step" > /dev/stderr
+    echo "  -n        skip optimization step" > /dev/stderr
+    echo "  -t TYPE   type of circuit to produce from cxs [default=$ty]" > /dev/stderr
     exit $1
 }
 
-optimize=1
-
-while getopts "hn" opt; do
+while getopts "hnt:" opt; do
     case $opt in
         h) usage && exit 0;;
         n) optimize="";;
+        t) ty=$OPTARG;;
         *) usage && exit 1;;
     esac
 done
@@ -81,6 +84,8 @@ for i in $(seq $xsize $((xsize + ysize - 1))); do
     fixed_input+=" $i:0"
 done
 
+echo $fixed_input
+
 saw sawcmds.saw > /dev/null
 abc -f abccmds.abc > /dev/null
-$cxs read $func.bench -o $dir/$func.c2a.acirc -k "$fixed_input"
+$cxs read $func.bench -o $dir/$func.c2a.$ty -k "$fixed_input" -i

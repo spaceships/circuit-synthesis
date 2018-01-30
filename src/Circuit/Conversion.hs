@@ -8,6 +8,8 @@ import Lens.Micro.Platform
 import qualified Data.IntMap as IM
 import qualified Data.Array as A
 
+import Debug.Trace
+
 --------------------------------------------------------------------------------
 
 class ToAcirc g where
@@ -55,18 +57,6 @@ instance ToCirc2 BoolGate2  where toCirc2 = id
 --------------------------------------------------------------------------------
 -- other generic utils
 
-fixInputBits :: Gate g => [(InputId, Int)] -> Circuit g -> Circuit g
-fixInputBits assignments c = B.buildCircuit $ do
-    ys <- B.exportConsts c
-    zs <- B.exportSecrets c
-    let aMap = IM.fromList (map (over _1 getInputId) assignments)
-    xs <- forM (IM.toList (c^.circ_inputs)) $ \(id, ref) -> do
-        case IM.lookup id aMap of
-            Nothing  -> B.input
-            Just val -> B.secret val
-    outs <- B.subcircuit' c xs ys zs
-    B.outputs outs
-
 fromCirc :: Gate g => Circ -> Circuit g
 fromCirc c = B.buildCircuit $ do
     xs <- A.listArray (InputId 0,  InputId (ninputs c-1))   <$> B.inputs (ninputs c)
@@ -107,3 +97,16 @@ fromAcirc c = B.buildCircuit $ do
         eval (ArithBase (Secret id)) _ _ = return $ zs A.! id
     outs <- foldCircM eval c
     B.outputs outs
+
+fixInputBits :: Gate g => [(InputId, Int)] -> Circuit g -> Circuit g
+fixInputBits assignments c = B.buildCircuit $ do
+    ys <- B.exportConsts c
+    zs <- B.exportSecrets c
+    let aMap = IM.fromList (map (over _1 getInputId) assignments)
+    xs <- forM (IM.toList (c^.circ_inputs)) $ \(id, ref) -> do
+        case IM.lookup id aMap of
+            Nothing  -> B.input
+            Just val -> B.secret val
+    outs <- B.subcircuit' c xs ys zs
+    B.outputs outs
+

@@ -8,12 +8,14 @@ set -e
 scriptdir=$(dirname $(readlink -f "${BASH_SOURCE[0]}"))
 liberty_file=$scriptdir/../liberties/aig.lib
 opt_binary=""
+ty="acirc"
 
 usage () {
     echo "C2V: Cryptol to acirc through Verilog"
     echo "Usage: $0 [options] <cryptol-file> <function>"
     echo "  -b              output binary netlist instead of acirc"
     echo "  -l LIBERTY      use liberty file LIBERTY"
+    echo "  -t TYPE   type of circuit to produce from cxs [default=$ty]" > /dev/stderr
     exit $1
 }
 
@@ -32,6 +34,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         -h)
             usage 0
+            ;;
+        -t)
+            ty=$2
+            shift
+            shift
             ;;
         *)
             POSITIONAL+=("$1")
@@ -96,6 +103,5 @@ if [ "$opt_binary" ]; then
     cat $func.out.v > $dir/$func.c2v.netlist
 else
     mv $func.out.v $func.netlist
-    $cxs read $func.netlist -o $dir/$func.c2v.acirc -k "$fixed_input"
-    echo "$cxs read $func.netlist -o $dir/$func.c2v.acirc -k \"$fixed_input\"" >/dev/stderr
+    $cxs read $func.netlist -o $dir/$func.c2v.$ty -k "$fixed_input"
 fi
