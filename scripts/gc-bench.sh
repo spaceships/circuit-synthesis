@@ -6,6 +6,11 @@ function mio() {
     (cd ../circ-obfuscation; ./mio.sh "$@")
 }
 
+function progress() {
+    x=$(( $1+1 ))
+    perl -E "\$r=$x/$2; \$n=int(\$r*60); printf(\"%s%s (%d/%d)\\r\", '#'x\$n, ' 'x(60-\$n), $x, $2);"
+}
+
 use_mife=1
 indexed=1
 secparam=""
@@ -112,12 +117,15 @@ function decrypt() {
     if [[ $use_mife ]]; then
         if [[ $indexed ]]; then
             rm -f $dir/gates
+            progress 0 $index_len >/dev/stderr
             cp $gb.1.ct.ix0 $gb.1.ct
             mio mife decrypt $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
             for (( i=1; i < $index_len; i++ )); do
+                progress $i $index_len >/dev/stderr
                 cp $gb.1.ct.ix$i $gb.1.ct
                 mio mife decrypt --saved $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
             done
+            echo >/dev/stderr
         else
             # the perl command splits the output into 360 character lines 
             mio mife decrypt $mmap $gb | 
@@ -133,7 +141,7 @@ enc_times=()
 dec_times=()
 
 for (( i=0; i<${ntests}; i++)); do
-    echo -n "test $((i+1))/$ntests: ${test_inp[$i]} -> ${test_out[$i]} ... "
+    echo "test $((i+1))/$ntests: ${test_inp[$i]} -> ${test_out[$i]}"
 
     SECONDS=0
     encrypt ${test_inp[$i]}
