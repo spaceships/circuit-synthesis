@@ -157,7 +157,7 @@ indexedGarbler nindices c = runCircuitT $ do
     let allWires = initialWires // inputWires
 
     -- XXX: waiting for persistant ref implementation in mio
-    -- (mapM . mapM) markPersistant allWires
+    (mapM . mapM) saveRef allWires
 
     -- plaintext outputs for the output gates
     outWires <- do

@@ -129,11 +129,24 @@ nextSymbol = do
 bumpRefCount :: Monad m => Ref -> BuilderT g m ()
 bumpRefCount ref = bs_circ . circ_refcount %= IM.insertWith (+) (getRef ref) 1
 
-markPersistant :: Monad m => Ref -> BuilderT g m ()
-markPersistant ref = bs_circ . circ_refsave %= IS.insert (getRef ref)
+-- XXX: marks everything in the circuit before this ref as Skip
+saveRef :: (Gate g, Monad m) => Ref -> BuilderT g m ()
+saveRef ref = do
+    markSave ref
+    c <- use bs_circ
+    mapM_ (skipRec c) (gateArgs (getGate c ref))
+  where
+    skipRec c ref = do
+        markSkip ref
+        let g = getGate c ref
+        when (gateIsGate g) $
+            mapM_ (skipRec c) (gateArgs g)
 
-markUseless :: Monad m => Ref -> BuilderT g m ()
-markUseless ref = bs_circ . circ_refskip %= IS.insert (getRef ref)
+markSave :: Monad m => Ref -> BuilderT g m ()
+markSave ref = bs_circ . circ_refsave %= IS.insert (getRef ref)
+
+markSkip :: Monad m => Ref -> BuilderT g m ()
+markSkip ref = bs_circ . circ_refskip %= IS.insert (getRef ref)
 
 markOutput :: Monad m => Ref -> BuilderT g m ()
 markOutput !ref = do

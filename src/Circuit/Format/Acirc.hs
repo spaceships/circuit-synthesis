@@ -17,6 +17,7 @@ import Circuit.Conversion
 import Circuit.Parser
 import Circuit.Utils hiding ((%))
 import qualified Circuit.Builder as B
+import qualified Circuit.Builder.Internals as B
 
 import Prelude hiding (show)
 import Control.Monad
@@ -89,20 +90,19 @@ showWithTests !c' !ts = T.unlines (header ++ inputs ++ secrets ++ consts ++ gate
     gateTxt !ref =
         case c ^. circ_refcount . at (getRef ref) of
             Nothing -> Nothing
+            Just ct -> Just $ case c^.circ_refmap.at (getRef ref).non undefined of
+                (ArithBase (Input  id)) -> F.sformat (F.shown % " input "  % F.shown % " : " % F.int) ref id ct
+                (ArithBase (Const  id)) -> F.sformat (F.shown % " const "  % F.shown % " : " % F.int) ref id ct
+                (ArithBase (Secret id)) -> F.sformat (F.shown % " secret " % F.shown % " : " % F.int) ref id ct
+                (ArithAdd x y) -> F.sformat (F.shown % " add " % F.shown % " " % F.shown % " : " % F.int % F.stext) ref x y ct (saveStr ref)
+                (ArithSub x y) -> F.sformat (F.shown % " sub " % F.shown % " " % F.shown % " : " % F.int % F.stext) ref x y ct (saveStr ref)
+                (ArithMul x y) -> F.sformat (F.shown % " mul " % F.shown % " " % F.shown % " : " % F.int % F.stext) ref x y ct (saveStr ref)
 
-            Just ct -> let gate = case c ^. circ_refmap . at (getRef ref) . non (error "[gateTxt] unknown ref") of
-                                (ArithBase (Input  id)) -> F.sformat (F.shown % " input "  % F.shown) ref id
-                                (ArithBase (Const  id)) -> F.sformat (F.shown % " const "  % F.shown) ref id
-                                (ArithBase (Secret id)) -> F.sformat (F.shown % " secret " % F.shown) ref id
-                                (ArithAdd x y) -> F.sformat (F.shown % " add " % F.shown % " " % F.shown) ref x y
-                                (ArithSub x y) -> F.sformat (F.shown % " sub " % F.shown % " " % F.shown) ref x y
-                                (ArithMul x y) -> F.sformat (F.shown % " mul " % F.shown % " " % F.shown) ref x y
-
-                           save = if      IS.member (getRef ref) (c^.circ_refsave) then " save"
-                                  else if IS.member (getRef ref) (c^.circ_refskip) then " skip"
-                                                                                   else ""
-
-                        in Just $ F.sformat (F.stext % " : " % F.int % F.stext) gate ct save
+    saveStr ref = if IS.member (getRef ref) (c^.circ_refsave)
+                     then " save"
+                     else if IS.member (getRef ref) (c^.circ_refskip)
+                             then " skip"
+                             else ""
 
 showTest :: TestCase -> T.Text
 showTest (!inp, !out) = T.concat [":test ", T.pack (showInts inp), " ", T.pack (showInts out) ]
@@ -189,7 +189,7 @@ parseRefLine = do
     spaces
     z' <- choice [parseConst, try parseSecret, parseInput, parseAdd, parseSub, parseMul]
     modifySt (acirc_st_tr . at (getRef z) ?~ z')
-    parseTimesUsed
+    parseTimesUsed z'
     endLine
 
 parseInput :: Gate g => AcircParser g Ref
@@ -249,9 +249,15 @@ parseSub = do
     y <- tr =<< parseRef
     lift $ B.circSub x y
 
-parseTimesUsed :: AcircParser g ()
-parseTimesUsed = optional $ do
+parseTimesUsed :: Ref -> AcircParser g ()
+parseTimesUsed ref = optional $ do
     spaces
     char ':'
     spaces
-    void int <|> void (string "inf") -- times used annotation
+    void int
+    optional $ do
+        spaces
+        s <- try (string "save") <|> string "skip"
+        case s of
+            "save" -> lift $ B.markSave ref
+            "skip" -> lift $ B.markSkip ref

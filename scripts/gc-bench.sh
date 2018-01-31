@@ -3,7 +3,7 @@
 set -e
 
 function mio() {
-    (cd ../circ-obfuscation; ./mio.sh $@)
+    (cd ../circ-obfuscation; ./mio.sh "$@")
 }
 
 use_mife=1
@@ -47,8 +47,8 @@ while read -r line && [[ "$line" != ":start" ]]; do
     inp=$(perl -nE 'print $1 if /:test (\d+) (\d+)/' <<< $line)
     out=$(perl -nE 'print $2 if /:test (\d+) (\d+)/' <<< $line)
     if [[ $inp ]] && [[ $out ]]; then
-        test_inp+=($inp)
-        test_out+=($out)
+        test_inp+=("$inp")
+        test_out+=("$out")
     fi
 done < $circuit
 ntests=${#test_inp[@]}
@@ -145,7 +145,7 @@ for (( i=0; i<${ntests}; i++)); do
     fi
     dec_times+=($SECONDS)
 
-    if [[ $res = ${test_out[$i]} ]]; then
+    if [[ $res = "${test_out[$i]}" ]]; then
         echo ok
     else
         echo FAILED
@@ -168,7 +168,7 @@ function filesize() {
 
 function sizes() {
     total=0
-    for f in $@; do
+    for f in "$@"; do
         total=$(( total + $(filesize $f) ))
     done
     echo $total
