@@ -31,6 +31,7 @@ makeLenses ''BuildSt
 emptyBuild :: BuildSt g
 emptyBuild = BuildSt emptyCirc 0 0 0 0 M.empty M.empty
 
+--  TODO: if circ_refsave is on, find the refs that can be added to circ_refskip
 runCircuitT :: Monad m => BuilderT g m a -> m (Circuit g, a)
 runCircuitT b = do
     (a, st) <- runStateT b emptyBuild
@@ -126,13 +127,13 @@ nextSymbol = do
     return (SymId i)
 
 bumpRefCount :: Monad m => Ref -> BuilderT g m ()
-bumpRefCount ref = bs_circ . circ_refcount %= IM.insertWith add (getRef ref) 1
-  where
-    add x (-1) = -1 -- preserve -1 which marks inf
-    add x y  = x + y
+bumpRefCount ref = bs_circ . circ_refcount %= IM.insertWith (+) (getRef ref) 1
 
 markPersistant :: Monad m => Ref -> BuilderT g m ()
-markPersistant ref = bs_circ . circ_refcount . at (getRef ref) ?= (-1)
+markPersistant ref = bs_circ . circ_refsave %= IS.insert (getRef ref)
+
+markUseless :: Monad m => Ref -> BuilderT g m ()
+markUseless ref = bs_circ . circ_refskip %= IS.insert (getRef ref)
 
 markOutput :: Monad m => Ref -> BuilderT g m ()
 markOutput !ref = do

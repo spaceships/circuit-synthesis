@@ -37,9 +37,11 @@ emptyCirc = Circuit
     , _circ_const_vals     = IM.empty
     , _circ_secret_vals    = IM.empty
     , _circ_symlen         = IM.empty
-    , _circ_refcount       = IM.empty
     , _circ_maxref         = 0
     , _circ_sigma_vecs     = IS.empty
+    , _circ_refcount       = IM.empty
+    , _circ_refsave        = IS.empty
+    , _circ_refskip        = IS.empty
     }
 
 nwires :: Circuit gate -> Int

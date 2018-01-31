@@ -36,9 +36,11 @@ data Circuit gate = Circuit
     , _circ_const_vals  :: !(IM.IntMap Int)
     , _circ_secret_vals :: !(IM.IntMap Int)
     , _circ_symlen      :: !(IM.IntMap Int)
-    , _circ_refcount    :: !(IM.IntMap Int) -- number of times each ref is used
     , _circ_maxref      :: !Int
     , _circ_sigma_vecs  :: !(IS.IntSet) -- input symbols which should be unary sigma vectors
+    , _circ_refcount    :: !(IM.IntMap Int) -- number of times each ref is used
+    , _circ_refsave     :: !(IS.IntSet)
+    , _circ_refskip     :: !(IS.IntSet)
     } deriving (Show)
 
 makeLenses ''Circuit

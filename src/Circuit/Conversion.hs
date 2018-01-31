@@ -8,8 +8,6 @@ import Lens.Micro.Platform
 import qualified Data.IntMap as IM
 import qualified Data.Array as A
 
-import Debug.Trace
-
 --------------------------------------------------------------------------------
 
 class ToAcirc g where

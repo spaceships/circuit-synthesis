@@ -89,15 +89,20 @@ showWithTests !c' !ts = T.unlines (header ++ inputs ++ secrets ++ consts ++ gate
     gateTxt !ref =
         case c ^. circ_refcount . at (getRef ref) of
             Nothing -> Nothing
-            Just ct -> Just $ case c ^. circ_refmap . at (getRef ref) . non (error "[gateTxt] unknown ref") of
-                (ArithBase (Input  id)) -> F.sformat (F.shown % " input "  % F.shown % " : " % F.stext) ref id (showCount ct)
-                (ArithBase (Const  id)) -> F.sformat (F.shown % " const "  % F.shown % " : " % F.stext) ref id (showCount ct)
-                (ArithBase (Secret id)) -> F.sformat (F.shown % " secret " % F.shown % " : " % F.stext) ref id (showCount ct)
-                (ArithAdd x y) -> F.sformat (F.shown % " add " % F.shown % " " % F.shown % " : " % F.stext) ref x y (showCount ct)
-                (ArithSub x y) -> F.sformat (F.shown % " sub " % F.shown % " " % F.shown % " : " % F.stext) ref x y (showCount ct)
-                (ArithMul x y) -> F.sformat (F.shown % " mul " % F.shown % " " % F.shown % " : " % F.stext) ref x y (showCount ct)
 
-    showCount ct = if ct == -1 then "inf" else showt ct
+            Just ct -> let gate = case c ^. circ_refmap . at (getRef ref) . non (error "[gateTxt] unknown ref") of
+                                (ArithBase (Input  id)) -> F.sformat (F.shown % " input "  % F.shown) ref id
+                                (ArithBase (Const  id)) -> F.sformat (F.shown % " const "  % F.shown) ref id
+                                (ArithBase (Secret id)) -> F.sformat (F.shown % " secret " % F.shown) ref id
+                                (ArithAdd x y) -> F.sformat (F.shown % " add " % F.shown % " " % F.shown) ref x y
+                                (ArithSub x y) -> F.sformat (F.shown % " sub " % F.shown % " " % F.shown) ref x y
+                                (ArithMul x y) -> F.sformat (F.shown % " mul " % F.shown % " " % F.shown) ref x y
+
+                           save = if      IS.member (getRef ref) (c^.circ_refsave) then " save"
+                                  else if IS.member (getRef ref) (c^.circ_refskip) then " skip"
+                                                                                   else ""
+
+                        in Just $ F.sformat (F.stext % " : " % F.int % F.stext) gate ct save
 
 showTest :: TestCase -> T.Text
 showTest (!inp, !out) = T.concat [":test ", T.pack (showInts inp), " ", T.pack (showInts out) ]
