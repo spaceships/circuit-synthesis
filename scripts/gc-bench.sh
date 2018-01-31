@@ -112,9 +112,11 @@ function decrypt() {
     if [[ $use_mife ]]; then
         if [[ $indexed ]]; then
             rm -f $dir/gates
-            for (( i=0; i < $index_len; i++ )); do
+            cp $gb.1.ct.ix0 $gb.1.ct
+            mio mife decrypt $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
+            for (( i=1; i < $index_len; i++ )); do
                 cp $gb.1.ct.ix$i $gb.1.ct
-                mio mife decrypt $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
+                mio mife decrypt --saved $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
             done
         else
             # the perl command splits the output into 360 character lines 
