@@ -90,6 +90,7 @@ executable boots
                         , directory
                         , filepath
                         , microlens-platform
+                        , monad-loops
                         , optparse-applicative
                         , split
                         , text

@@ -22,7 +22,7 @@ import qualified Data.IntMap as IM
 -- global constants
 
 securityParam = 80 -- security parameter, wirelabel & prg seed size
-paddingSize   = 10 -- length of the padding in the garbled tables
+paddingSize   =  4 -- length of the padding in the garbled tables
 
 --------------------------------------------------------------------------------
 

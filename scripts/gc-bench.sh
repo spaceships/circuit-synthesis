@@ -129,7 +129,7 @@ function decrypt() {
         else
             # the perl command splits the output into 360 character lines 
             mio mife decrypt $mmap $gb | 
-                perl -nE 'map {say} unpack "(A360)*", (split)[1]' > $dir/gates
+                perl -nE 'say for unpack "(A360)*", (split)[1]' > $dir/gates
         fi
     else
         ./boots test

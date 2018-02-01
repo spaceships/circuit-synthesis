@@ -15,7 +15,10 @@ import qualified Circuit.Format.Acirc2 as Acirc2
 import qualified Circuit.Format.Circ as Circ
 
 import Control.Monad
+import Control.Monad.Loops
 import Data.Array
+import Data.Array.IO
+import Data.IORef
 import Data.Semigroup ((<>))
 import Options.Applicative hiding (Const)
 import System.Directory
@@ -227,26 +230,54 @@ eval opts = do
         printCircInfo g2
 
     when (verbose opts) $ putStrLn "reading wires"
-    wires <- map readInts <$> lines <$> readFile "wires"
+    ws <- map readInts <$> lines <$> readFile "wires"
 
     when (verbose opts) $ putStrLn "reading gates"
-    gates <- map readInts . lines <$> readFile "gates"
-    let gs = IM.fromList $ zip (map getRef (gateRefs c)) gates
+    gs <- IM.fromList . zip (map getRef (gateRefs c)) <$>
+          map readInts . lines <$> readFile "gates"
 
-    let inputs  = listArray (0,InputId (ninputs c))   $ take (ninputs c) wires
-        consts  = listArray (0,ConstId (nconsts c))   $ take (nconsts c) (drop (ninputs c) wires)
-        secrets = listArray (0,SecretId (nsecrets c)) $ take (nsecrets c) (drop (ninputs c + nconsts c) wires)
+    let inputs  = listArray (0,InputId (ninputs c))   $ take (ninputs c) ws :: Array InputId [Int]
+        consts  = listArray (0,ConstId (nconsts c))   $ take (nconsts c) (drop (ninputs c) ws)
+        secrets = listArray (0,SecretId (nsecrets c)) $ take (nsecrets c) (drop (ninputs c + nconsts c) ws)
 
-    let ev (BoolBase (Input  id)) _ _ = inputs ! id
-        ev (BoolBase (Const  id)) _ _ = consts ! id
-        ev (BoolBase (Secret id)) _ _ = secrets ! id
+    memo  <- newArray_ (0, Ref (nwires c)) :: IO (IOArray Ref [Int])
+    stack <- newIORef []
+    i     <- newIORef (Ref 0)
 
-        ev _ ref [x,y] = drop paddingSize $ head $
-                            filter ((== replicate paddingSize 0). take paddingSize) $
-                            safeChunksOf (securityParam+paddingSize) $
-                            openGate g2 x y (gs IM.! getRef ref)
+    whileM ((< nwires c) . getRef <$> readIORef i) $ do
+        ref <- readIORef i
+        let gate = getGate c ref
 
-        res = foldCircRef ev c
+        val <- case gateGetBase gate of
+            Just (Input  id) -> return $ inputs ! id
+            Just (Const  id) -> return $ consts ! id
+            Just (Secret id) -> return $ secrets ! id
+            Nothing -> do
+                [x,y] <- mapM (readArray memo) (gateArgs gate)
+
+                let opened  = openGate g2 x y (gs IM.! getRef ref)
+                    chunks  = safeChunksOf (securityParam+paddingSize) opened
+                    choices = map (drop paddingSize) $
+                              filter ((== replicate paddingSize 0). take paddingSize) chunks
+
+                case choices of
+                    [c] -> return c
+
+                    [] -> do -- pop stack, move i
+                        (pos, val) <- head <$> readIORef stack
+                        modifyIORef stack tail
+                        writeIORef i pos
+                        return val
+
+                    (c:cs) -> do -- push stack, try first choice
+                        mapM_ (\val -> modifyIORef stack ((ref,val):)) cs
+                        return c
+
+        ref' <- readIORef i -- potentially changed!
+        writeArray memo ref' val
+        modifyIORef i (+1)
+
+    res <- mapM (readArray memo) (outputRefs c)
 
     putStrLn $ unwords (map (show.last) res)
 
