@@ -261,23 +261,39 @@ eval opts = do
                               filter ((== replicate paddingSize 0). take paddingSize) chunks
 
                 case choices of
-                    [c] -> return c
+                    [w] -> return w
 
                     [] -> do -- pop stack, move i
                         (pos, val) <- head <$> readIORef stack
+                        when (verbose opts) $ do
+                            printf "[ref %d failed: popping stack to %d]\n" (getRef ref) (getRef pos)
                         modifyIORef stack tail
                         writeIORef i pos
                         return val
 
-                    (c:cs) -> do -- push stack, try first choice
-                        mapM_ (\val -> modifyIORef stack ((ref,val):)) cs
-                        return c
+                    (w:ws) -> do -- push stack, try first choice
+                        if (isOutputRef c ref) then do
+                            let outputChoices = filter ((== replicate (securityParam-1) 0). take (securityParam-1)) (w:ws)
+                            when (length outputChoices /= 1) $
+                                error (printf "[eval] output ref %d failed!" (getRef ref))
+                            return (head outputChoices)
+                        else do
+                            when (verbose opts) $ do
+                                printf "[ref %d multiple: %d alternates]\n" (getRef ref) (length ws + 1)
+                                printf "choices: \n"
+                                mapM_ (putStrLn.showInts) (w:ws)
+                            mapM_ (\val -> modifyIORef stack ((ref,val):)) ws
+                            return w
 
         ref' <- readIORef i -- potentially changed!
         writeArray memo ref' val
         modifyIORef i (+1)
 
     res <- mapM (readArray memo) (outputRefs c)
+
+    when (verbose opts) $ do
+        putStr "output wirelabel: "
+        mapM_ (putStrLn.showInts) res
 
     putStrLn $ unwords (map (show.last) res)
 

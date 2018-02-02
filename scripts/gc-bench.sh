@@ -13,7 +13,9 @@ function progress() {
 
 use_mife=1
 indexed=1
+verbose=""
 secparam=""
+fail=""
 
 usage () {
     echo "gc-bench.sh: benchmark our scheme"
@@ -21,14 +23,18 @@ usage () {
     echo "  -t          testing mode: no MIFE"
     echo "  -n          naive"
     echo "  -l NUM      security parameter for CLT (none implies dummy mmap)"
+    echo "  -v          verbose mode"
+    echo "  -f          exit if a test fails"
     exit $1
 }
 
-while getopts "tnl:h" opt; do
+while getopts "tnl:vfh" opt; do
     case $opt in
         t) use_mife="";;
         n) indexed="";;
         l) secparam=$OPTARG;;
+        v) verbose="-v";;
+        f) fail=1;;
         h) usage 0;;
         *) usage 1;;
     esac
@@ -158,7 +164,8 @@ for (( i=0; i<${ntests}; i++)); do
     if [[ $res = "${test_out[$i]}" ]]; then
         echo ok
     else
-        echo FAILED
+        echo "FAILED (got $res)"
+        [[ $fail ]] && exit 1
     fi
 done
 
