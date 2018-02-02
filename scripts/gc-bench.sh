@@ -12,6 +12,7 @@ function progress() {
 }
 
 use_mife=1
+use_existing=""
 indexed=1
 verbose=""
 secparam=""
@@ -25,16 +26,18 @@ usage () {
     echo "  -l NUM      security parameter for CLT (none implies dummy mmap)"
     echo "  -v          verbose mode"
     echo "  -f          exit if a test fails"
+    echo "  -e          use exising garbler circuit"
     exit $1
 }
 
-while getopts "tnl:vfh" opt; do
+while getopts "tnl:vfhe" opt; do
     case $opt in
         t) use_mife="";;
         n) indexed="";;
         l) secparam=$OPTARG;;
         v) verbose="-v";;
         f) fail=1;;
+        e) use_existing=1;;
         h) usage 0;;
         *) usage 1;;
     esac
@@ -79,14 +82,15 @@ else
     secparam_arg=""
 fi
 
-rm -rf obf
-
-# setup
 SECONDS=0
-if [[ $indexed ]]; then 
-    ./boots garble $circuit
-else
-    ./boots garble $circuit -n
+if [[ ! $use_existing ]]; then 
+    rm -rf obf
+    # setup
+    if [[ $indexed ]]; then 
+        ./boots garble $circuit
+    else
+        ./boots garble $circuit -n
+    fi
 fi
 
 dir=$(readlink -f obf)
