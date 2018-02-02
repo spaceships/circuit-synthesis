@@ -159,6 +159,7 @@ parseSecrets = do
 parseConsts :: AcircParser g ()
 parseConsts = do
     string "consts"
+    spaces
     cs <- many (spaces >> int)
     modifySt (acirc_st_const_vals .~ IM.fromList (zip [0..] cs))
     endLine

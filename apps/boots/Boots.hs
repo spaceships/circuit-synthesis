@@ -11,8 +11,13 @@ import Circuit.Conversion
 import Circuit.Optimizer
 import Circuit.Utils
 import Examples.Garbler
-import qualified Circuit.Format.Acirc2 as Acirc2
-import qualified Circuit.Format.Circ as Circ
+import qualified Circuit.Format.Acirc    as Acirc
+import qualified Circuit.Format.Acirc2   as Acirc2
+import qualified Circuit.Format.Bench    as Bench
+import qualified Circuit.Format.Circ     as Circ
+import qualified Circuit.Format.Nigel    as Nigel
+import qualified Circuit.Format.Netlist  as Netlist
+import qualified Circuit.Format.Graphviz as Graphviz
 
 import Control.Monad
 import Control.Monad.Loops
@@ -23,6 +28,7 @@ import Data.Semigroup ((<>))
 import Options.Applicative hiding (Const)
 import System.Directory
 import System.Exit
+import System.FilePath.Posix (takeBaseName, takeExtension)
 import System.IO
 import Text.Printf
 import qualified Data.IntMap as IM
@@ -93,11 +99,21 @@ main = parseArgs >>= \case
 --------------------------------------------------------------------------------
 -- protocol implementations
 
+readFormat :: Gate g => FilePath -> IO (Circuit g, [TestCase])
+readFormat inp = case takeExtension inp of
+    ".acirc"   -> Acirc.readWithTests inp
+    ".acirc2"  -> Acirc2.readWithTests inp
+    ".circ"    -> Circ.readWithTests inp
+    ".nigel"   -> Nigel.readNigel inp
+    ".netlist" -> Netlist.readNetlist inp
+    ".bench"   -> Bench.readBench inp
+    other      -> error (printf "[readFormat] unsupported input extension: \"%s\"!" other)
+
 -- produce a garbler for a circuit, then put everything in a nice directory for later
 garble :: FilePath -> Bool -> Bool -> GlobalOpts -> IO ()
 garble fp naive indexed opts = do
     when (verbose opts) $ printf "reading %s\n" fp
-    (c :: Circ2, ts) <- Circ.readWithTests fp
+    (c :: Circ2, ts) <- readFormat fp
 
     when (print_info opts) $ do
         printf "info for %s as Circ2\n" fp
