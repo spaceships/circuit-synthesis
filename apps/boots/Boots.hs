@@ -25,15 +25,15 @@ import System.Directory
 import System.Exit
 import System.IO
 import Text.Printf
-import qualified System.ProgressBar as P
 import qualified Data.IntMap as IM
 
 --------------------------------------------------------------------------------
 -- command line options
 
-data Mode = Garble { target :: FilePath
-                   , naive  :: Bool
-                   , opts   :: GlobalOpts
+data Mode = Garble { target   :: FilePath
+                   , naive    :: Bool
+                   , indexed  :: Bool
+                   , opts     :: GlobalOpts
                    }
           | GenWires String GlobalOpts
           | EvalTest GlobalOpts
@@ -44,7 +44,6 @@ data GlobalOpts = GlobalOpts
                 { directory  :: String
                 , print_info :: Bool
                 , verbose    :: Bool
-                , show_progress :: Bool
                 } deriving (Show)
 
 
@@ -63,8 +62,8 @@ parseArgs = execParser $ info (parser <**> helper)
     garbleParser = Garble
                     <$> strArgument (metavar "CIRCUIT"
                                     <> help "The circuit to pruduce a circuit garbler for")
-                    <*> switch (short 'n'
-                               <> help "Whether to use the non-indexed garbler")
+                    <*> switch (short 'n' <> help "Whether to use the naive garbler")
+                    <*> switch (short 'x' <> help "Whether to use the indexed non-free-xor garbler")
                     <*> globalOptsParser
 
     wiresParser = GenWires
@@ -84,10 +83,9 @@ parseArgs = execParser $ info (parser <**> helper)
                         <> help "Use DIR as the base directory for the obfuscation")
                     <*> switch (short 'i' <> help "Show circuit info")
                     <*> switch (short 'v' <> help "Set verbose mode")
-                    <*> switch (short 'p' <> help "Show progress")
 
 main = parseArgs >>= \case
-    Garble {..}       -> garble target naive opts
+    Garble {..}       -> garble target naive indexed opts
     GenWires inp opts -> genWires inp opts
     EvalTest opts     -> evalTest opts
     Eval opts         -> eval opts
@@ -96,8 +94,8 @@ main = parseArgs >>= \case
 -- protocol implementations
 
 -- produce a garbler for a circuit, then put everything in a nice directory for later
-garble :: FilePath -> Bool -> GlobalOpts -> IO ()
-garble fp naive opts = do
+garble :: FilePath -> Bool -> Bool -> GlobalOpts -> IO ()
+garble fp naive indexed opts = do
     when (verbose opts) $ printf "reading %s\n" fp
     (c :: Circ2, ts) <- Circ.readWithTests fp
 
@@ -113,11 +111,18 @@ garble fp naive opts = do
         then do
             when (verbose opts) $ putStrLn "(naive)"
             writeFile "naive" ""
+            removePathForcibly "not-free-xor"
             naiveGarbler 1 c
-        else do
-            when (verbose opts) $ putStrLn "(compact)"
+        else if indexed then do
+            when (verbose opts) $ putStrLn "(indexed)"
+            writeFile "not-free-xor" ""
             removePathForcibly "naive"
             indexedGarbler 1 c
+        else do
+            when (verbose opts) $ putStrLn "(freeXOR indexed)"
+            removePathForcibly "not-free-xor"
+            removePathForcibly "naive"
+            indexedGarblerFreeXor 1 c
 
     when (print_info opts) $ do
         printf "info for garbler\n"
@@ -159,9 +164,17 @@ genWires inpStr opts = do
     when (verbose opts) $ putStrLn "writing seed"
     writeFile "seed" (showInts seed)
 
+    notFree <- doesFileExist "not-free-xor"
+
     when (verbose opts) $ putStrLn "evaluating g1 on seed"
-    let wirePairs = listArray (Ref 0, Ref (nwires c-1)) $
-                    pairsOf $ safeChunksOf securityParam $ plainEval g1 seed
+    wirePairs <- if notFree then do
+            let raw   = plainEval g1 seed
+                pairs = pairsOf $ safeChunksOf securityParam raw
+            return $ listArray (Ref 0, Ref (nwires c-1)) pairs
+        else do
+            let (delta:falseWLs) = safeChunksOf securityParam $ plainEval g1 seed
+                trueWLs = map (zipWith xorInt delta) falseWLs
+            return $ listArray (Ref 0, Ref (nwires c-1)) (zip falseWLs trueWLs)
 
     when (verbose opts) $ putStrLn "writing wires"
     let inputWires  = zipWith choosePair (readInts inpStr) (map (wirePairs !) (inputRefs c))
@@ -206,8 +219,6 @@ evalTest opts = do
                     allIndices = map concat $ sequence (map indices [1..SymId (nsymbols gb - 1)])
 
                 forM (zip [1..] allIndices) $ \(done, ix) -> do
-                    when (show_progress opts) $
-                        progress done (length allIndices)
                     return $ plainEval gb (seed ++ ix)
 
     when (verbose opts) $ putStrLn "writing gates"
@@ -218,7 +229,7 @@ eval opts = do
     setCurrentDirectory (directory opts)
 
     when (verbose opts) $ putStrLn "reading c.circ"
-    c <- Circ.read "c.circ" :: IO Circ
+    c <- Circ.read "c.circ" :: IO Circ2
 
     when (verbose opts) $ putStrLn "reading g2.circ"
     g2 <- Circ.read "g2.circ" :: IO Circ
@@ -229,11 +240,17 @@ eval opts = do
         printf "info for g2.circ\n"
         printCircInfo g2
 
+    notFree <- doesFileExist "not-free-xor"
+
     when (verbose opts) $ putStrLn "reading wires"
     ws <- map readInts <$> lines <$> readFile "wires"
 
+    let relevantGateRefs = map fst $ if notFree
+                                        then gates c
+                                        else filter (not.isXor.snd) (gates c)
+
     when (verbose opts) $ putStrLn "reading gates"
-    gs <- IM.fromList . zip (map getRef (gateRefs c)) <$>
+    gs <- IM.fromList . zip (map getRef relevantGateRefs) <$>
           map readInts . lines <$> readFile "gates"
 
     let inputs  = listArray (0,InputId (ninputs c))   $ take (ninputs c) ws :: Array InputId [Int]
@@ -248,42 +265,59 @@ eval opts = do
         ref <- readIORef i
         let gate = getGate c ref
 
+        when (verbose opts) $ do
+            printf "[eval] gate %d:" (getRef ref)
+            print gate
+
         val <- case gateGetBase gate of
             Just (Input  id) -> return $ inputs ! id
             Just (Const  id) -> return $ consts ! id
             Just (Secret id) -> return $ secrets ! id
+
             Nothing -> do
                 [x,y] <- mapM (readArray memo) (gateArgs gate)
 
-                let opened  = openGate g2 x y (gs IM.! getRef ref)
-                    chunks  = safeChunksOf (securityParam+paddingSize) opened
-                    choices = map (drop paddingSize) $
-                              filter ((== replicate paddingSize 0). take paddingSize) chunks
+                case (notFree, gate) of
+                    (False, Bool2Xor xref yref) -> return $ zipWith xorInt x y
 
-                case choices of
-                    [w] -> return w
+                    _ -> do
+                        let opened  = openGate g2 x y (gs IM.! getRef ref)
+                            chunks  = safeChunksOf (securityParam+paddingSize) opened
+                            choices = map (drop paddingSize) $
+                                    filter ((== replicate paddingSize 0). take paddingSize) chunks
 
-                    [] -> do -- pop stack, move i
-                        (pos, val) <- head <$> readIORef stack
                         when (verbose opts) $ do
-                            printf "[ref %d failed: popping stack to %d]\n" (getRef ref) (getRef pos)
-                        modifyIORef stack tail
-                        writeIORef i pos
-                        return val
+                            mapM_ (putStrLn.showInts) chunks
 
-                    (w:ws) -> do -- push stack, try first choice
-                        if (isOutputRef c ref) then do
-                            let outputChoices = filter ((== replicate (securityParam-1) 0). take (securityParam-1)) (w:ws)
-                            when (length outputChoices /= 1) $
-                                error (printf "[eval] output ref %d failed!" (getRef ref))
-                            return (head outputChoices)
-                        else do
-                            when (verbose opts) $ do
-                                printf "[ref %d multiple: %d alternates]\n" (getRef ref) (length ws + 1)
-                                printf "choices: \n"
-                                mapM_ (putStrLn.showInts) (w:ws)
-                            mapM_ (\val -> modifyIORef stack ((ref,val):)) ws
-                            return w
+                        case choices of
+                            [w] -> return w
+
+                            [] -> do -- pop stack, move i
+                                failed <- null <$> readIORef stack
+                                when failed $ do
+                                    printf "[error] failed to decrypt ref %d! no refs to backtrack to!\n" (getRef ref)
+                                    exitFailure
+                                (pos, val) <- head <$> readIORef stack
+                                when (verbose opts) $ do
+                                    printf "[ref %d failed: popping stack to %d]\n" (getRef ref) (getRef pos)
+                                modifyIORef stack tail
+                                writeIORef i pos
+                                return val
+
+                            (w:ws) -> do -- push stack, try first choice
+                                if (isOutputRef c ref) then do
+                                    let outputChoices = filter ((== replicate (securityParam-1) 0)
+                                                            .take (securityParam-1)) (w:ws)
+                                    when (length outputChoices /= 1) $
+                                        error (printf "[eval] output ref %d failed!" (getRef ref))
+                                    return (head outputChoices)
+                                else do
+                                    when (verbose opts) $ do
+                                        printf "[ref %d multiple: %d alternates]\n" (getRef ref) (length ws + 1)
+                                        printf "choices: \n"
+                                        mapM_ (putStrLn.showInts) (w:ws)
+                                    mapM_ (\val -> modifyIORef stack ((ref,val):)) ws
+                                    return w
 
         ref' <- readIORef i -- potentially changed!
         writeArray memo ref' val
@@ -316,10 +350,6 @@ opener g2 = buildCircuit $ do
         outputs gz
 
 --------------------------------------------------------------------------------
-
-progress :: Int -> Int -> IO ()
-progress done total = P.autoProgressBar P.percentage P.exact 80 $
-                      P.Progress (fromIntegral done) (fromIntegral total)
 
 arr :: [a] -> Array Int a
 arr xs = listArray (0,length xs-1) xs

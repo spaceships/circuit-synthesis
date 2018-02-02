@@ -165,6 +165,9 @@ xor False True  = True
 xor True  False = True
 xor True  True  = False
 
+xorInt :: Int -> Int -> Int
+xorInt x y = b2i (i2b x `xor` i2b y)
+
 --------------------------------------------------------------------------------
 -- random generation
 

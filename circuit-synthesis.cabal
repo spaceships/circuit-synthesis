@@ -94,5 +94,4 @@ executable boots
                         , optparse-applicative
                         , split
                         , text
-                        , terminal-progress-bar >= 0.1.2
     ghc-options: -O2 -freverse-errors
