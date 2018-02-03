@@ -161,6 +161,7 @@ for (( i=0; i<${ntests}; i++)); do
     if ! res=$(decrypt); then
         echo $res
         echo "decryption failed, skipping"
+        [[ $fail ]] && exit 1
         continue
     fi
     dec_times+=($SECONDS)

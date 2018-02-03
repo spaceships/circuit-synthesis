@@ -305,10 +305,7 @@ eval opts = do
                         when (verbose opts) $ do
                             mapM_ (putStrLn.showInts) chunks
 
-                        case choices of
-                            [w] -> return w
-
-                            [] -> do -- pop stack, move i
+                        let backtrack = do -- pop stack, move i
                                 failed <- null <$> readIORef stack
                                 when failed $ do
                                     printf "[error] failed to decrypt ref %d! no refs to backtrack to!\n" (getRef ref)
@@ -320,13 +317,24 @@ eval opts = do
                                 writeIORef i pos
                                 return val
 
+                        let okOutput w = replicate (securityParam-1) 0 == take (securityParam-1) w
+
+                        case choices of
+                            []  -> backtrack
+                            [w] -> if isOutputRef c ref && not (okOutput w)
+                                      then backtrack
+                                      else return w
+
                             (w:ws) -> do -- push stack, try first choice
-                                if (isOutputRef c ref) then do
-                                    let outputChoices = filter ((== replicate (securityParam-1) 0)
-                                                            .take (securityParam-1)) (w:ws)
-                                    when (length outputChoices /= 1) $
-                                        error (printf "[eval] output ref %d failed!" (getRef ref))
-                                    return (head outputChoices)
+                                if isOutputRef c ref then do
+                                    let outputChoices = filter okOutput (w:ws)
+                                    if (length outputChoices == 1) then do
+                                        return (head outputChoices)
+                                    else do
+                                        -- backtrack
+                                        when (verbose opts) $
+                                            printf "[output ref %d failed: backtracking]\n" (getRef ref)
+                                        backtrack
                                 else do
                                     when (verbose opts) $ do
                                         printf "[ref %d multiple: %d alternates]\n" (getRef ref) (length ws + 1)

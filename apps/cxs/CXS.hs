@@ -108,7 +108,8 @@ chooseMode mode = do
             runExportedRoutine "acirc" name m
 
         Compile "acirc2" name opts -> do
-            let m = include "acirc2" opts [ Garbler.export , Goldreich.export, Simple.export ]
+            let m = include "acirc2" opts [ Garbler.export , Goldreich.export, Simple.export
+                                          , Substring.export ]
             runExportedRoutine "acirc2" name m
 
         Compile "circ" name opts -> do

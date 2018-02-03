@@ -18,6 +18,11 @@ export = [ ("simple",    [("simple",)    <$> return simple])
          , ("xor10",     [("xor10",)     <$> return (xorCirc 10)])
          , ("xor100",    [("xor100",)    <$> return (xorCirc 100)])
          , ("xor1000",   [("xor1000",)   <$> return (xorCirc 1000)])
+         , ("xorand2",      [("xorand2",)      <$> return (xorAndCirc 2)])
+         , ("xorand10",     [("xorand10",)     <$> return (xorAndCirc 10)])
+         , ("xorand50",     [("xorand50",)     <$> return (xorAndCirc 50)])
+         , ("xorand100",    [("xorand100",)    <$> return (xorAndCirc 100)])
+         , ("xorand1000",   [("xorand1000",)   <$> return (xorAndCirc 1000)])
          , ("simple2",   [("simple2",)   <$> return simple2])
          , ("sym1",   [("sym1",)   <$> return (simpleSym 1)])
          , ("sym2",   [("sym2",)   <$> return (simpleSym 2)])
@@ -30,6 +35,11 @@ xorCirc n = buildCircuit (symbol (n+1) >>= foldM1 circXor >>= output)
 
 andCirc :: Gate g => Int -> Circuit g
 andCirc n = buildCircuit (symbol (n+1) >>= foldM1 circMul >>= output)
+
+xorAndCirc :: Gate g => Int -> Circuit g
+xorAndCirc n = buildCircuit $ do
+    [x,y] <- safeChunksOf (div n 2) <$> symbol n
+    output =<< circProd =<< zipWithM circXor x y
 
 simple :: Gate g => Circuit g
 simple = buildCircuit $ do
