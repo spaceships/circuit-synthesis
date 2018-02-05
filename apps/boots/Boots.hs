@@ -38,8 +38,6 @@ import qualified Data.IntMap as IM
 -- command line options
 
 data Mode = Garble { target   :: FilePath
-                   , naive    :: Bool
-                   , indexed  :: Bool
                    , security :: Int
                    , padding  :: Int
                    , opts     :: GlobalOpts
@@ -71,8 +69,6 @@ parseArgs = execParser $ info (parser <**> helper)
     garbleParser = Garble
                     <$> strArgument (metavar "CIRCUIT"
                                     <> help "The circuit to pruduce a circuit garbler for")
-                    <*> switch (short 'n' <> help "Whether to use the naive garbler")
-                    <*> switch (short 'x' <> help "Whether to use the indexed non-free-xor garbler")
                     <*> option auto (short 'p' <> help "Padding size" <> showDefault <> metavar "SIZE" <> value 4)
                     <*> option auto (short 's' <> help "Security parameter" <> showDefault <> metavar "NUM" <> value 80)
                     <*> globalOptsParser
@@ -96,7 +92,7 @@ parseArgs = execParser $ info (parser <**> helper)
                     <*> switch (short 'v' <> help "Set verbose mode")
 
 main = parseArgs >>= \case
-    g@(Garble _ _ _ _ _ _) -> garble g
+    g@(Garble {..}) -> garble g
     GenWires inp opts -> genWires inp opts
     EvalTest opts     -> evalTest opts
     Eval opts         -> eval opts
@@ -128,22 +124,7 @@ garble (Garble {..}) = do
     setCurrentDirectory (directory opts)
 
     when (verbose opts) $ printf "creating garbler for %s " target
-    (gb, (g1, g2)) <-
-        if naive then do
-            when (verbose opts) $ putStrLn "(naive)"
-            writeFile "naive" ""
-            removePathForcibly "not-free-xor"
-            naiveGarbler security padding 1 c
-        else if indexed then do
-            when (verbose opts) $ putStrLn "(indexed)"
-            writeFile "not-free-xor" ""
-            removePathForcibly "naive"
-            indexedGarbler security padding 1 c
-        else do
-            when (verbose opts) $ putStrLn "(freeXOR indexed)"
-            removePathForcibly "not-free-xor"
-            removePathForcibly "naive"
-            indexedGarblerFreeXor security padding 1 c
+    (gb, (g1, g2)) <- garbler security padding 1 c
 
     when (verbose opts) $ putStrLn "writing params"
     writeFile "params" $ unlines [show security, show padding]
@@ -238,19 +219,12 @@ evalTest opts = do
         printCircInfo gb
 
     when (verbose opts) $ putStr "evaluating garbler "
-    naive <- doesFileExist "naive"
-    gs <- if naive
-            then do
-                when (verbose opts) $ putStrLn "(naive)"
-                return $ safeChunksOf (4*(security+padding)) (plainEval gb seed)
-            else do
-                when (verbose opts) $ putStrLn "(compact)"
-                --  generate every sigma vector combination
-                let indices i  = map (sigmaVector (symlen gb i)) [0..symlen gb i-1]
-                    allIndices = map concat $ sequence (map indices [1..SymId (nsymbols gb - 1)])
+    gs <- do --  generate every sigma vector combination
+        let indices i  = map (sigmaVector (symlen gb i)) [0..symlen gb i-1]
+            allIndices = map concat $ sequence (map indices [1..SymId (nsymbols gb - 1)])
 
-                forM (zip [1..] allIndices) $ \(done, ix) -> do
-                    return $ plainEval gb (seed ++ ix)
+        forM (zip [1..] allIndices) $ \(done, ix) -> do
+            return $ plainEval gb (seed ++ ix)
 
     when (verbose opts) $ putStrLn "writing gates"
     writeFile "gates" (unlines (map showInts gs))

@@ -13,8 +13,6 @@ function progress() {
 
 use_mife=1
 use_existing=""
-naive=""
-nonfree=""
 verbose=""
 mmap_secparam=""
 fail=""
@@ -25,8 +23,6 @@ usage () {
     echo "gc-bench.sh: benchmark our scheme"
     echo "Usage: $0 [options] CIRCUIT"
     echo "  -t          testing mode: no MIFE"
-    echo "  -x          use non-freeXOR garbler"
-    echo "  -n          naive (supercedes -x)"
     echo "  -l NUM      mmap security parameter for CLT (none implies dummy mmap)"
     echo "  -v          verbose mode"
     echo "  -f          exit if a test fails"
@@ -36,11 +32,9 @@ usage () {
     exit $1
 }
 
-while getopts "tnxl:vfhes:p:" opt; do
+while getopts "tl:vfhes:p:" opt; do
     case $opt in
         t) use_mife="";;
-        n) naive="-n";;
-        x) nonfree="-x";;
         l) mmap_secparam=$OPTARG;;
         v) verbose="-v";;
         f) fail=1;;
@@ -63,12 +57,6 @@ if [[ ! -f $1 ]]; then
 fi
 
 circuit=$(readlink -f $1)
-
-if [[ ! $naive ]]; then
-    indexed=1
-else
-    indexed=""
-fi
 
 test_inp=()
 test_out=()
@@ -100,7 +88,7 @@ fi
 SECONDS=0
 if [[ ! $use_existing ]]; then 
     rm -rf obf
-    eval "./boots garble $circuit $naive $nonfree $gc_secparam $gc_padding"
+    eval "./boots garble $circuit $gc_secparam $gc_padding"
 fi
 
 dir=$(readlink -f obf)
@@ -111,17 +99,15 @@ if [[ $use_mife ]]; then
     echo "setting up MIFE"
     mio mife setup $mmap $secparam_arg $gb
 
-    if [[ $indexed ]]; then
-        index_len=$(grep -m1 ":symlen" $gb | perl -nE 'print $1 if /:symlens \d+ (\d+)/')
-        echo -n "encrypting indices ($index_len):"
-        for (( i=0; i < $index_len; i++ )); do
-            echo -n " $i"
-            ix=$(unary $i $index_len)
-            mio mife encrypt $mmap $gb $ix 1 >/dev/stderr
-            mv $gb.1.ct $gb.1.ct.ix$i
-        done
-        echo
-    fi
+    index_len=$(grep -m1 ":symlen" $gb | perl -nE 'print $1 if /:symlens \d+ (\d+)/')
+    echo -n "encrypting indices ($index_len):"
+    for (( i=0; i < $index_len; i++ )); do
+        echo -n " $i"
+        ix=$(unary $i $index_len)
+        mio mife encrypt $mmap $gb $ix 1 >/dev/stderr
+        mv $gb.1.ct $gb.1.ct.ix$i
+    done
+    echo
 fi
 setup_time=$SECONDS
 
@@ -135,22 +121,16 @@ function encrypt() {
 
 function decrypt() {
     if [[ $use_mife ]]; then
-        if [[ $indexed ]]; then
-            rm -f $dir/gates
-            progress 0 $index_len >/dev/stderr
-            cp $gb.1.ct.ix0 $gb.1.ct
-            mio mife decrypt $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
-            for (( i=1; i < $index_len; i++ )); do
-                progress $i $index_len >/dev/stderr
-                cp $gb.1.ct.ix$i $gb.1.ct
-                mio mife decrypt --saved $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
-            done
-            echo >/dev/stderr
-        else
-            # the perl command splits the output into 360 character lines 
-            mio mife decrypt $mmap $gb | 
-                perl -nE 'say for unpack "(A360)*", (split)[1]' > $dir/gates
-        fi
+        rm -f $dir/gates
+        progress 0 $index_len >/dev/stderr
+        cp $gb.1.ct.ix0 $gb.1.ct
+        mio mife decrypt $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
+        for (( i=1; i < $index_len; i++ )); do
+            progress $i $index_len >/dev/stderr
+            cp $gb.1.ct.ix$i $gb.1.ct
+            mio mife decrypt --saved $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
+        done
+        echo >/dev/stderr
     else
         ./boots test
     fi
