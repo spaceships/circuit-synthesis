@@ -165,7 +165,6 @@ genWires inpStr opts = do
     when (verbose opts) $ putStrLn "reading g1.circ"
     g1 <- Circ.read "g1.circ" :: IO Circ
 
-
     when (verbose opts) $ putStrLn "generating seed"
     seed <- randKeyIO security
     when (verbose opts) $ printf "seed = %s\n" (showInts seed)
@@ -173,14 +172,8 @@ genWires inpStr opts = do
     when (verbose opts) $ putStrLn "writing seed"
     writeFile "seed" (showInts seed)
 
-    notFree <- doesFileExist "not-free-xor"
-
     when (verbose opts) $ putStrLn "evaluating g1 on seed"
-    wirePairs <- if notFree then do
-            let raw   = plainEval g1 seed
-                pairs = pairsOf $ safeChunksOf security raw
-            return $ listArray (Ref 0, Ref (nwires c-1)) pairs
-        else do
+    wirePairs <- do
             let (delta:falseWLs) = safeChunksOf security $ plainEval g1 seed
                 trueWLs = map (zipWith xorInt delta) falseWLs
             return $ listArray (Ref 0, Ref (nwires c-1)) (zip falseWLs trueWLs)
@@ -248,14 +241,10 @@ eval opts = do
         printf "info for g2.circ\n"
         printCircInfo g2
 
-    notFree <- doesFileExist "not-free-xor"
-
     when (verbose opts) $ putStrLn "reading wires"
     ws <- map readInts <$> lines <$> readFile "wires"
 
-    let relevantGateRefs = map fst $ if notFree
-                                        then gates c
-                                        else filter (not.isXor.snd) (gates c)
+    let relevantGateRefs = map fst $ filter (not.isXor.snd) (gates c)
 
     when (verbose opts) $ putStrLn "reading gates"
     gs <- IM.fromList . zip (map getRef relevantGateRefs) <$>
@@ -299,10 +288,14 @@ eval opts = do
             Nothing -> do
                 [x,y] <- mapM (readArray memo) (gateArgs gate)
 
-                case (notFree, gate) of
-                    (False, Bool2Xor _ _) -> return $ zipWith xorInt x y
+                case gate of
+                    Bool2Xor _ _ -> return $ zipWith xorInt x y
 
                     _ -> do
+                        when (not (IM.member (getRef ref) gs)) $ do
+                            printf "[eval] I tried to read the gate for ref %d, but it wasn't there!!!!\n" (getRef ref)
+                            exitFailure
+
                         let opened  = openGate security padding g2 x y (gs IM.! getRef ref)
                             chunks  = safeChunksOf (security+padding) opened
                             choices = map (drop padding) $
