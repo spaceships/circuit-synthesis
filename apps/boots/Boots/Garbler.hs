@@ -24,7 +24,7 @@ import qualified Data.IntMap as IM
 -- garbler that does not use permutation bits
 garbler :: Int -> Int -> Int -> Circ2 -> IO (Acirc2, (Circ, Circ))
 garbler securityParam paddingSize nindices c = runCircuitT $ do
-    let ixLen = ceiling (fromIntegral (ngates c - nxors c) ** (1 / fromIntegral nindices))
+    let ixLen = ceiling (fromIntegral (length (garbleableGates c)) ** (1 / fromIntegral nindices))
 
     -- seeds to the PRGs. the number of seeds is determined by the number of symbols in c.
     -- each seed corresponds to the inputs for each symbol, and is used to generate their wirelabels
@@ -37,23 +37,23 @@ garbler securityParam paddingSize nindices c = runCircuitT $ do
 
     -- G1 is the PRG used to generate wirelabels
     (g1, g1Save) <- do
-        -- only need to generate false wirelabels for inputs, nonXOR gates, & the global delta offset
-        g <- prgBuilder securityParam (securityParam*(nwires c-nxors c+1)) 5 xorAnd
+        let numWirelabels = 2*ninputs c + length (garbleableGates c) + 1
+        g <- prgBuilder securityParam (securityParam * numWirelabels) 5 xorAnd
         let g' xs = safeChunksOf securityParam <$> g xs
         asCirc <- lift $ buildCircuitT (inputs securityParam >>= g >>= outputs)
         return (g', toCirc asCirc)
 
     -- G2 is the PRG used to encrypt the garbled tables
     (g2, g2Save) <- do
-        g <- prgBuilder securityParam (2*(securityParam+paddingSize)) 5 xorAnd
+        g <- prgBuilder securityParam (2*(securityParam + paddingSize)) 5 xorAnd
         let g' i xs = (!! i) . safeChunksOf (securityParam+paddingSize) <$> g xs
         asCirc <- lift $ buildCircuitT (inputs securityParam >>= g >>= outputs)
         return (g', toCirc asCirc)
 
-    -- TODO: MIFE: generate each symbol's wires based only on its corresponding seed
     let inputWires = []
+    -- -- MIFE: generate each symbol's wires based only on its corresponding seed
     -- inputWires <- fmap concat $ forM (zip [SymId 0..] seeds) $ \(sym, seed) -> do
-    --     raw <- g1 seed
+    --     (_:raw) <- g1 seed
     --     let refs = inputRefsForSymbol c sym
     --         ws = selectsPT raw (map getRef refs)
     --     return (zip refs ws)
@@ -66,7 +66,9 @@ garbler securityParam paddingSize nindices c = runCircuitT $ do
         labels <- liftIO $ (newArray_ (0, Ref (nwires c-1)) :: IO (IOArray Ref ([Ref], [Ref])))
 
         forM_ (wires c) $ \(zref, g) -> case g of
-            (Bool2Xor xref yref) -> do
+            (Bool2Xor xref yref) | not (hasInputArg c g) -> do
+                -- only use freeXOR for intermediate gates, this allows MIFE since freeXOR requires
+                -- globally known delta, but we dont know it until we have all the seeds.
                 x <- fst <$> liftIO (readArray labels xref)
                 y <- fst <$> liftIO (readArray labels yref)
                 z  <- zipWithM circXor x y
@@ -93,7 +95,7 @@ garbler securityParam paddingSize nindices c = runCircuitT $ do
         return (zs++[zero], zs++[one])
 
     -- gate wires is a list of lists of the wires needed for the ith garbled gate, in the correct order
-    gateWires <- lift $ randIO $ forM (filter (not.isXor.snd) (gates c)) $ \(zref,g) -> do
+    gateWires <- lift $ randIO $ forM (garbleableGates c) $ \(zref,g) -> do
         let [xref,yref] = gateArgs g
             get stuff 0 = fst stuff
             get stuff 1 = snd stuff
@@ -124,7 +126,17 @@ garbler securityParam paddingSize nindices c = runCircuitT $ do
 
     return (g1Save, g2Save) -- the PRG for evaluation
 
+--------------------------------------------------------------------------------
+-- helpers
+
+isXor :: BoolGate2 -> Bool
 isXor (Bool2Xor _ _) = True
 isXor _              = False
 
-nxors c = length $ filter isXor (map snd (gates c))
+hasInputArg :: Gate gate => Circuit gate -> gate -> Bool
+hasInputArg c gate = any (not . gateIsGate) $ map (getGate c) (gateArgs gate)
+
+garbleableGates :: Circ2 -> [(Ref, BoolGate2)]
+garbleableGates c = filter ok (gates c)
+  where
+    ok (_,g) = not (isXor g) || hasInputArg c g

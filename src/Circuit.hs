@@ -294,8 +294,8 @@ foldCirc f c = runIdentity (foldCircM f' c)
   where
     f' op _ xs = return (f op xs)
 
-foldCircRef :: Gate gate => (gate -> Ref -> [a] -> a) -> Circuit gate -> [a]
-foldCircRef f c = runIdentity (foldCircM f' c)
+foldCircRef :: Gate gate => (gate -> Ref -> [a] -> a) -> Circuit gate -> Ref -> a
+foldCircRef f c x = runIdentity (foldCircRefM f' c x)
   where
     f' op ref xs = return (f op ref xs)
 

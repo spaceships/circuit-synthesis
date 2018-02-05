@@ -244,10 +244,8 @@ eval opts = do
     when (verbose opts) $ putStrLn "reading wires"
     ws <- map readInts <$> lines <$> readFile "wires"
 
-    let relevantGateRefs = map fst $ filter (not.isXor.snd) (gates c)
-
     when (verbose opts) $ putStrLn "reading gates"
-    gs <- IM.fromList . zip (map getRef relevantGateRefs) <$>
+    gs <- IM.fromList . zip (map (getRef.fst) (garbleableGates c)) <$>
           map readInts . lines <$> readFile "gates"
 
     let inputs  = listArray (0,InputId (ninputs c))   $ take (ninputs c) ws :: Array InputId [Int]
@@ -291,7 +289,7 @@ eval opts = do
                 [x,y] <- mapM (readArray memo) (gateArgs gate)
 
                 case gate of
-                    Bool2Xor _ _ -> return $ zipWith xorInt x y
+                    Bool2Xor _ _ | not (hasInputArg c gate) -> return $ zipWith xorInt x y
 
                     _ -> do
                         when (not (IM.member (getRef ref) gs)) $ do
