@@ -40,7 +40,7 @@ while getopts "tl:vfhes:p:" opt; do
         f) fail=1;;
         e) use_existing=1;;
         s) gc_secparam="-s $OPTARG";;
-        s) gc_padding="-p $OPTARG";;
+        p) gc_padding="-p $OPTARG";;
         h) usage 0;;
         *) usage 1;;
     esac
