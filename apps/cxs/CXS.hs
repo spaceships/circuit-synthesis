@@ -19,7 +19,6 @@ import qualified Circuit.Format.Graphviz as Graphviz
 import qualified Examples.AES             as AES
 import qualified Examples.ApplebaumRaykov as AR
 import qualified Examples.Comparison      as Comparison
-import qualified Examples.Garbler         as Garbler
 import qualified Examples.Goldreich       as Goldreich
 import qualified Examples.GGM             as GGM
 import qualified Examples.Point           as Point
@@ -108,8 +107,7 @@ chooseMode mode = do
             runExportedRoutine "acirc" name m
 
         Compile "acirc2" name opts -> do
-            let m = include "acirc2" opts [ Garbler.export , Goldreich.export, Simple.export
-                                          , Substring.export ]
+            let m = include "acirc2" opts [ Goldreich.export :: [(String, [IO (String, Circ)])], Simple.export , Substring.export ]
             runExportedRoutine "acirc2" name m
 
         Compile "circ" name opts -> do

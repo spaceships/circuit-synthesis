@@ -31,7 +31,6 @@ library
                         , Examples.AES
                         , Examples.ApplebaumRaykov
                         , Examples.Comparison
-                        , Examples.Garbler
                         , Examples.Goldreich
                         , Examples.GGM
                         , Examples.Point
@@ -83,6 +82,7 @@ executable boots
     default-language: Haskell2010
     hs-source-dirs: apps/boots
     main-is: Boots.hs
+    other-modules: Boots.Garbler
     build-depends:        base
                         , circuit-synthesis
                         , array
@@ -94,4 +94,5 @@ executable boots
                         , optparse-applicative
                         , split
                         , text
+                        , mtl
     ghc-options: -O2 -freverse-errors

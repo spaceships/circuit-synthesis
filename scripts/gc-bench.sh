@@ -16,8 +16,10 @@ use_existing=""
 naive=""
 nonfree=""
 verbose=""
-secparam=""
+mmap_secparam=""
 fail=""
+gc_secparam=""
+gc_padding=""
 
 usage () {
     echo "gc-bench.sh: benchmark our scheme"
@@ -25,22 +27,26 @@ usage () {
     echo "  -t          testing mode: no MIFE"
     echo "  -x          use non-freeXOR garbler"
     echo "  -n          naive (supercedes -x)"
-    echo "  -l NUM      security parameter for CLT (none implies dummy mmap)"
+    echo "  -l NUM      mmap security parameter for CLT (none implies dummy mmap)"
     echo "  -v          verbose mode"
     echo "  -f          exit if a test fails"
     echo "  -e          use exising garbler circuit"
+    echo "  -s NUM      security param for garbler (wire size)"
+    echo "  -p NUM      padding size for garbler"
     exit $1
 }
 
-while getopts "tnxl:vfhe" opt; do
+while getopts "tnxl:vfhes:p:" opt; do
     case $opt in
         t) use_mife="";;
-        n) naive=1;;
-        x) nonfree=1;;
-        l) secparam=$OPTARG;;
+        n) naive="-n";;
+        x) nonfree="-x";;
+        l) mmap_secparam=$OPTARG;;
         v) verbose="-v";;
         f) fail=1;;
         e) use_existing=1;;
+        s) gc_secparam="-s $OPTARG";;
+        s) gc_padding="-p $OPTARG";;
         h) usage 0;;
         *) usage 1;;
     esac
@@ -83,9 +89,9 @@ function unary() {
     perl -E "say '0'x$1, '1', '0'x$(( $2 - $1 - 1))"
 }
 
-if [[ $secparam ]]; then
+if [[ $mmap_secparam ]]; then
     mmap="--mmap CLT"
-    secparam_arg="--secparam $secparam"
+    secparam_arg="--secparam $mmap_secparam"
 else
     mmap="--mmap DUMMY"
     secparam_arg=""
@@ -94,14 +100,7 @@ fi
 SECONDS=0
 if [[ ! $use_existing ]]; then 
     rm -rf obf
-    # setup
-    if [[ $naive ]]; then 
-        ./boots garble $circuit -n
-    elif [[ $nonfree ]]; then
-        ./boots garble $circuit -x
-    else
-        ./boots garble $circuit
-    fi
+    eval "./boots garble $circuit $naive $nonfree $gc_secparam $gc_padding"
 fi
 
 dir=$(readlink -f obf)

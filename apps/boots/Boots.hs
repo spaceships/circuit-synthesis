@@ -5,12 +5,13 @@
 
 module Main where
 
+import Boots.Garbler
+
 import Circuit
 import Circuit.Builder
 import Circuit.Conversion
 import Circuit.Optimizer
 import Circuit.Utils
-import Examples.Garbler
 import qualified Circuit.Format.Acirc    as Acirc
 import qualified Circuit.Format.Acirc2   as Acirc2
 import qualified Circuit.Format.Bench    as Bench
@@ -39,6 +40,8 @@ import qualified Data.IntMap as IM
 data Mode = Garble { target   :: FilePath
                    , naive    :: Bool
                    , indexed  :: Bool
+                   , security :: Int
+                   , padding  :: Int
                    , opts     :: GlobalOpts
                    }
           | GenWires String GlobalOpts
@@ -70,6 +73,8 @@ parseArgs = execParser $ info (parser <**> helper)
                                     <> help "The circuit to pruduce a circuit garbler for")
                     <*> switch (short 'n' <> help "Whether to use the naive garbler")
                     <*> switch (short 'x' <> help "Whether to use the indexed non-free-xor garbler")
+                    <*> option auto (short 'p' <> help "Padding size" <> showDefault <> metavar "SIZE" <> value 4)
+                    <*> option auto (short 's' <> help "Security parameter" <> showDefault <> metavar "NUM" <> value 80)
                     <*> globalOptsParser
 
     wiresParser = GenWires
@@ -91,7 +96,7 @@ parseArgs = execParser $ info (parser <**> helper)
                     <*> switch (short 'v' <> help "Set verbose mode")
 
 main = parseArgs >>= \case
-    Garble {..}       -> garble target naive indexed opts
+    g@(Garble _ _ _ _ _ _) -> garble g
     GenWires inp opts -> genWires inp opts
     EvalTest opts     -> evalTest opts
     Eval opts         -> eval opts
@@ -110,35 +115,38 @@ readFormat inp = case takeExtension inp of
     other      -> error (printf "[readFormat] unsupported input extension: \"%s\"!" other)
 
 -- produce a garbler for a circuit, then put everything in a nice directory for later
-garble :: FilePath -> Bool -> Bool -> GlobalOpts -> IO ()
-garble fp naive indexed opts = do
-    when (verbose opts) $ printf "reading %s\n" fp
-    (c :: Circ2, ts) <- readFormat fp
+garble :: Mode -> IO ()
+garble (Garble {..}) = do
+    when (verbose opts) $ printf "reading %s\n" target
+    (c :: Circ2, ts) <- readFormat target
 
     when (print_info opts) $ do
-        printf "info for %s as Circ2\n" fp
+        printf "info for %s as Circ2\n" target
         printCircInfo c
 
     createDirectoryIfMissing False (directory opts)
     setCurrentDirectory (directory opts)
 
-    when (verbose opts) $ printf "creating garbler for %s " fp
-    (gb, (g1, g2)) <- if naive
-        then do
+    when (verbose opts) $ printf "creating garbler for %s " target
+    (gb, (g1, g2)) <-
+        if naive then do
             when (verbose opts) $ putStrLn "(naive)"
             writeFile "naive" ""
             removePathForcibly "not-free-xor"
-            naiveGarbler 1 c
+            naiveGarbler security padding 1 c
         else if indexed then do
             when (verbose opts) $ putStrLn "(indexed)"
             writeFile "not-free-xor" ""
             removePathForcibly "naive"
-            indexedGarbler 1 c
+            indexedGarbler security padding 1 c
         else do
             when (verbose opts) $ putStrLn "(freeXOR indexed)"
             removePathForcibly "not-free-xor"
             removePathForcibly "naive"
-            indexedGarblerFreeXor 1 c
+            indexedGarblerFreeXor security padding 1 c
+
+    when (verbose opts) $ putStrLn "writing params"
+    writeFile "params" $ unlines [show security, show padding]
 
     when (print_info opts) $ do
         printf "info for garbler\n"
@@ -162,6 +170,9 @@ genWires :: String -> GlobalOpts -> IO ()
 genWires inpStr opts = do
     setCurrentDirectory (directory opts)
 
+    when (verbose opts) $ putStrLn "reading params"
+    (security, padding) <- readParams
+
     when (verbose opts) $ putStrLn "reading c.circ"
     c <- Circ.read "c.circ" :: IO Circ
 
@@ -173,8 +184,9 @@ genWires inpStr opts = do
     when (verbose opts) $ putStrLn "reading g1.circ"
     g1 <- Circ.read "g1.circ" :: IO Circ
 
+
     when (verbose opts) $ putStrLn "generating seed"
-    seed <- randKeyIO securityParam
+    seed <- randKeyIO security
     when (verbose opts) $ printf "seed = %s\n" (showInts seed)
 
     when (verbose opts) $ putStrLn "writing seed"
@@ -185,10 +197,10 @@ genWires inpStr opts = do
     when (verbose opts) $ putStrLn "evaluating g1 on seed"
     wirePairs <- if notFree then do
             let raw   = plainEval g1 seed
-                pairs = pairsOf $ safeChunksOf securityParam raw
+                pairs = pairsOf $ safeChunksOf security raw
             return $ listArray (Ref 0, Ref (nwires c-1)) pairs
         else do
-            let (delta:falseWLs) = safeChunksOf securityParam $ plainEval g1 seed
+            let (delta:falseWLs) = safeChunksOf security $ plainEval g1 seed
                 trueWLs = map (zipWith xorInt delta) falseWLs
             return $ listArray (Ref 0, Ref (nwires c-1)) (zip falseWLs trueWLs)
 
@@ -204,6 +216,9 @@ genWires inpStr opts = do
 evalTest :: GlobalOpts -> IO ()
 evalTest opts = do
     setCurrentDirectory (directory opts)
+
+    when (verbose opts) $ putStrLn "reading params"
+    (security, padding) <- readParams
 
     when (verbose opts) $ putStrLn "reading seed"
     seed <- readInts <$> readFile "seed"
@@ -227,7 +242,7 @@ evalTest opts = do
     gs <- if naive
             then do
                 when (verbose opts) $ putStrLn "(naive)"
-                return $ safeChunksOf (4*(securityParam+paddingSize)) (plainEval gb seed)
+                return $ safeChunksOf (4*(security+padding)) (plainEval gb seed)
             else do
                 when (verbose opts) $ putStrLn "(compact)"
                 --  generate every sigma vector combination
@@ -243,6 +258,9 @@ evalTest opts = do
 eval :: GlobalOpts -> IO ()
 eval opts = do
     setCurrentDirectory (directory opts)
+
+    when (verbose opts) $ putStrLn "reading params"
+    (security, padding) <- readParams
 
     when (verbose opts) $ putStrLn "reading c.circ"
     c <- Circ.read "c.circ" :: IO Circ2
@@ -277,7 +295,7 @@ eval opts = do
     stack <- newIORef []
     i     <- newIORef (Ref 0)
 
-    let correctOutputWire w = replicate (securityParam-1) 0 == take (securityParam-1) w
+    let correctOutputWire w = replicate (security-1) 0 == take (security-1) w
 
         backtrack ref = do -- pop stack, move i
             failed <- null <$> readIORef stack
@@ -311,10 +329,10 @@ eval opts = do
                     (False, Bool2Xor _ _) -> return $ zipWith xorInt x y
 
                     _ -> do
-                        let opened  = openGate g2 x y (gs IM.! getRef ref)
-                            chunks  = safeChunksOf (securityParam+paddingSize) opened
-                            choices = map (drop paddingSize) $
-                                      filter ((== replicate paddingSize 0). take paddingSize) chunks
+                        let opened  = openGate security padding g2 x y (gs IM.! getRef ref)
+                            chunks  = safeChunksOf (security+padding) opened
+                            choices = map (drop padding) $
+                                      filter ((== replicate padding 0). take padding) chunks
 
                         when (verbose opts) $ do
                             mapM_ (putStrLn.showInts) chunks
@@ -355,23 +373,27 @@ eval opts = do
 
     when (verbose opts) $ putStrLn "ok"
 
-openGate :: Circ -> [Int] -> [Int] -> [Int] -> [Int]
-openGate g2 x y g = plainEval (opener g2) (x ++ y ++ g)
-
-opener :: Circ -> Circ
-opener g2 = buildCircuit $ do
-    x <- inputs securityParam
-    y <- inputs securityParam
-    zs <- replicateM 4 $ inputs (securityParam + paddingSize) -- garbled tables
-    let g 0 x = take (securityParam+paddingSize) <$> subcircuit g2 x
-        g 1 x = drop (securityParam+paddingSize) <$> subcircuit g2 x
-    forM_ (zip zs (permutations 2 [0,1])) $ \(z, [i,j]) -> do
-        gx <- g j x
-        gy <- g i y
-        gz <- foldM1 (zipWithM circXor) [gx, gy, z]
-        outputs gz
+openGate :: Int -> Int -> Circ -> [Int] -> [Int] -> [Int] -> [Int]
+openGate security padding g2 x y g = plainEval (opener g2) (x ++ y ++ g)
+  where
+    opener g2 = buildCircuit $ do
+        x <- inputs security
+        y <- inputs security
+        zs <- replicateM 4 $ inputs (security + padding) -- garbled tables
+        let g 0 x = take (security+padding) <$> subcircuit g2 x
+            g 1 x = drop (security+padding) <$> subcircuit g2 x
+        forM_ (zip zs (permutations 2 [0,1])) $ \(z, [i,j]) -> do
+            gx <- g j x
+            gy <- g i y
+            gz <- foldM1 (zipWithM circXor) [gx, gy, z]
+            outputs gz
 
 --------------------------------------------------------------------------------
 
 arr :: [a] -> Array Int a
 arr xs = listArray (0,length xs-1) xs
+
+readParams :: IO (Int, Int)
+readParams = do
+    [sec,pad] <- map read . lines <$> readFile "params"
+    return (sec, pad)
