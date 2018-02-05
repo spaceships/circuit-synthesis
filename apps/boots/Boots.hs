@@ -277,6 +277,20 @@ eval opts = do
     stack <- newIORef []
     i     <- newIORef (Ref 0)
 
+    let correctOutputWire w = replicate (securityParam-1) 0 == take (securityParam-1) w
+
+        backtrack ref = do -- pop stack, move i
+            failed <- null <$> readIORef stack
+            when failed $ do
+                printf "[error] failed to decrypt ref %d! no refs to backtrack to!\n" (getRef ref)
+                exitFailure
+            (pos, val) <- head <$> readIORef stack
+            when (verbose opts) $ do
+                printf "[ref %d failed: popping stack to %d]\n" (getRef ref) (getRef pos)
+            modifyIORef stack tail
+            writeIORef i pos
+            return val
+
     whileM ((< nwires c) . getRef <$> readIORef i) $ do
         ref <- readIORef i
         let gate = getGate c ref
@@ -294,56 +308,40 @@ eval opts = do
                 [x,y] <- mapM (readArray memo) (gateArgs gate)
 
                 case (notFree, gate) of
-                    (False, Bool2Xor xref yref) -> return $ zipWith xorInt x y
+                    (False, Bool2Xor _ _) -> return $ zipWith xorInt x y
 
                     _ -> do
                         let opened  = openGate g2 x y (gs IM.! getRef ref)
                             chunks  = safeChunksOf (securityParam+paddingSize) opened
                             choices = map (drop paddingSize) $
-                                    filter ((== replicate paddingSize 0). take paddingSize) chunks
+                                      filter ((== replicate paddingSize 0). take paddingSize) chunks
 
                         when (verbose opts) $ do
                             mapM_ (putStrLn.showInts) chunks
 
-                        let backtrack = do -- pop stack, move i
-                                failed <- null <$> readIORef stack
-                                when failed $ do
-                                    printf "[error] failed to decrypt ref %d! no refs to backtrack to!\n" (getRef ref)
-                                    exitFailure
-                                (pos, val) <- head <$> readIORef stack
-                                when (verbose opts) $ do
-                                    printf "[ref %d failed: popping stack to %d]\n" (getRef ref) (getRef pos)
-                                modifyIORef stack tail
-                                writeIORef i pos
-                                return val
-
-                        let okOutput w = replicate (securityParam-1) 0 == take (securityParam-1) w
-
                         case choices of
-                            []  -> backtrack
-                            [w] -> if isOutputRef c ref && not (okOutput w)
-                                      then backtrack
+                            []  -> backtrack ref
+                            [w] -> if isOutputRef c ref && not (correctOutputWire w)
+                                      then backtrack ref
                                       else return w
 
                             (w:ws) -> do -- push stack, try first choice
                                 if isOutputRef c ref then do
-                                    let outputChoices = filter okOutput (w:ws)
+                                    let outputChoices = filter correctOutputWire (w:ws)
                                     if (length outputChoices == 1) then do
                                         return (head outputChoices)
                                     else do
                                         -- backtrack
                                         when (verbose opts) $
                                             printf "[output ref %d failed: backtracking]\n" (getRef ref)
-                                        backtrack
+                                        backtrack ref
                                 else do
                                     when (verbose opts) $ do
                                         printf "[ref %d multiple: %d alternates]\n" (getRef ref) (length ws + 1)
-                                        printf "choices: \n"
-                                        mapM_ (putStrLn.showInts) (w:ws)
                                     mapM_ (\val -> modifyIORef stack ((ref,val):)) ws
                                     return w
 
-        ref' <- readIORef i -- potentially changed!
+        ref' <- readIORef i -- potentially changed! (this was a fun bug to find)
         writeArray memo ref' val
         modifyIORef i (+1)
 

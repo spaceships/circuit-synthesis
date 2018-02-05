@@ -13,7 +13,8 @@ function progress() {
 
 use_mife=1
 use_existing=""
-indexed=1
+naive=""
+nonfree=""
 verbose=""
 secparam=""
 fail=""
@@ -22,7 +23,8 @@ usage () {
     echo "gc-bench.sh: benchmark our scheme"
     echo "Usage: $0 [options] CIRCUIT"
     echo "  -t          testing mode: no MIFE"
-    echo "  -n          naive"
+    echo "  -x          use non-freeXOR garbler"
+    echo "  -n          naive (supercedes -x)"
     echo "  -l NUM      security parameter for CLT (none implies dummy mmap)"
     echo "  -v          verbose mode"
     echo "  -f          exit if a test fails"
@@ -30,10 +32,11 @@ usage () {
     exit $1
 }
 
-while getopts "tnl:vfhe" opt; do
+while getopts "tnxl:vfhe" opt; do
     case $opt in
         t) use_mife="";;
-        n) indexed="";;
+        n) naive=1;;
+        x) nonfree=1;;
         l) secparam=$OPTARG;;
         v) verbose="-v";;
         f) fail=1;;
@@ -54,6 +57,12 @@ if [[ ! -f $1 ]]; then
 fi
 
 circuit=$(readlink -f $1)
+
+if [[ ! $naive ]]; then
+    indexed=1
+else
+    indexed=""
+fi
 
 test_inp=()
 test_out=()
@@ -86,10 +95,12 @@ SECONDS=0
 if [[ ! $use_existing ]]; then 
     rm -rf obf
     # setup
-    if [[ $indexed ]]; then 
-        ./boots garble $circuit
-    else
+    if [[ $naive ]]; then 
         ./boots garble $circuit -n
+    elif [[ $nonfree ]]; then
+        ./boots garble $circuit -x
+    else
+        ./boots garble $circuit
     fi
 fi
 
