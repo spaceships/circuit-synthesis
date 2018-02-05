@@ -134,7 +134,7 @@ function decrypt() {
     else
         ./boots test
     fi
-    ./boots eval
+    ./boots eval 
 }
 
 enc_times=()

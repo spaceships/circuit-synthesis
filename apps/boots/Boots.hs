@@ -69,8 +69,8 @@ parseArgs = execParser $ info (parser <**> helper)
     garbleParser = Garble
                     <$> strArgument (metavar "CIRCUIT"
                                     <> help "The circuit to pruduce a circuit garbler for")
-                    <*> option auto (short 'p' <> help "Padding size" <> showDefault <> metavar "SIZE" <> value 4)
                     <*> option auto (short 's' <> help "Security parameter" <> showDefault <> metavar "NUM" <> value 80)
+                    <*> option auto (short 'p' <> help "Padding size" <> showDefault <> metavar "SIZE" <> value 4)
                     <*> globalOptsParser
 
     wiresParser = GenWires
@@ -258,7 +258,9 @@ eval opts = do
     stack <- newIORef []
     i     <- newIORef (Ref 0)
 
-    let correctOutputWire w = replicate (security-1) 0 == take (security-1) w
+    let correctWire w = replicate padding 0 == take padding w
+
+        correctOutputWire w = replicate (security-1) 0 == take (security-1) w
 
         backtrack ref = do -- pop stack, move i
             failed <- null <$> readIORef stack
@@ -298,8 +300,7 @@ eval opts = do
 
                         let opened  = openGate security padding g2 x y (gs IM.! getRef ref)
                             chunks  = safeChunksOf (security+padding) opened
-                            choices = map (drop padding) $
-                                      filter ((== replicate padding 0). take padding) chunks
+                            choices = map (drop padding) (filter correctWire chunks)
 
                         when (verbose opts) $ do
                             mapM_ (putStrLn.showInts) chunks
