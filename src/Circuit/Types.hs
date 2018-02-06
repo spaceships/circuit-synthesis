@@ -15,6 +15,8 @@ import qualified Data.IntMap.Strict as IM
 import qualified Data.IntSet as IS
 import qualified Data.Vector as V
 
+type Export c = [(String, [IO (String, c)])]
+
 newtype Ref      = Ref      { getRef      :: Int } deriving (Eq, Ord, Num, Enum, Ix)
 newtype InputId  = InputId  { getInputId  :: Int } deriving (Eq, Ord, Num, Enum, Ix)
 newtype ConstId  = ConstId  { getConstId  :: Int } deriving (Eq, Ord, Num, Enum, Ix)

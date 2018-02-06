@@ -101,20 +101,26 @@ main = chooseMode =<< parseArgs
 chooseMode :: Mode -> IO ()
 chooseMode mode = do
     case mode of
-        Compile "acirc" name opts -> do
-            let m = include "acirc" opts [Point.export, AR.export, Comparison.export, GGM.export,
-                                 Goldreich.export, AES.export, Simple.export]
-            runExportedRoutine "acirc" name m
+        Compile "acirc" name opts -> runExportedRoutine "acirc" name opts
+                [ Point.export
+                , AR.export
+                , Comparison.export
+                , GGM.export
+                , Goldreich.export
+                , AES.export
+                , Simple.export
+                ]
 
-        Compile "acirc2" name opts -> do
-            let m = include "acirc2" opts [ Goldreich.export :: [(String, [IO (String, Acirc2)])], Simple.export , Substring.export ]
-            runExportedRoutine "acirc2" name m
+        Compile "acirc2" name opts -> runExportedRoutine "acirc2" name opts
+                [ Goldreich.export :: Export Acirc2
+                , Simple.export
+                , Substring.export
+                ]
 
-        Compile "circ" name opts -> do
-            let m = include "circ" opts [ Substring.export
-                                        , Simple.export :: [(String, [IO (String, Circ)])]
-                                        ]
-            runExportedRoutine "circ" name m
+        Compile "circ" name opts -> runExportedRoutine "circ" name opts
+                [ Substring.export :: Export Circ
+                , Simple.export
+                ]
 
         Compile ty _ _ -> do
             printf "[main] unsupported type: \"%s\"!\n" ty
@@ -150,23 +156,19 @@ chooseMode mode = do
                         circuitMain opts (target opts) (c :: Circ) ts
 
   where
-    include ty opts exports = M.unions (map (fmap (compile ty opts) . M.fromList) exports)
-
-    compile :: (ToAcirc g, ToAcirc2 g, ToCirc g, Graphviz g, Optimize g, Gate g)
-            => String -> GlobalOpts -> [IO (String, Circuit g)] -> IO ()
-    compile ty opts actions = forM_ actions $ \m -> do
-        (fname, c) <- m
-        circuitMain opts (Just (fname ++ "." ++ ty)) c []
 
     run opts comp = uncurry (circuitMain opts (target opts)) =<< comp
 
-    runExportedRoutine ty name m = do
-        case M.lookup name m of
-            Just c  -> c
+    runExportedRoutine ty name opts exports = do
+        let exMap = M.unions (map M.fromList exports)
+        case M.lookup name exMap of
+            Just actions -> forM_ actions $ \action -> do
+                (fname, c) <- action
+                circuitMain opts (Just (fname ++ "." ++ ty)) c []
             Nothing -> do
                 printf "[main] unknown circuit generation mode \"%s\"!\n" name
                 printf "known modes for %s:\n" ty
-                mapM_ (printf "\t%s\n") (M.keys m)
+                mapM_ (printf "\t%s\n") (M.keys exMap)
                 exitFailure
 
 circuitMain :: (Graphviz g, Optimize g, Gate g, ToAcirc g, ToCirc g, ToAcirc2 g)
