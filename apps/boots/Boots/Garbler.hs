@@ -16,6 +16,7 @@ import Data.Array
 import Data.Array.IO
 import Data.IORef
 import Lens.Micro.Platform
+import System.Exit
 import System.IO
 import Text.Printf
 import qualified Data.IntMap as IM
@@ -37,7 +38,7 @@ garbler securityParam paddingSize nindices c = runCircuitT $ do
 
     -- G1 is the PRG used to generate wirelabels
     (g1, g1Save) <- do
-        let numWirelabels = 2*ninputs c + length (garbleableGates c) + 1
+        let numWirelabels = 2*ninputs c + nconsts c + nsecrets c + length (garbleableGates c) + 1
         g <- prgBuilder securityParam (securityParam * numWirelabels) 5 xorAnd
         let g' xs = safeChunksOf securityParam <$> g xs
         asCirc <- lift $ buildCircuitT (inputs securityParam >>= g >>= outputs)
@@ -75,6 +76,9 @@ garbler securityParam paddingSize nindices c = runCircuitT $ do
                 z' <- zipWithM circXor z delta
                 liftIO $ writeArray labels zref (z, z')
             _ -> do
+                liftIO $ whenM (null <$> readIORef fresh) $ do
+                    putStrLn "[garbler] not enough outputs from G1!"
+                    exitFailure
                 z  <- head <$> liftIO (readIORef fresh)
                 z' <- zipWithM circXor z delta
                 liftIO $ modifyIORef fresh tail

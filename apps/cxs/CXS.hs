@@ -190,8 +190,6 @@ circuitMain opts outputName inputC ts = do
 
     when (show_info opts) $ do
         printCircInfo c
-        when (verbose opts) $
-            printf "\tvar-degree=%s\n" (unwords (map show (degs c)))
 
     ts <- case ntests opts of
         Just n  -> replicateM n (genTest c)

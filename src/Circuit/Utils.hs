@@ -345,3 +345,7 @@ choosePair :: Int -> (a,a) -> a
 choosePair 0 = fst
 choosePair 1 = snd
 
+whenM :: Monad m => m Bool -> m () -> m ()
+whenM cond m = do
+    ok <- cond
+    if ok then m else return ()
