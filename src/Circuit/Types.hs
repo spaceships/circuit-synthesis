@@ -62,7 +62,7 @@ data ArithGate =
     | ArithBase !BaseGate
     deriving (Eq, Ord, Show)
 
--- Acirc2 has free Xor and mod 2
+-- Acirc2 is Acirc mod 2
 newtype ArithGate2 = ArithGate2 { getArithGate :: ArithGate } deriving (Eq, Ord, Show)
 
 data BoolGate =

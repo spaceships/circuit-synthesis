@@ -9,8 +9,8 @@ import qualified Circuit.Format.Acirc as Acirc
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
-showWithTests :: ToAcirc2 g => Circuit g -> [TestCase] -> T.Text
-showWithTests c ts = T.append ":binary\n" (Acirc.showWithTests (toAcirc2 c) ts)
+showWithTests :: Acirc2 -> [TestCase] -> T.Text
+showWithTests c ts = T.append ":binary\n" (Acirc.showWithTests (toAcirc c) ts)
 
 readWithTests :: Gate g => FilePath -> IO (Circuit g, [TestCase])
 readWithTests = Acirc.readWithTests
@@ -18,5 +18,5 @@ readWithTests = Acirc.readWithTests
 read :: Gate g => FilePath -> IO (Circuit g)
 read = Acirc.read
 
-write :: ToAcirc2 g => FilePath -> Circuit g -> IO ()
-write fp c = T.writeFile fp $ T.append ":binary\n" (Acirc.showWithTests (toAcirc2 c) [])
+write :: FilePath -> Acirc2 -> IO ()
+write fp c = T.writeFile fp $ T.append ":binary\n" (Acirc.showWithTests (toAcirc c) [])

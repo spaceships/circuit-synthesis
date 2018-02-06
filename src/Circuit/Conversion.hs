@@ -57,7 +57,7 @@ instance ToCirc2 BoolGate2  where toCirc2 = id
 
 fromCirc :: Gate g => Circ -> Circuit g
 fromCirc c = B.buildCircuit $ do
-    xs <- A.listArray (InputId 0,  InputId (ninputs c-1))   <$> B.inputs (ninputs c)
+    xs <- A.listArray (InputId 0,  InputId (ninputs c-1)) . concat <$> B.exportSymbols c
     ys <- A.listArray (ConstId 0,  ConstId (nconsts c-1))   <$> B.exportConsts c
     zs <- A.listArray (SecretId 0, SecretId (nsecrets c-1)) <$> B.exportSecrets c
     let eval (BoolXor _ _) _ [x,y] = B.circAdd x y
@@ -71,7 +71,7 @@ fromCirc c = B.buildCircuit $ do
 
 fromCirc2 :: Gate g => Circ2 -> Circuit g
 fromCirc2 c = B.buildCircuit $ do
-    xs <- A.listArray (InputId 0,  InputId (ninputs c-1))   <$> B.inputs (ninputs c)
+    xs <- A.listArray (InputId 0,  InputId (ninputs c-1)) . concat <$> B.exportSymbols c
     ys <- A.listArray (ConstId 0,  ConstId (nconsts c-1))   <$> B.exportConsts c
     zs <- A.listArray (SecretId 0, SecretId (nsecrets c-1)) <$> B.exportSecrets c
     let eval (Bool2Xor _ _) _ [x,y] = B.circAdd x y
@@ -84,7 +84,7 @@ fromCirc2 c = B.buildCircuit $ do
 
 fromAcirc :: Gate g => Acirc -> Circuit g
 fromAcirc c = B.buildCircuit $ do
-    xs <- A.listArray (InputId 0,  InputId (ninputs c-1))   <$> B.inputs (ninputs c)
+    xs <- A.listArray (InputId 0,  InputId (ninputs c-1)) . concat <$> B.exportSymbols c
     ys <- A.listArray (ConstId 0,  ConstId (nconsts c-1))   <$> B.exportConsts c
     zs <- A.listArray (SecretId 0, SecretId (nsecrets c-1)) <$> B.exportSecrets c
     let eval (ArithAdd _ _) _ [x,y] = B.circAdd x y
@@ -96,6 +96,7 @@ fromAcirc c = B.buildCircuit $ do
     outs <- foldCircM eval c
     B.outputs outs
 
+-- XXX: mangles symbols
 fixInputBits :: Gate g => [(InputId, Int)] -> Circuit g -> Circuit g
 fixInputBits assignments c = B.buildCircuit $ do
     ys <- B.exportConsts c
@@ -107,4 +108,3 @@ fixInputBits assignments c = B.buildCircuit $ do
             Just val -> B.secret val
     outs <- B.subcircuit' c xs ys zs
     B.outputs outs
-

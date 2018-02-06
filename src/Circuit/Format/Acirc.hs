@@ -13,7 +13,6 @@ module Circuit.Format.Acirc
   ) where
 
 import Circuit
-import Circuit.Conversion
 import Circuit.Parser
 import Circuit.Utils hiding ((%))
 import qualified Circuit.Builder as B
@@ -53,22 +52,20 @@ read = fmap fst . readWithTests
 readWithTests :: Gate g => FilePath -> IO (Circuit g, [TestCase])
 readWithTests fp = parse <$> readFile fp
 
-write :: ToAcirc g => FilePath -> Circuit g -> IO ()
+write :: FilePath -> Acirc -> IO ()
 write fp c = T.writeFile fp (show c)
 
-writeWithTests :: (Gate g, ToAcirc g) => FilePath -> Circuit g -> IO ()
+writeWithTests :: FilePath -> Acirc -> IO ()
 writeWithTests fp c = do
     ts <- replicateM 10 (genTest c)
     T.writeFile fp (showWithTests c ts)
 
-show :: ToAcirc g => Circuit g -> T.Text
+show :: Acirc -> T.Text
 show c = showWithTests c []
 
-showWithTests :: ToAcirc g => Circuit g -> [TestCase] -> T.Text
-showWithTests !c' !ts = T.unlines (header ++ inputs ++ secrets ++ consts ++ gates)
+showWithTests :: Acirc -> [TestCase] -> T.Text
+showWithTests !c !ts = T.unlines (header ++ inputs ++ secrets ++ consts ++ gates)
   where
-    c = toAcirc c'
-
     header = [ T.append ":ninputs " (showt (ninputs c))
              , T.append ":nrefs "   (showt (c ^. circ_maxref))
              , T.append ":consts "  (T.unwords (map showt (IM.elems (_circ_const_vals c))))
@@ -79,7 +76,6 @@ showWithTests !c' !ts = T.unlines (header ++ inputs ++ secrets ++ consts ++ gate
                                     . flip IS.member (c^.circ_sigma_vecs)) [0..nsymbols c-1]))
              ] ++ map showTest ts
                ++ [ ":start" ]
-
 
     inputs  = mapMaybe gateTxt (inputRefs c)
     consts  = mapMaybe gateTxt (constRefs c)

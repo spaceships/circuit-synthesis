@@ -211,6 +211,9 @@ exportConsts c = mapM (constant . getConst c) (map ConstId (IM.keys (c^.circ_con
 exportSecrets :: (Gate g, Gate g', Monad m) => Circuit g -> BuilderT g' m [Ref]
 exportSecrets c = mapM (secret . getSecret c) (map SecretId (IM.keys (c^.circ_secrets)))
 
+exportSymbols :: (Gate g, Gate g', Monad m) => Circuit g -> BuilderT g' m [[Ref]]
+exportSymbols c = mapM symbol (c^..circ_symlen.each)
+
 --------------------------------------------------------------------------------
 -- extras!
 

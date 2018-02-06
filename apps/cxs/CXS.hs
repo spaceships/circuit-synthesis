@@ -107,7 +107,7 @@ chooseMode mode = do
             runExportedRoutine "acirc" name m
 
         Compile "acirc2" name opts -> do
-            let m = include "acirc2" opts [ Goldreich.export :: [(String, [IO (String, Circ)])], Simple.export , Substring.export ]
+            let m = include "acirc2" opts [ Goldreich.export :: [(String, [IO (String, Acirc2)])], Simple.export , Substring.export ]
             runExportedRoutine "acirc2" name m
 
         Compile "circ" name opts -> do
@@ -150,7 +150,7 @@ chooseMode mode = do
                         circuitMain opts (target opts) (c :: Circ) ts
 
   where
-    include ty opts = M.unions . map (fmap (compile ty opts) . M.fromList)
+    include ty opts exports = M.unions (map (fmap (compile ty opts) . M.fromList) exports)
 
     compile :: (ToAcirc g, ToAcirc2 g, ToCirc g, Graphviz g, Optimize g, Gate g)
             => String -> GlobalOpts -> [IO (String, Circuit g)] -> IO ()
@@ -200,7 +200,6 @@ circuitMain opts outputName inputC ts = do
     when (run_tests opts) $ evalTests opts c ts
 
     when (show_truth_table opts) $ printTruthTable c
-
     case outputName of
         Nothing -> return ()
         Just fn -> do
