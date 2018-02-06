@@ -84,8 +84,6 @@ for i in $(seq $xsize $((xsize + ysize - 1))); do
     fixed_input+=" $i:0"
 done
 
-echo $fixed_input
-
 saw sawcmds.saw > /dev/null
 abc -f abccmds.abc > /dev/null
-$cxs read $func.bench -o $dir/$func.c2a.$ty -k "$fixed_input" -i
+$cxs read $func.bench -o $dir/$func.c2a.$ty -k "$fixed_input"

@@ -33,29 +33,25 @@ classifier inp = foldl (&&) True (zipWith (<=) xs ys)
     [xs,ys] = split (split inp) : [2][5][8]
 
 substring8 : ([64], [64]) -> Bit
-substring8 (x',y') = foldl (||) False zs
-  where
-    x = split x' : [8][8]
-    y = split y' : [8][8]
-    zs = [ take (x <<< i) == y | i <- ([0..7] : [8][64]) ]
+substring8 (x',y') = x' == y'
 
 substring16 : ([128], [64]) -> Bit
 substring16 (x',y') = foldl (||) False zs
   where
     x = split x' : [16][8]
     y = split y' : [8][8]
-    zs = [ take (x <<< i) == y | i <- ([0..15] : [16][64]) ]
+    zs = [ take (x <<< i) == y | i <- ([0..7] : [8][64]) ]
 
 substring32 : ([256], [64]) -> Bit
 substring32 (x',y') = foldl (||) False zs
   where
     x = split x' : [32][8]
     y = split y' : [8][8]
-    zs = [ take (x <<< i) == y | i <- ([0..31] : [32][64]) ]
+    zs = [ take (x <<< i) == y | i <- ([0..23] : [24][64]) ]
 
 substring64 : ([512], [64]) -> Bit
 substring64 (x',y') = foldl (||) False zs
   where
     x = split x' : [64][8]
     y = split y' : [8][8]
-    zs = [ take (x <<< i) == y | i <- ([0..63] : [64][64]) ]
+    zs = [ take (x <<< i) == y | i <- ([0..55] : [56][64]) ]
