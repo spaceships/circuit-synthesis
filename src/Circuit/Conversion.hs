@@ -104,7 +104,7 @@ fixInputBits assignments c = B.buildCircuit $ do
     let aMap = IM.fromList (map (over _1 getInputId) assignments)
     xs <- forM (IM.toList (c^.circ_inputs)) $ \(id, ref) -> do
         case IM.lookup id aMap of
-            Nothing  -> B.input
+            Nothing  -> B.inputBit
             Just val -> B.secret val
     outs <- B.subcircuit' c xs ys zs
     B.outputs outs

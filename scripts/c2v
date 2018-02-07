@@ -15,7 +15,7 @@ usage () {
     echo "Usage: $0 [options] <cryptol-file> <function>"
     echo "  -b              output binary netlist instead of acirc"
     echo "  -l LIBERTY      use liberty file LIBERTY"
-    echo "  -t TYPE   type of circuit to produce from cxs [default=$ty]" > /dev/stderr
+    echo "  -t TYPE         type of circuit to produce from cxs [default=$ty]"
     exit $1
 }
 

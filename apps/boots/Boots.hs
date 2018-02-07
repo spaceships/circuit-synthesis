@@ -70,7 +70,7 @@ parseArgs = execParser $ info (parser <**> helper)
                     <$> strArgument (metavar "CIRCUIT"
                                     <> help "The circuit to pruduce a circuit garbler for")
                     <*> option auto (short 's' <> help "Security parameter" <> showDefault <> metavar "NUM" <> value 80)
-                    <*> option auto (short 'p' <> help "Padding size" <> showDefault <> metavar "SIZE" <> value 4)
+                    <*> option auto (short 'p' <> help "Padding size" <> showDefault <> metavar "SIZE" <> value 8)
                     <*> globalOptsParser
 
     wiresParser = GenWires
