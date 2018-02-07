@@ -261,13 +261,12 @@ eval opts = do
         correctOutputWire w = replicate (security-1) 0 == take (security-1) w
 
         backtrack ref = do -- pop stack, move i
-            failed <- null <$> readIORef stack
-            when failed $ do
-                printf "[error] failed to decrypt ref %d! no refs to backtrack to!\n" (getRef ref)
+            whenM (null <$> readIORef stack) $ do
+                putStrLn "[backtrack: no refs to backtrack to!]"
                 exitFailure
             (pos, val) <- head <$> readIORef stack
             when (verbose opts) $ do
-                printf "[ref %d failed: popping stack to %d]\n" (getRef ref) (getRef pos)
+                printf "[backtrack: popping stack to %d]\n" (getRef pos)
             modifyIORef stack tail
             writeIORef i pos
             return val
@@ -314,6 +313,9 @@ eval opts = do
                                     let outputChoices = filter correctOutputWire (w:ws)
                                     if (length outputChoices == 1) then do
                                         return (head outputChoices)
+                                    else if (length outputChoices > 1) then do
+                                        putStrLn "[eval] multple output choices!!!! There must be a bug, yo."
+                                        exitFailure
                                     else do
                                         -- backtrack
                                         when (verbose opts) $

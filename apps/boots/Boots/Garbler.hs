@@ -137,10 +137,13 @@ isXor :: BoolGate2 -> Bool
 isXor (Bool2Xor _ _) = True
 isXor _              = False
 
-hasInputArg :: Gate gate => Circuit gate -> gate -> Bool
-hasInputArg c gate = any (not . gateIsGate) $ map (getGate c) (gateArgs gate)
+hasInputArg :: Circ2 -> BoolGate2 -> Bool
+hasInputArg c gate = any isInput $ map (getGate c) (gateArgs gate)
+  where
+    isInput (Bool2Base (Input _)) = True
+    isInput _ = False
 
 garbleableGates :: Circ2 -> [(Ref, BoolGate2)]
 garbleableGates c = filter ok (gates c)
   where
-    ok (_,g) = not (isXor g) || hasInputArg c g
+    ok (_,g) = not (isXor g) || (isXor g && hasInputArg c g)

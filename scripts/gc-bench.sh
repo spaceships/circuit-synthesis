@@ -87,6 +87,7 @@ fi
 
 SECONDS=0
 if [[ ! $use_existing ]]; then 
+    echo "creating garbler circuit"
     rm -rf obf
     eval "./boots garble $circuit $gc_secparam $gc_padding"
 fi
@@ -112,6 +113,7 @@ fi
 setup_time=$SECONDS
 
 function encrypt() {
+    [[ $verbose ]] && echo "encrypting $1"
     inp=$1
     ./boots wires $inp
     if [[ $use_mife ]]; then
@@ -120,6 +122,7 @@ function encrypt() {
 }
 
 function decrypt() {
+    [[ $verbose ]] && echo "decrypting" >/dev/stderr
     if [[ $use_mife ]]; then
         rm -f $dir/gates
         progress 0 $index_len >/dev/stderr
@@ -132,8 +135,10 @@ function decrypt() {
         done
         echo >/dev/stderr
     else
+        [[ $verbose ]] && echo "running boots test" >/dev/stderr
         ./boots test
     fi
+    [[ $verbose ]] && echo "running boots eval" >/dev/stderr
     ./boots eval 
 }
 
