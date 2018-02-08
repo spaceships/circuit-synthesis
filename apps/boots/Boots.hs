@@ -212,7 +212,7 @@ evalTest opts = do
     seed <- readInts <$> readFile "seed"
 
     when (verbose opts) $ putStrLn "reading c.circ"
-    c <- Circ.read "c.circ" :: IO Circ
+    c <- Circ.read "c.circ" :: IO Circ2
 
     when (print_info opts) $ do
         printf "info for c.circ\n"
@@ -225,13 +225,16 @@ evalTest opts = do
         printf "info for garbler\n"
         printCircInfo gb
 
-    when (verbose opts) $ putStr "evaluating garbler "
-    gs <- do --  generate every sigma vector combination
-        let indices i  = map (sigmaVector (symlen gb i)) [0..symlen gb i-1]
-            allIndices = map concat $ sequence (map indices [1..SymId (nsymbols gb - 1)])
-
-        forM (zip [1..] allIndices) $ \(done, ix) -> do
-            return $ plainEval gb (seed ++ ix)
+    when (verbose opts) $ putStrLn "evaluating garbler "
+    gs <-
+        if gatesPerIndex params < length (garbleableGates c) then do
+            --  generate every sigma vector combination
+            let indices i  = map (sigmaVector (symlen gb i)) [0..symlen gb i-1]
+                allIndices = map concat $ sequence (map indices [1..SymId (nsymbols gb - 1)])
+            forM allIndices $ \ix -> do
+                return $ plainEval gb (seed ++ ix)
+        else do
+            return $ [plainEval gb seed]
 
     when (verbose opts) $ putStrLn "writing gates"
     writeFile "gates" (unlines (map showInts gs))

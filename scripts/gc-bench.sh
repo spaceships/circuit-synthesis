@@ -110,17 +110,20 @@ echo "number of xors:" $(grep -ce "xor" $dir/c.circ)
 # set up mife and generate indices
 if [[ $use_mife ]]; then
     echo "setting up MIFE"
+    echo mio mife setup $mmap $secparam_arg $gb
     mio mife setup $mmap $secparam_arg $gb
 
-    index_len=$(grep -m1 ":symlen" $gb | perl -nE 'print $1 if /:symlens \d+ (\d+)/')
-    echo -n "encrypting indices ($index_len):"
-    for (( i=0; i < $index_len; i++ )); do
-        echo -n " $i"
-        ix=$(unary $i $index_len)
-        mio mife encrypt $mmap $gb $ix 1 >/dev/stderr
-        mv $gb.1.ct $gb.1.ct.ix$i
-    done
-    echo
+    index_len=$(grep -m1 ":symlens" $gb | perl -nE 'print $1 if /:symlens \d+ (\d+)/')
+    if [[ $index_len ]]; then 
+        echo -n "encrypting indices ($index_len):"
+        for (( i=0; i < $index_len; i++ )); do
+            echo -n " $i"
+            ix=$(unary $i $index_len)
+            mio mife encrypt $mmap $gb $ix 1 >/dev/stderr
+            mv $gb.1.ct $gb.1.ct.ix$i
+        done
+        echo
+    fi
 fi
 setup_time=$SECONDS
 
@@ -136,16 +139,20 @@ function encrypt() {
 function decrypt() {
     [[ $verbose ]] && echo "decrypting" >/dev/stderr
     if [[ $use_mife ]]; then
-        rm -f $dir/gates
-        progress 0 $index_len >/dev/stderr
-        cp $gb.1.ct.ix0 $gb.1.ct
-        mio mife decrypt $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
-        for (( i=1; i < $index_len; i++ )); do
-            progress $i $index_len >/dev/stderr
-            cp $gb.1.ct.ix$i $gb.1.ct
-            mio mife decrypt --saved $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
-        done
-        echo >/dev/stderr
+        if [[ $index_len ]]; then 
+            rm -f $dir/gates
+            progress 0 $index_len >/dev/stderr
+            cp $gb.1.ct.ix0 $gb.1.ct
+            mio mife decrypt $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
+            for (( i=1; i < $index_len; i++ )); do
+                progress $i $index_len >/dev/stderr
+                cp $gb.1.ct.ix$i $gb.1.ct
+                mio mife decrypt --saved $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
+            done
+            echo >/dev/stderr
+        else
+            mio mife decrypt $mmap $gb | perl -nE 'say ((split)[1])' > $dir/gates
+        fi
     else
         [[ $verbose ]] && echo "running boots test" >/dev/stderr
         ./boots test

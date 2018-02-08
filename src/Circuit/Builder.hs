@@ -237,6 +237,7 @@ selectList ix xs = do
 
 -- select the ith list from a list of lists, ix is sigma vector
 selectListSigma :: (Gate g, Monad m) => [Ref] -> [[Ref]] -> BuilderT g m [Ref]
+selectListSigma _ [x] = return x
 selectListSigma ix xs = do
     let sels = map (replicate (length (head xs))) ix
     masked <- zipWithM (zipWithM circMul) sels xs

@@ -42,8 +42,6 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
     -- the main seed, used to generate all intermediate wirelabels
     s <- foldM1 (zipWithM circXor) seeds
 
-    ix <- sigmaProd =<< replicateM numIndices (sigma ixLen) -- the index to evaluate
-
     -- G1 is the PRG used to generate wirelabels
     (g1, g1Save) <- do
         let numWirelabels = (if nsymbols c > 1 then 2 else 1) * ninputs c
@@ -122,15 +120,16 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
                     else get (allWires ! zref) (gateEval (const undefined) g [i,j])
             return (x ++ y ++ z)
 
-    -- select the wires for the ith iteration
-
-    -- relevant wires for this iteration
-    let gatePad     = replicate (3*4*securityParam) zero
-        wireBundles = map concat $ chunksOfPad gatesPerIndex gatePad gateWires
-
-    relevantSel <- selectListSigma ix wireBundles
-
-    let gateWLs = safeChunksOf (3*4*securityParam) relevantSel
+    gateWLs <-
+        if gatesPerIndex < length (garbleableGates c) then do
+            -- relevant wires for this iteration
+            let gatePad     = replicate (3*4*securityParam) zero
+                wireBundles = map concat $ chunksOfPad gatesPerIndex gatePad gateWires
+            ix <- sigmaProd =<< replicateM numIndices (sigma ixLen) -- the index to evaluate
+            relevantSel <- selectListSigma ix wireBundles
+            return $ safeChunksOf (3*4*securityParam) relevantSel
+        else
+            return gateWires
 
     let pad = replicate paddingSize zero
 
