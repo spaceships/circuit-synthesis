@@ -17,7 +17,8 @@ verbose=1
 mmap_secparam=""
 fail=""
 gc_secparam=""
-gc_padding=""
+padding=""
+gates_per_index=1
 
 usage () {
     echo "gc-bench.sh: benchmark our scheme"
@@ -29,10 +30,11 @@ usage () {
     echo "  -e          use exising garbler circuit"
     echo "  -s NUM      security param for garbler (wire size)"
     echo "  -p NUM      padding size for garbler"
+    echo "  -g NUM      gates per index in garbler"
     exit $1
 }
 
-while getopts "tl:qfhes:p:" opt; do
+while getopts "tl:qfhes:p:g:" opt; do
     case $opt in
         t) use_mife="";;
         l) mmap_secparam=$OPTARG;;
@@ -40,7 +42,8 @@ while getopts "tl:qfhes:p:" opt; do
         f) fail=1;;
         e) use_existing=1;;
         s) gc_secparam="-s $OPTARG";;
-        p) gc_padding="-p $OPTARG";;
+        p) padding="-p $OPTARG";;
+        g) gates_per_index=$OPTARG;;
         h) usage 0;;
         *) usage 1;;
     esac
@@ -89,7 +92,7 @@ SECONDS=0
 if [[ ! $use_existing ]]; then 
     echo "creating garbler circuit"
     rm -rf obf
-    eval "./boots garble $circuit $gc_secparam $gc_padding"
+    eval "./boots garble -g$gates_per_index $circuit $gc_secparam $padding"
 fi
 
 dir=$(readlink -f obf)

@@ -30,10 +30,10 @@ data GarblerParams = GarblerParams {
 } deriving (Show, Read)
 
 -- XXX: only fan-out one is secure at the moment
--- garbler that does not use permutation bits
 garbler :: GarblerParams -> Circ2 -> IO (Acirc2, (Circ, Circ))
 garbler (GarblerParams {..}) c = runCircuitT $ do
-    let ixLen = ceiling (fromIntegral (length (garbleableGates c)) ** (1 / fromIntegral numIndices))
+    let numIterations = ceiling (fi (length (garbleableGates c)) / fi gatesPerIndex)
+        ixLen = ceiling (fi numIterations ** (1 / fi numIndices))
 
     -- seeds to the PRGs. the number of seeds is determined by the number of symbols in c.
     -- each seed corresponds to the inputs for each symbol, and is used to generate their wirelabels
@@ -42,7 +42,7 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
     -- the main seed, used to generate all intermediate wirelabels
     s <- foldM1 (zipWithM circXor) seeds
 
-    ix <- sigmaProd =<< replicateM numIndices (sigma ixLen) -- the index of the gate to evaluate
+    ix <- sigmaProd =<< replicateM numIndices (sigma ixLen) -- the index to evaluate
 
     -- G1 is the PRG used to generate wirelabels
     (g1, g1Save) <- do
@@ -98,9 +98,9 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
     mapM_ saveRef (allWires ^.. each.each.each)
 
     -- plaintext outputs for the output gates
+    zero <- constant 0
+    one  <- constant 1
     outWires <- do
-        one  <- constant 1
-        zero <- constant 0
         let zs = replicate (securityParam-1) zero
         return (zs++[zero], zs++[one])
 
@@ -122,17 +122,24 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
                     else get (allWires ! zref) (gateEval (const undefined) g [i,j])
             return (x ++ y ++ z)
 
-    -- select the wires for the ith gate
-    ws <- safeChunksOf 3 <$> safeChunksOf securityParam <$> selectListSigma ix gateWires
+    -- select the wires for the ith iteration
 
-    pad <- constants (replicate paddingSize 0)
+    -- relevant wires for this iteration
+    let wirePad     = replicate (3*securityParam) zero
+        wireBundles = map concat $ chunksOfPad gatesPerIndex wirePad gateWires
 
-    garbledRows <- forM (zip ws (permutations 2 [0,1])) $ \([x,y,z],[i,j]) -> do
-        mx <- g2 j x
-        my <- g2 i y
-        foldM1 (zipWithM circXor) [mx, my, pad ++ z]
+    relevantSel <- selectListSigma ix wireBundles
 
-    outputs (concat garbledRows)
+    let multipleGateWs = safeChunksOf 4 $ safeChunksOf 3 $ safeChunksOf securityParam relevantSel
+
+    let pad = replicate paddingSize zero
+
+    forM_ multipleGateWs $ \ws -> do
+        forM_ (zip ws (permutations 2 [0,1])) $ \([x,y,z],[i,j]) -> do
+            mx  <- g2 j x
+            my  <- g2 i y
+            row <- foldM1 (zipWithM circXor) [mx, my, pad ++ z]
+            outputs row
 
     return (g1Save, g2Save) -- the PRG for evaluation
 
@@ -153,3 +160,5 @@ garbleableGates :: Circ2 -> [(Ref, BoolGate2)]
 garbleableGates c = filter garbleMe (gates c)
   where
     garbleMe (_,g) = not (isXor g) || (nsymbols c > 1 && hasInputArg c g)
+
+fi = fromIntegral

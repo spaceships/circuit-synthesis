@@ -18,6 +18,7 @@ import Crypto.Util (bs2i)
 import Data.Bits ((.&.), shift, Bits)
 import Data.Binary.Get (runGet, getWord64host)
 import Data.List.Split (chunksOf)
+import Text.Printf
 import GHC.Types
 import System.IO
 import qualified Data.ByteString as BS
@@ -336,7 +337,15 @@ safeChunksOf n xs = safeTake n xs : safeChunksOf n (drop n xs)
   where
     safeTake 0 xs = []
     safeTake n (x:xs) = x : safeTake (n-1) xs
-    safeTake n [] = error "[safeChunksOf] not enough elements!"
+    safeTake n [] = error $ printf "[safeChunksOf] not enough elements: expected %d!" n
+
+chunksOfPad :: Int -> a -> [a] -> [[a]]
+chunksOfPad _ _   [] = []
+chunksOfPad n pad xs = padTake n xs : chunksOfPad n pad (drop n xs)
+  where
+    padTake 0 xs     = []
+    padTake n (x:xs) = x   : padTake (n-1) xs
+    padTake n []     = pad : padTake (n-1) []
 
 sigmaVector :: Int -> Int -> [Int]
 sigmaVector len x = [ if i == x then 1 else 0 | i <- [ 0 .. len - 1 ] ]

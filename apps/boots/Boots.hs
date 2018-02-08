@@ -260,7 +260,8 @@ eval opts = do
 
     when (verbose opts) $ putStrLn "reading gates"
     gs <- IM.fromList . zip (map (getRef.fst) (garbleableGates c)) <$>
-          map readInts . lines <$> readFile "gates"
+          map readInts . safeChunksOf (4*(securityParam params + paddingSize params)) .
+          concat . lines <$> readFile "gates"
 
     let inputs  = listArray (0,InputId (ninputs c))   $ take (ninputs c) ws :: Array InputId [Int]
         consts  = listArray (0,ConstId (nconsts c))   $ take (nconsts c) (drop (ninputs c) ws)
