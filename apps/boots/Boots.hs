@@ -69,7 +69,7 @@ parseArgs = execParser $ info (parser <**> helper)
     garbleParser = Garble
                     <$> strArgument (metavar "CIRCUIT"
                                     <> help "The circuit to pruduce a circuit garbler for")
-                    <*> option auto (short 's' <> help "Security parameter" <> showDefault <> metavar "NUM" <> value 80)
+                    <*> option auto (short 's' <> help "Security parameter" <> showDefault <> metavar "NUM" <> value 40)
                     <*> option auto (short 'p' <> help "Padding size" <> showDefault <> metavar "SIZE" <> value 8)
                     <*> globalOptsParser
 
@@ -288,7 +288,8 @@ eval opts = do
                 [x,y] <- mapM (readArray memo) (gateArgs gate)
 
                 case gate of
-                    Bool2Xor _ _ | not (hasInputArg c gate) -> return $ zipWith xorInt x y
+                    Bool2Xor _ _ | nsymbols c == 1 || not (hasInputArg c gate) -> do
+                        return $ zipWith xorInt x y
 
                     _ -> do
                         when (not (IM.member (getRef ref) gs)) $ do

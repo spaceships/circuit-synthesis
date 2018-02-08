@@ -95,4 +95,4 @@ executable boots
                         , split
                         , text
                         , mtl
-    ghc-options: -O2 -freverse-errors
+    ghc-options: -O3 -freverse-errors

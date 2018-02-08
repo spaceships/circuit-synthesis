@@ -13,7 +13,7 @@ function progress() {
 
 use_mife=1
 use_existing=""
-verbose=""
+verbose=1
 mmap_secparam=""
 fail=""
 gc_secparam=""
@@ -24,7 +24,7 @@ usage () {
     echo "Usage: $0 [options] CIRCUIT"
     echo "  -t          testing mode: no MIFE"
     echo "  -l NUM      mmap security parameter for CLT (none implies dummy mmap)"
-    echo "  -v          verbose mode"
+    echo "  -q          quiet mode"
     echo "  -f          exit if a test fails"
     echo "  -e          use exising garbler circuit"
     echo "  -s NUM      security param for garbler (wire size)"
@@ -32,11 +32,11 @@ usage () {
     exit $1
 }
 
-while getopts "tl:vfhes:p:" opt; do
+while getopts "tl:qfhes:p:" opt; do
     case $opt in
         t) use_mife="";;
         l) mmap_secparam=$OPTARG;;
-        v) verbose="-v";;
+        v) verbose="";;
         f) fail=1;;
         e) use_existing=1;;
         s) gc_secparam="-s $OPTARG";;

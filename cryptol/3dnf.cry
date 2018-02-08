@@ -1,0 +1,28 @@
+foldl : {a, b, n} (fin n) => (a -> b -> a) -> a -> [n]b -> a
+foldl f acc xs = ys ! 0
+  where ys = [acc] # [f a x | a <- ys | x <- xs]
+
+zip : {a,b,n} [n]a -> [n]b -> [n](a,b)
+zip xs ys = [(x,y) | x <- xs | y <- ys]
+
+zipWith : {a,b,c,n} (a -> b -> c) -> [n]a -> [n]b -> [n]c
+zipWith f xs ys = [f x y | x <- xs | y <- ys]
+
+
+dnf : {a} (fin a) => ([a], [2*a]) -> Bit
+dnf (xs,ys) = foldl (||) False [ x && y1 && y2 | x <- xs | [y1,y2] <- (split ys : [_][2]) ]
+
+dnf16 : ([16], [32]) -> Bit
+dnf16 = dnf
+
+dnf32 : ([32], [64]) -> Bit
+dnf32 = dnf
+
+dnf64 : ([64], [128]) -> Bit
+dnf64 = dnf
+
+dnf128 : ([128], [256]) -> Bit
+dnf128 = dnf
+
+dnf256 : ([256], [512]) -> Bit
+dnf256 = dnf

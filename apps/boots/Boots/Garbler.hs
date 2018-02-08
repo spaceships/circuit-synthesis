@@ -38,7 +38,11 @@ garbler securityParam paddingSize nindices c = runCircuitT $ do
 
     -- G1 is the PRG used to generate wirelabels
     (g1, g1Save) <- do
-        let numWirelabels = 2*ninputs c + nconsts c + nsecrets c + length (garbleableGates c) + 1
+        let numWirelabels = (if nsymbols c > 1 then 2 else 1) * ninputs c
+                            + nconsts c
+                            + nsecrets c
+                            + length (garbleableGates c)
+                            + 1 -- for delta
         g <- prgBuilder securityParam (securityParam * numWirelabels) 5 xorAnd
         let g' xs = safeChunksOf securityParam <$> g xs
         asCirc <- lift $ buildCircuitT (inputs securityParam >>= g >>= outputs)
@@ -51,15 +55,7 @@ garbler securityParam paddingSize nindices c = runCircuitT $ do
         asCirc <- lift $ buildCircuitT (inputs securityParam >>= g >>= outputs)
         return (g', toCirc asCirc)
 
-    let inputWires = []
-    -- -- MIFE: generate each symbol's wires based only on its corresponding seed
-    -- inputWires <- fmap concat $ forM (zip [SymId 0..] seeds) $ \(sym, seed) -> do
-    --     (_:raw) <- g1 seed
-    --     let refs = inputRefsForSymbol c sym
-    --         ws = selectsPT raw (map getRef refs)
-    --     return (zip refs ws)
-
-    initialWires <- do
+    allWires <- do
         -- construct the true wirelabels by xoring in delta
         (delta:falseWLs) <- g1 s
 
@@ -67,7 +63,11 @@ garbler securityParam paddingSize nindices c = runCircuitT $ do
         labels <- liftIO $ (newArray_ (0, Ref (nwires c-1)) :: IO (IOArray Ref ([Ref], [Ref])))
 
         forM_ (wires c) $ \(zref, g) -> case g of
-            (Bool2Xor xref yref) | not (hasInputArg c g) -> do
+            (Bool2Base (Input id)) | nsymbols c > 1 -> do
+                -- generate wirelabels the new fancy way based on which symbol this input belongs to.
+                undefined
+
+            (Bool2Xor xref yref) | nsymbols c == 1 || not (hasInputArg c g) -> do
                 -- only use freeXOR for intermediate gates, this allows MIFE since freeXOR requires
                 -- globally known delta, but we dont know it until we have all the seeds.
                 x <- fst <$> liftIO (readArray labels xref)
@@ -75,6 +75,7 @@ garbler securityParam paddingSize nindices c = runCircuitT $ do
                 z  <- zipWithM circXor x y
                 z' <- zipWithM circXor z delta
                 liftIO $ writeArray labels zref (z, z')
+
             _ -> do
                 liftIO $ whenM (null <$> readIORef fresh) $ do
                     putStrLn "[garbler] not enough outputs from G1!"
@@ -85,9 +86,6 @@ garbler securityParam paddingSize nindices c = runCircuitT $ do
                 liftIO $ writeArray labels zref (z, z')
 
         liftIO (freeze labels)
-
-    -- update all wires with specially generated inputs
-    let allWires = initialWires // inputWires :: Array Ref ([Ref], [Ref])
 
     mapM_ saveRef (allWires ^.. each.each.each)
 
@@ -144,6 +142,6 @@ hasInputArg c gate = any isInput $ map (getGate c) (gateArgs gate)
     isInput _ = False
 
 garbleableGates :: Circ2 -> [(Ref, BoolGate2)]
-garbleableGates c = filter ok (gates c)
+garbleableGates c = filter garbleMe (gates c)
   where
-    ok (_,g) = not (isXor g) || (isXor g && hasInputArg c g)
+    garbleMe (_,g) = not (isXor g) || (nsymbols c > 1 && hasInputArg c g)
