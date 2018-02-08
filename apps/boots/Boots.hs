@@ -38,8 +38,7 @@ import qualified Data.IntMap as IM
 -- command line options
 
 data Mode = Garble { target   :: FilePath
-                   , security :: Int
-                   , padding  :: Int
+                   , params   :: GarblerParams
                    , opts     :: GlobalOpts
                    }
           | GenWires String GlobalOpts
@@ -69,8 +68,23 @@ parseArgs = execParser $ info (parser <**> helper)
     garbleParser = Garble
                     <$> strArgument (metavar "CIRCUIT"
                                     <> help "The circuit to pruduce a circuit garbler for")
-                    <*> option auto (short 's' <> help "Security parameter" <> showDefault <> metavar "NUM" <> value 40)
-                    <*> option auto (short 'p' <> help "Padding size" <> showDefault <> metavar "SIZE" <> value 8)
+                    <*> (GarblerParams
+                        <$> option auto (short 's'
+                                        <> help "Security parameter"
+                                        <> showDefault <> value 40
+                                        <> metavar "NUM")
+                        <*> option auto (short 'p'
+                                        <> help "Padding size"
+                                        <> showDefault <> value 8
+                                        <> metavar "SIZE")
+                        <*> option auto (long "num-indices"
+                                        <> help "Number of index sigma vectors"
+                                        <> showDefault <> value 1
+                                        <> metavar "NUM")
+                        <*> option auto (short 'g' <> long "gates-per-index"
+                                        <> help "Number of gates to compute per index"
+                                        <> showDefault <> value 1
+                                        <> metavar "NUM"))
                     <*> globalOptsParser
 
     wiresParser = GenWires
@@ -124,10 +138,10 @@ garble (Garble {..}) = do
     setCurrentDirectory (directory opts)
 
     when (verbose opts) $ printf "creating garbler for %s " target
-    (gb, (g1, g2)) <- garbler security padding 1 c
+    (gb, (g1, g2)) <- garbler params c
 
     when (verbose opts) $ putStrLn "writing params"
-    writeFile "params" $ unlines [show security, show padding]
+    writeFile "params" $ show params
 
     when (print_info opts) $ do
         printf "info for garbler\n"
@@ -152,7 +166,7 @@ genWires inpStr opts = do
     setCurrentDirectory (directory opts)
 
     when (verbose opts) $ putStrLn "reading params"
-    (security, padding) <- readParams
+    params <- readParams
 
     when (verbose opts) $ putStrLn "reading c.circ"
     c <- Circ.read "c.circ" :: IO Circ
@@ -166,7 +180,7 @@ genWires inpStr opts = do
     g1 <- Circ.read "g1.circ" :: IO Circ
 
     when (verbose opts) $ putStrLn "generating seed"
-    seed <- randKeyIO security
+    seed <- randKeyIO (securityParam params)
     when (verbose opts) $ printf "seed = %s\n" (showInts seed)
 
     when (verbose opts) $ putStrLn "writing seed"
@@ -174,7 +188,7 @@ genWires inpStr opts = do
 
     when (verbose opts) $ putStrLn "evaluating g1 on seed"
     wirePairs <- do
-            let (delta:falseWLs) = safeChunksOf security $ plainEval g1 seed
+            let (delta:falseWLs) = safeChunksOf (securityParam params) $ plainEval g1 seed
                 trueWLs = map (zipWith xorInt delta) falseWLs
             return $ listArray (Ref 0, Ref (nwires c-1)) (zip falseWLs trueWLs)
 
@@ -192,7 +206,7 @@ evalTest opts = do
     setCurrentDirectory (directory opts)
 
     when (verbose opts) $ putStrLn "reading params"
-    (security, padding) <- readParams
+    params <- readParams
 
     when (verbose opts) $ putStrLn "reading seed"
     seed <- readInts <$> readFile "seed"
@@ -227,7 +241,7 @@ eval opts = do
     setCurrentDirectory (directory opts)
 
     when (verbose opts) $ putStrLn "reading params"
-    (security, padding) <- readParams
+    params <- readParams
 
     when (verbose opts) $ putStrLn "reading c.circ"
     c <- Circ.read "c.circ" :: IO Circ2
@@ -256,9 +270,9 @@ eval opts = do
     stack <- newIORef []
     i     <- newIORef (Ref 0)
 
-    let correctWire w = replicate padding 0 == take padding w
+    let correctWire w = replicate (paddingSize params) 0 == take (paddingSize params) w
 
-        correctOutputWire w = replicate (security-1) 0 == take (security-1) w
+        correctOutputWire w = replicate (securityParam params-1) 0 == take (securityParam params-1) w
 
         backtrack ref = do -- pop stack, move i
             whenM (null <$> readIORef stack) $ do
@@ -296,9 +310,9 @@ eval opts = do
                             printf "[eval] I tried to read the gate for ref %d, but it wasn't there!!!!\n" (getRef ref)
                             exitFailure
 
-                        let opened  = openGate security padding g2 x y (gs IM.! getRef ref)
-                            chunks  = safeChunksOf (security+padding) opened
-                            choices = map (drop padding) (filter correctWire chunks)
+                        let opened  = openGate params g2 x y (gs IM.! getRef ref)
+                            chunks  = safeChunksOf (securityParam params+paddingSize params) opened
+                            choices = map (drop (paddingSize params)) (filter correctWire chunks)
 
                         when (verbose opts) $ do
                             mapM_ (putStrLn.showInts) chunks
@@ -342,15 +356,15 @@ eval opts = do
 
     when (verbose opts) $ putStrLn "ok"
 
-openGate :: Int -> Int -> Circ -> [Int] -> [Int] -> [Int] -> [Int]
-openGate security padding g2 x y g = plainEval (opener g2) (x ++ y ++ g)
+openGate :: GarblerParams -> Circ -> [Int] -> [Int] -> [Int] -> [Int]
+openGate (GarblerParams {..}) g2 x y g = plainEval (opener g2) (x ++ y ++ g)
   where
     opener g2 = buildCircuit $ do
-        x <- inputs security
-        y <- inputs security
-        zs <- replicateM 4 $ inputs (security + padding) -- garbled tables
-        let g 0 x = take (security+padding) <$> subcircuit g2 x
-            g 1 x = drop (security+padding) <$> subcircuit g2 x
+        x <- inputs securityParam
+        y <- inputs securityParam
+        zs <- replicateM 4 $ inputs (securityParam + paddingSize) -- garbled tables
+        let g 0 x = take (securityParam+paddingSize) <$> subcircuit g2 x
+            g 1 x = drop (securityParam+paddingSize) <$> subcircuit g2 x
         forM_ (zip zs (permutations 2 [0,1])) $ \(z, [i,j]) -> do
             gx <- g j x
             gy <- g i y
@@ -362,7 +376,5 @@ openGate security padding g2 x y g = plainEval (opener g2) (x ++ y ++ g)
 arr :: [a] -> Array Int a
 arr xs = listArray (0,length xs-1) xs
 
-readParams :: IO (Int, Int)
-readParams = do
-    [sec,pad] <- map read . lines <$> readFile "params"
-    return (sec, pad)
+readParams :: IO GarblerParams
+readParams = read <$> readFile "params"

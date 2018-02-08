@@ -1,4 +1,5 @@
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Boots.Garbler where
 
@@ -21,11 +22,18 @@ import System.IO
 import Text.Printf
 import qualified Data.IntMap as IM
 
+data GarblerParams = GarblerParams {
+    securityParam :: Int,
+    paddingSize   :: Int,
+    numIndices    :: Int,
+    gatesPerIndex :: Int
+} deriving (Show, Read)
+
 -- XXX: only fan-out one is secure at the moment
 -- garbler that does not use permutation bits
-garbler :: Int -> Int -> Int -> Circ2 -> IO (Acirc2, (Circ, Circ))
-garbler securityParam paddingSize nindices c = runCircuitT $ do
-    let ixLen = ceiling (fromIntegral (length (garbleableGates c)) ** (1 / fromIntegral nindices))
+garbler :: GarblerParams -> Circ2 -> IO (Acirc2, (Circ, Circ))
+garbler (GarblerParams {..}) c = runCircuitT $ do
+    let ixLen = ceiling (fromIntegral (length (garbleableGates c)) ** (1 / fromIntegral numIndices))
 
     -- seeds to the PRGs. the number of seeds is determined by the number of symbols in c.
     -- each seed corresponds to the inputs for each symbol, and is used to generate their wirelabels
@@ -34,7 +42,7 @@ garbler securityParam paddingSize nindices c = runCircuitT $ do
     -- the main seed, used to generate all intermediate wirelabels
     s <- foldM1 (zipWithM circXor) seeds
 
-    ix <- sigmaProd =<< replicateM nindices (sigma ixLen) -- the index of the gate to evaluate
+    ix <- sigmaProd =<< replicateM numIndices (sigma ixLen) -- the index of the gate to evaluate
 
     -- G1 is the PRG used to generate wirelabels
     (g1, g1Save) <- do
