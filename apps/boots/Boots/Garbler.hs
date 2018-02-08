@@ -125,16 +125,17 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
     -- select the wires for the ith iteration
 
     -- relevant wires for this iteration
-    let wirePad     = replicate (3*securityParam) zero
-        wireBundles = map concat $ chunksOfPad gatesPerIndex wirePad gateWires
+    let gatePad     = replicate (3*4*securityParam) zero
+        wireBundles = map concat $ chunksOfPad gatesPerIndex gatePad gateWires
 
     relevantSel <- selectListSigma ix wireBundles
 
-    let multipleGateWs = safeChunksOf 4 $ safeChunksOf 3 $ safeChunksOf securityParam relevantSel
+    let gateWLs = safeChunksOf (3*4*securityParam) relevantSel
 
     let pad = replicate paddingSize zero
 
-    forM_ multipleGateWs $ \ws -> do
+    forM_ gateWLs $ \gateWL -> do
+        let ws = safeChunksOf 3 $ safeChunksOf securityParam gateWL
         forM_ (zip ws (permutations 2 [0,1])) $ \([x,y,z],[i,j]) -> do
             mx  <- g2 j x
             my  <- g2 i y

@@ -19,10 +19,12 @@ fail=""
 gc_secparam=""
 padding=""
 gates_per_index=1
+info_only=""
 
 usage () {
     echo "gc-bench.sh: benchmark our scheme"
     echo "Usage: $0 [options] CIRCUIT"
+    echo "  -i          print info and quit"
     echo "  -t          testing mode: no MIFE"
     echo "  -l NUM      mmap security parameter for CLT (none implies dummy mmap)"
     echo "  -q          quiet mode"
@@ -34,8 +36,9 @@ usage () {
     exit $1
 }
 
-while getopts "tl:qfhes:p:g:" opt; do
+while getopts "itl:qfhes:p:g:" opt; do
     case $opt in
+        i) info_only=1;;
         t) use_mife="";;
         l) mmap_secparam=$OPTARG;;
         v) verbose="";;
@@ -92,11 +95,17 @@ SECONDS=0
 if [[ ! $use_existing ]]; then 
     echo "creating garbler circuit"
     rm -rf obf
-    eval "./boots garble -g$gates_per_index $circuit $gc_secparam $padding"
+    eval "./boots garble -g $gates_per_index $circuit $gc_secparam $padding"
 fi
 
 dir=$(readlink -f obf)
 gb=$(readlink -f obf/gb.acirc2)
+
+grep :ninputs $dir/c.circ
+grep :symlens $dir/c.circ
+echo "number of ands:" $(grep -ce "and" $dir/c.circ)
+echo "number of xors:" $(grep -ce "xor" $dir/c.circ)
+[[ $info_only ]] && exit 0
 
 # set up mife and generate indices
 if [[ $use_mife ]]; then
