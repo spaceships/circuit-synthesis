@@ -41,7 +41,7 @@ data Mode = Garble { target   :: FilePath
                    , params   :: GarblerParams
                    , opts     :: GlobalOpts
                    }
-          | GenWires String GlobalOpts
+          | GenWires SymId String GlobalOpts
           | EvalTest GlobalOpts
           | Eval GlobalOpts
           deriving (Show)
@@ -88,7 +88,8 @@ parseArgs = execParser $ info (parser <**> helper)
                     <*> globalOptsParser
 
     wiresParser = GenWires
-                    <$> strArgument (metavar "INPUT" <> help "the input to translate to wirelabels")
+                    <$> (SymId <$> argument auto (metavar "SYM_NUM" <> help "the ciphertext number to encrypt"))
+                    <*> strArgument (metavar "INPUT" <> help "the input to translate to wirelabels")
                     <*> globalOptsParser
 
     evalTestParser = EvalTest <$> globalOptsParser
@@ -107,9 +108,9 @@ parseArgs = execParser $ info (parser <**> helper)
 
 main = parseArgs >>= \case
     g@(Garble {..}) -> garble g
-    GenWires inp opts -> genWires inp opts
-    EvalTest opts     -> evalTest opts
-    Eval opts         -> eval opts
+    GenWires sym inp opts -> genWires sym inp opts
+    EvalTest opts -> evalTest opts
+    Eval opts -> eval opts
 
 --------------------------------------------------------------------------------
 -- protocol implementations
@@ -166,8 +167,8 @@ garble (Garble {..}) = do
 
     when (verbose opts) $ putStrLn "ok"
 
-genWires :: String -> GlobalOpts -> IO ()
-genWires inpStr opts = do
+genWires :: SymId -> String -> GlobalOpts -> IO ()
+genWires sym inpStr opts = do
     setCurrentDirectory (directory opts)
 
     when (verbose opts) $ putStrLn "reading params"
@@ -176,33 +177,30 @@ genWires inpStr opts = do
     when (verbose opts) $ putStrLn "reading c.circ"
     c <- Circ.read "c.circ" :: IO Circ
 
-    when (length inpStr /= ninputs c) $ do
-        hPrintf stderr "[genWires] circuit expects %d inputs, but got %d!\n"
-            (ninputs c) (length inpStr)
+    when (length inpStr /= symlen c sym) $ do
+        hPrintf stderr "[genWires] symbol %d expects %d inputs, but got %d!\n"
+            (getSymId sym) (symlen c sym) (length inpStr)
         exitFailure
 
-    when (verbose opts) $ putStrLn "reading g1.circ"
-    g1 <- Circ.read "g1.circ" :: IO Circ
+    let prgName = printf "inpg%d.circ" (getSymId sym)
+    when (verbose opts) $ printf "reading %s\n" prgName
+    g <- Circ.read prgName :: IO Circ
 
-    when (verbose opts) $ putStrLn "generating seed"
+    let seedName = printf "seed%d" (getSymId sym)
+    when (verbose opts) $ printf "generating %s\n" seedName
     seed <- randKeyIO (securityParam params)
-    when (verbose opts) $ printf "seed = %s\n" (showInts seed)
+    when (verbose opts) $ printf "%s = %s\n" seedName (showInts seed)
+    when (verbose opts) $ printf "writing %s\n" seedName
+    writeFile seedName (showInts seed)
 
-    when (verbose opts) $ putStrLn "writing seed"
-    writeFile "seed" (showInts seed)
+    when (verbose opts) $ printf "evaluating %s on %s\n" prgName seedName
+    let wires = zipWith choosePair (readInts inpStr) $
+                pairsOf $ safeChunksOf (securityParam params) $
+                plainEval g seed
 
-    when (verbose opts) $ putStrLn "evaluating g1 on seed"
-    wirePairs <- do
-            let (delta:falseWLs) = safeChunksOf (securityParam params) $ plainEval g1 seed
-                trueWLs = map (zipWith xorInt delta) falseWLs
-            return $ listArray (Ref 0, Ref (nwires c-1)) (zip falseWLs trueWLs)
-
-    when (verbose opts) $ putStrLn "writing wires"
-    let inputWires  = zipWith choosePair (readInts inpStr) (map (wirePairs !) (inputRefs c))
-        constWires  = zipWith choosePair (constVals c)     (map (wirePairs !) (constRefs c))
-        secretWires = zipWith choosePair (secretVals c)    (map (wirePairs !) (secretRefs c))
-        wires = inputWires ++ constWires ++ secretWires
-    writeFile "wires" $ unlines (map showInts wires)
+    let wiresName = printf "wires%d" (getSymId sym)
+    when (verbose opts) $ printf "writing %s\n" wiresName
+    writeFile wiresName $ unlines (map showInts wires)
 
     when (verbose opts) $ putStrLn "ok"
 
@@ -213,32 +211,36 @@ evalTest opts = do
     when (verbose opts) $ putStrLn "reading params"
     params <- readParams
 
-    when (verbose opts) $ putStrLn "reading seed"
-    seed <- readInts <$> readFile "seed"
-
     when (verbose opts) $ putStrLn "reading c.circ"
     c <- Circ.read "c.circ" :: IO Circ2
-
     when (print_info opts) $ do
         printf "info for c.circ\n"
         printCircInfo c
 
     when (verbose opts) $ putStrLn "reading gb.acirc2"
     gb <- Acirc2.read "gb.acirc2" :: IO Acirc2
-
     when (print_info opts) $ do
         printf "info for garbler\n"
         printCircInfo gb
 
-    when (verbose opts) $ putStrLn "evaluating garbler "
+    seeds <- forM [0..nsymbols c-1] $ \i -> do
+        let seedName = printf "seed%d" i
+        when (verbose opts) $ printf "reading %s\n" seedName
+        readInts <$> readFile seedName
+
+    let seed = foldr1 (zipWith xorInt) seeds
+
+    when (verbose opts) $ putStrLn "evaluating garbler on combined seed"
     gs <-
         if gatesPerIndex params < length (garbleableGates c) then do
+            when (verbose opts) $ putStrLn "generating every sigma vector combination"
             --  generate every sigma vector combination
             let indices i  = map (sigmaVector (symlen gb i)) [0..symlen gb i-1]
                 allIndices = map concat $ sequence (map indices [1..SymId (nsymbols gb - 1)])
             forM allIndices $ \ix -> do
                 return $ plainEval gb (seed ++ ix)
         else do
+            when (verbose opts) $ putStrLn "evaluating all gates at once"
             return $ [plainEval gb seed]
 
     when (verbose opts) $ putStrLn "writing gates"

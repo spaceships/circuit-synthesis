@@ -82,7 +82,7 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
                 return z
 
         forM_ (wires c) $ \(zref, g) -> case g of
-            (Bool2Base (Input id)) | nsymbols c > 1 -> do
+            (Bool2Base (Input id)) -> do
                 liftIO $ writeArray labels zref (inputWLs ! id)
 
             (Bool2Xor xref yref) | nsymbols c == 1 || not (hasInputArg c g) -> do
