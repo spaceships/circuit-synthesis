@@ -16,6 +16,7 @@ import Circuit.Utils
 import Control.Monad.Identity
 import Control.Monad.State.Strict
 import Data.List (nub)
+import Data.Maybe (fromMaybe)
 import Lens.Micro.Platform
 import Text.Printf
 import qualified Data.Array as A
@@ -68,6 +69,9 @@ noutputs = length . view circ_outputs
 symlen :: Circuit gate -> SymId -> Int
 symlen c id = c ^. circ_symlen . at (getSymId id) . non (error $ "[symlen] no symbol " ++ show id)
 
+symlens :: Circuit gate -> [Int]
+symlens c = c ^.. circ_symlen . each
+
 wires :: Gate gate => Circuit gate -> [(Ref, gate)]
 wires c = map (\ref -> (ref, getGate c ref)) (wireRefs c)
 
@@ -91,6 +95,15 @@ inputRefsForSymbol :: Gate g => Circuit g -> SymId -> [Ref]
 inputRefsForSymbol c sym = take (symlen c sym) (drop (numIrrelevantInputs sym) (inputRefs c))
   where
     numIrrelevantInputs sym = sum (map (symlen c) [0..(sym-1)])
+
+symbolForInputId :: Gate g => Circuit g -> InputId -> SymId
+symbolForInputId c id = fromMaybe undefined (lookup id m)
+  where
+    symStart sym = sum (map (symlen c) [0..(sym-1)])
+    irlvs = zip [SymId 0..] (map symStart [SymId 0..SymId (nsymbols c-1)])
+    m = concatMap
+        (\(sym, start) -> (zip [InputId start..InputId (symlen c sym-1)] (repeat sym)))
+        irlvs
 
 constRefs :: Gate gate => Circuit gate -> [Ref]
 constRefs c = IM.elems (c^.circ_consts)

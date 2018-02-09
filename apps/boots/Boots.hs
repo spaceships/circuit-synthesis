@@ -138,7 +138,7 @@ garble (Garble {..}) = do
     setCurrentDirectory (directory opts)
 
     when (verbose opts) $ printf "creating garbler for %s " target
-    (gb, (g1, g2)) <- garbler params c
+    (gb, (g1, g2, inpGs)) <- garbler params c
 
     when (verbose opts) $ putStrLn "writing params"
     writeFile "params" $ show params
@@ -158,6 +158,11 @@ garble (Garble {..}) = do
 
     when (verbose opts) $ putStrLn "writing g2.circ"
     Circ.write "g2.circ" g2
+
+    forM_ (zip [0 :: Int ..] inpGs) $ \(i, g) -> do
+        let name = printf "inpg%d.circ" i
+        when (verbose opts) $ printf "writing %s\n" name
+        Circ.write name g
 
     when (verbose opts) $ putStrLn "ok"
 

@@ -30,7 +30,7 @@ data GarblerParams = GarblerParams {
 } deriving (Show, Read)
 
 -- XXX: only fan-out one is secure at the moment
-garbler :: GarblerParams -> Circ2 -> IO (Acirc2, (Circ, Circ))
+garbler :: GarblerParams -> Circ2 -> IO (Acirc2, (Circ, Circ, [Circ]))
 garbler (GarblerParams {..}) c = runCircuitT $ do
     let numIterations = ceiling (fi (length (garbleableGates c)) / fi gatesPerIndex)
         ixLen = ceiling (fi numIterations ** (1 / fi numIndices))
@@ -42,17 +42,16 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
     -- the main seed, used to generate all intermediate wirelabels
     s <- foldM1 (zipWithM circXor) seeds
 
-    -- G1 is the PRG used to generate wirelabels
+    let wlGen nWLs = do
+            g <- prgBuilder securityParam (securityParam * nWLs) 5 xorAnd
+            let g' xs = safeChunksOf securityParam <$> g xs
+            asCirc <- lift $ buildCircuitT (inputs securityParam >>= g >>= outputs)
+            return (g', toCirc asCirc)
+
+    -- G1 is the PRG used to generate intermediate wirelabels
     (g1, g1Save) <- do
-        let numWirelabels = (if nsymbols c > 1 then 2 else 1) * ninputs c
-                            + nconsts c
-                            + nsecrets c
-                            + length (garbleableGates c)
-                            + 1 -- for delta
-        g <- prgBuilder securityParam (securityParam * numWirelabels) 5 xorAnd
-        let g' xs = safeChunksOf securityParam <$> g xs
-        asCirc <- lift $ buildCircuitT (inputs securityParam >>= g >>= outputs)
-        return (g', toCirc asCirc)
+        let nWLs = 1 + nconsts c + nsecrets c + length (garbleableGates c)
+        wlGen nWLs
 
     -- G2 is the PRG used to encrypt the garbled tables
     (g2, g2Save) <- do
@@ -61,6 +60,12 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
         asCirc <- lift $ buildCircuitT (inputs securityParam >>= g >>= outputs)
         return (g', toCirc asCirc)
 
+    -- generate the wirelabels for each symbol
+    (inpGs, inpGSaves) <- unzip <$> mapM wlGen (map (2*) (symlens c))
+    inputWLs <- do
+        wls <- concat <$> zipWithM ($) inpGs seeds
+        return $ listArray (InputId 0, InputId (ninputs c-1)) (pairsOf wls)
+
     allWires <- do
         -- construct the true wirelabels by xoring in delta
         (delta:falseWLs) <- g1 s
@@ -68,10 +73,17 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
         fresh  <- liftIO $ newIORef falseWLs
         labels <- liftIO $ (newArray_ (0, Ref (nwires c-1)) :: IO (IOArray Ref ([Ref], [Ref])))
 
+        let nextFresh = liftIO $ do
+                whenM (null <$> readIORef fresh) $ do
+                    putStrLn "[garbler] not enough outputs from G1!"
+                    exitFailure
+                z <- head <$> readIORef fresh
+                modifyIORef fresh tail
+                return z
+
         forM_ (wires c) $ \(zref, g) -> case g of
             (Bool2Base (Input id)) | nsymbols c > 1 -> do
-                -- generate wirelabels the new fancy way based on which symbol this input belongs to.
-                undefined
+                liftIO $ writeArray labels zref (inputWLs ! id)
 
             (Bool2Xor xref yref) | nsymbols c == 1 || not (hasInputArg c g) -> do
                 -- only use freeXOR for intermediate gates, this allows MIFE since freeXOR requires
@@ -83,12 +95,8 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
                 liftIO $ writeArray labels zref (z, z')
 
             _ -> do
-                liftIO $ whenM (null <$> readIORef fresh) $ do
-                    putStrLn "[garbler] not enough outputs from G1!"
-                    exitFailure
-                z  <- head <$> liftIO (readIORef fresh)
+                z  <- nextFresh
                 z' <- zipWithM circXor z delta
-                liftIO $ modifyIORef fresh tail
                 liftIO $ writeArray labels zref (z, z')
 
         liftIO (freeze labels)
@@ -141,7 +149,7 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
             row <- foldM1 (zipWithM circXor) [mx, my, pad ++ z]
             outputs row
 
-    return (g1Save, g2Save) -- the PRG for evaluation
+    return (g1Save, g2Save, inpGSaves) -- the PRGs for evaluation
 
 --------------------------------------------------------------------------------
 -- helpers

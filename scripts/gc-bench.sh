@@ -110,7 +110,6 @@ echo "number of xors:" $(grep -ce "xor" $dir/c.circ)
 # set up mife and generate indices
 if [[ $use_mife ]]; then
     echo "setting up MIFE"
-    echo mio mife setup $mmap $secparam_arg $gb
     mio mife setup $mmap $secparam_arg $gb
 
     index_len=$(grep -m1 ":symlens" $gb | perl -nE 'print $1 if /:symlens \d+ (\d+)/')
