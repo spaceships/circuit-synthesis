@@ -28,6 +28,10 @@ export = [ ("simple",    [("simple",)    <$> return simple])
          , ("sym2",   [("sym2",)   <$> return (simpleSym 2)])
          , ("sym10",  [("sym10",)  <$> return (simpleSym 10)])
          , ("sym100", [("sym100",) <$> return (simpleSym 100)])
+         , ("and-secret", [("and-secret",) <$> return andSecret])
+         , ("and-const", [("and-const",) <$> return andConst])
+         , ("xor-secret", [("xor-secret",) <$> return xorSecret])
+         , ("xor-const", [("xor-const",) <$> return xorConst])
          ]
 
 xorCirc :: Gate g => Int -> Circuit g
@@ -35,6 +39,30 @@ xorCirc n = buildCircuit (symbol (n+1) >>= foldM1 circXor >>= output)
 
 andCirc :: Gate g => Int -> Circuit g
 andCirc n = buildCircuit (symbol (n+1) >>= foldM1 circMul >>= output)
+
+andSecret :: Gate g => Circuit g
+andSecret = buildCircuit $ do
+    x <- input
+    y <- secret 1
+    output =<< circAnd x y
+
+andConst :: Gate g => Circuit g
+andConst = buildCircuit $ do
+    x <- input
+    y <- constant 1
+    output =<< circMul x y
+
+xorSecret :: Gate g => Circuit g
+xorSecret = buildCircuit $ do
+    x <- input
+    y <- secret 1
+    output =<< circXor x y
+
+xorConst :: Gate g => Circuit g
+xorConst = buildCircuit $ do
+    x <- input
+    y <- constant 1
+    output =<< circXor x y
 
 xorAndCirc :: Gate g => Int -> Circuit g
 xorAndCirc n = buildCircuit $ do

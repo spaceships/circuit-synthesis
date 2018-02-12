@@ -311,7 +311,7 @@ eval opts = do
                 [x,y] <- mapM (readArray memo) (gateArgs gate)
 
                 case gate of
-                    Bool2Xor _ _ | nsymbols c == 1 || not (hasInputArg c gate) -> do
+                    Bool2Xor _ _ | not (isOutputRef c ref) -> do
                         return $ zipWith xorInt x y
 
                     _ -> do

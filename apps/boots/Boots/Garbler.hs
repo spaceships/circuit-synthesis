@@ -86,7 +86,7 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
             (Bool2Base (Const  id)) -> do liftIO $ writeArray labels zref (constWLs  ! id)
             (Bool2Base (Secret id)) -> do liftIO $ writeArray labels zref (secretWLs ! id)
 
-            (Bool2Xor xref yref) -> do
+            (Bool2Xor xref yref) | not (isOutputRef c zref) -> do
                 x <- fst <$> liftIO (readArray labels xref)
                 y <- fst <$> liftIO (readArray labels yref)
                 (f,t) <- deltize =<< zipWithM circXor x y
@@ -190,6 +190,6 @@ hasInputArg c gate = any isInput $ map (getGate c) (gateArgs gate)
 garbleableGates :: Circ2 -> [(Ref, BoolGate2)]
 garbleableGates c = filter garbleMe (gates c)
   where
-    garbleMe (_,g) = not (isXor g) || (nsymbols c > 1 && hasInputArg c g)
+    garbleMe (ref,g) = not (isXor g) || isOutputRef c ref
 
 fi = fromIntegral
