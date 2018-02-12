@@ -30,7 +30,7 @@ data GarblerParams = GarblerParams {
 } deriving (Show, Read)
 
 -- XXX: only fan-out one is secure at the moment
-garbler :: GarblerParams -> Circ2 -> IO (Acirc2, (Circ, Circ, [Circ]))
+garbler :: GarblerParams -> Circ2 -> IO (Acirc2, (Circ, Circ))
 garbler (GarblerParams {..}) c = runCircuitT $ do
     let numIterations = ceiling (fi (length (garbleableGates c)) / fi gatesPerIndex)
         ixLen = ceiling (fi numIterations ** (1 / fi numIndices))
@@ -40,37 +40,37 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
     seeds <- replicateM (nsymbols c) (symbol securityParam)
 
     -- the main seed, used to generate all intermediate wirelabels
-    s <- foldM1 (zipWithM circXor) seeds
+    combinedSeed <- foldM1 (zipWithM circXor) seeds
 
-    let wlGen nWLs = do
-            g <- prgBuilder securityParam (securityParam * nWLs) 5 xorAnd
-            let g' xs = safeChunksOf securityParam <$> g xs
+    -- prgGen generates a PRG that takes a securityParam size seed and outputs n chunks of size
+    -- chunkSize, as well as a circuit version for saving
+    let prgGen chunkSize n = do
+            g <- prgBuilder securityParam (chunkSize * n) 5 xorAnd
+            let g' xs = safeChunksOf chunkSize <$> g xs
             asCirc <- lift $ buildCircuitT (inputs securityParam >>= g >>= outputs)
             return (g', toCirc asCirc)
 
-    -- G1 is the PRG used to generate intermediate wirelabels
-    (g1, g1Save) <- do
-        let nWLs = 1 + nconsts c + nsecrets c + length (garbleableGates c)
-        wlGen nWLs
+    -- G0 is used to generate input/const/secret wirelabels and delta
+    (g0, g0Save) <- prgGen securityParam (1 + ninputs c + nconsts c + nsecrets c)
 
-    -- G2 is the PRG used to encrypt the garbled tables
-    (g2, g2Save) <- do
-        g <- prgBuilder securityParam (2*(securityParam + paddingSize)) 5 xorAnd
-        let g' i xs = (!! i) . safeChunksOf (securityParam+paddingSize) <$> g xs
-        asCirc <- lift $ buildCircuitT (inputs securityParam >>= g >>= outputs)
-        return (g', toCirc asCirc)
+    -- G1 is used to generate intermediate wirelabels:
+    -- G1 is not needed to evaluate the garbled circuit, so we dont save it
+    (g1, _) <- prgGen securityParam (length (garbleableGates c))
 
-    -- generate the wirelabels for each symbol
-    (inpGs, inpGSaves) <- unzip <$> mapM wlGen (map (2*) (symlens c))
-    inputWLs <- do
-        wls <- concat <$> zipWithM ($) inpGs seeds
-        return $ listArray (InputId 0, InputId (ninputs c-1)) (pairsOf wls)
+    -- G2 is used to encrypt garbled rows
+    (g2, g2Save) <- prgGen (securityParam+paddingSize) 2
 
     allWires <- do
-        -- construct the true wirelabels by xoring in delta
-        (delta:falseWLs) <- g1 s
+        (delta:rawInpWLs) <- g0 combinedSeed
 
-        fresh  <- liftIO $ newIORef falseWLs
+        let deltize f = do { t <- zipWithM circXor f delta; return (f,t) }
+        freshInpWLs <- mapM deltize rawInpWLs
+
+        let inputWLs  = listArray (0, InputId  (ninputs  c-1)) (take (ninputs c) freshInpWLs)
+            constWLs  = listArray (0, ConstId  (nconsts  c-1)) (take (nconsts c) (drop (ninputs c) freshInpWLs))
+            secretWLs = listArray (0, SecretId (nsecrets c-1)) (take (nsecrets c) (drop (ninputs c + nconsts c) freshInpWLs))
+
+        fresh  <- liftIO . newIORef =<< g1 combinedSeed -- fresh intermediate WLs
         labels <- liftIO $ (newArray_ (0, Ref (nwires c-1)) :: IO (IOArray Ref ([Ref], [Ref])))
 
         let nextFresh = liftIO $ do
@@ -82,22 +82,19 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
                 return z
 
         forM_ (wires c) $ \(zref, g) -> case g of
-            (Bool2Base (Input id)) -> do
-                liftIO $ writeArray labels zref (inputWLs ! id)
+            (Bool2Base (Input  id)) -> do liftIO $ writeArray labels zref (inputWLs  ! id)
+            (Bool2Base (Const  id)) -> do liftIO $ writeArray labels zref (constWLs  ! id)
+            (Bool2Base (Secret id)) -> do liftIO $ writeArray labels zref (secretWLs ! id)
 
-            (Bool2Xor xref yref) | nsymbols c == 1 || not (hasInputArg c g) -> do
-                -- only use freeXOR for intermediate gates, this allows MIFE since freeXOR requires
-                -- globally known delta, but we dont know it until we have all the seeds.
+            (Bool2Xor xref yref) -> do
                 x <- fst <$> liftIO (readArray labels xref)
                 y <- fst <$> liftIO (readArray labels yref)
-                z  <- zipWithM circXor x y
-                z' <- zipWithM circXor z delta
-                liftIO $ writeArray labels zref (z, z')
+                (f,t) <- deltize =<< zipWithM circXor x y
+                liftIO $ writeArray labels zref (f,t)
 
             _ -> do
-                z  <- nextFresh
-                z' <- zipWithM circXor z delta
-                liftIO $ writeArray labels zref (z, z')
+                (f,t) <- deltize =<< nextFresh
+                liftIO $ writeArray labels zref (f,t)
 
         liftIO (freeze labels)
 
@@ -144,15 +141,39 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
     forM_ gateWLs $ \gateWL -> do
         let ws = safeChunksOf 3 $ safeChunksOf securityParam gateWL
         forM_ (zip ws (permutations 2 [0,1])) $ \([x,y,z],[i,j]) -> do
-            mx  <- g2 j x
-            my  <- g2 i y
+            mx  <- (!!j) <$> g2 x
+            my  <- (!!i) <$> g2 y
             row <- foldM1 (zipWithM circXor) [mx, my, pad ++ z]
             outputs row
 
-    return (g1Save, g2Save, inpGSaves) -- the PRGs for evaluation
+    return (g0Save, g2Save) -- the PRGs for evaluation
+
+
+genWiresGen :: GarblerParams -> Circ2 -> Circ -> Circ
+genWiresGen (GarblerParams {..}) c g0 = buildCircuit $ do
+    seeds  <- replicateM (nsymbols c) (symbol securityParam)
+    inputs <- concat <$> mapM symbol (c^..circ_symlen.each)
+    consts  <- mapM constant (constVals c)
+    secrets <- mapM secret (secretVals c)
+
+    combinedSeed <- foldM1 (zipWithM circXor) seeds
+    (delta:rawInpWLs) <- safeChunksOf securityParam <$> subcircuit g0 combinedSeed
+
+    let deltize f = do { t <- zipWithM circXor f delta; return (t,f) }
+    freshInpWLs <- mapM deltize rawInpWLs
+
+    let inputWLs  = take (ninputs c) freshInpWLs
+        constWLs  = take (nconsts c) (drop (ninputs c) freshInpWLs)
+        secretWLs = take (nsecrets c) (drop (ninputs c + nconsts c) freshInpWLs)
+
+    outputs =<< concat <$> zipWithM bitSelectPairLists inputs  inputWLs
+    outputs =<< concat <$> zipWithM bitSelectPairLists consts  constWLs
+    outputs =<< concat <$> zipWithM bitSelectPairLists secrets secretWLs
+
 
 --------------------------------------------------------------------------------
 -- helpers
+
 
 isXor :: BoolGate2 -> Bool
 isXor (Bool2Xor _ _) = True

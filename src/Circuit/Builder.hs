@@ -257,6 +257,13 @@ selectPT xs bs = do
         set one (x, False) = circSub one x
     mapM (set one) (zip xs bs)
 
+bitSelectPairLists :: (Gate g, Monad m) => Ref -> ([Ref],[Ref]) -> BuilderT g m [Ref]
+bitSelectPairLists b (xs,ys) = do
+    notB  <- circNot b
+    xsSel <- mapM (circAnd b) xs
+    ysSel <- mapM (circAnd notB) ys
+    zipWithM circAdd xsSel ysSel
+
 bitsSet :: (Gate g, Monad m) => [Ref] -> [Bool] -> BuilderT g m Ref
 bitsSet xs bs = circProd =<< selectPT xs bs
 

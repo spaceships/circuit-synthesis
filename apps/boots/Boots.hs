@@ -38,11 +38,11 @@ import qualified Data.IntMap as IM
 -- command line options
 
 data Mode = Garble { target   :: FilePath
-                   , params   :: GarblerParams
+                   , params   :: GarblerParams -- From Boots.Garbler
                    , opts     :: GlobalOpts
                    }
-          | GenWires SymId String GlobalOpts
-          | EvalTest GlobalOpts
+          | GenSeed SymId GlobalOpts
+          | EvalTest GlobalOpts [String]
           | Eval GlobalOpts
           deriving (Show)
 
@@ -58,12 +58,12 @@ parseArgs = execParser $ info (parser <**> helper)
     (fullDesc <> progDesc "boots is a program to generate a circuit for a PRG \
                           \ garbler, and also to evaluate it")
   where
-    cmd name parser desc = command name (info (parser <**> helper) (progDesc desc))
+    cmd name parser desc = command name (info parser (progDesc desc))
 
-    parser = subparser $ cmd "garble" garbleParser   "Produce a circuit for a garbler for a circuit."
-                      <> cmd "wires"  wiresParser    "Generate seed and input wirelabels."
-                      <> cmd "test"   evalTestParser "Evaluate the garbled circuit circuit then eval."
-                      <> cmd "eval"   evalParser     "Evaluate a garbled circuit."
+    parser = hsubparser $ cmd "garble" garbleParser   "Produce a circuit for a garbler for a circuit."
+                        <> cmd "seed"   seedParser     "Generate seeds."
+                        <> cmd "test"   evalTestParser "Evaluate the garbled circuit circuit then eval."
+                        <> cmd "eval"   evalParser     "Evaluate a garbled circuit."
 
     garbleParser = Garble
                     <$> strArgument (metavar "CIRCUIT"
@@ -87,12 +87,13 @@ parseArgs = execParser $ info (parser <**> helper)
                                         <> metavar "NUM"))
                     <*> globalOptsParser
 
-    wiresParser = GenWires
-                    <$> (SymId <$> argument auto (metavar "SYM_NUM" <> help "the ciphertext number to encrypt"))
-                    <*> strArgument (metavar "INPUT" <> help "the input to translate to wirelabels")
+    seedParser = GenSeed
+                    <$> (SymId <$> argument auto (metavar "SYM_NUM" <> help "the ciphertext number"))
                     <*> globalOptsParser
 
-    evalTestParser = EvalTest <$> globalOptsParser
+    evalTestParser = EvalTest
+                    <$> globalOptsParser
+                    <*> many (strArgument (metavar "INPUT" <> help "the input plaintexts"))
 
     evalParser = Eval <$> globalOptsParser
 
@@ -108,8 +109,8 @@ parseArgs = execParser $ info (parser <**> helper)
 
 main = parseArgs >>= \case
     g@(Garble {..}) -> garble g
-    GenWires sym inp opts -> genWires sym inp opts
-    EvalTest opts -> evalTest opts
+    GenSeed sym opts -> genSeed sym opts
+    EvalTest opts inps -> evalTest opts inps
     Eval opts -> eval opts
 
 --------------------------------------------------------------------------------
@@ -138,8 +139,9 @@ garble (Garble {..}) = do
     createDirectoryIfMissing False (directory opts)
     setCurrentDirectory (directory opts)
 
-    when (verbose opts) $ printf "creating garbler for %s " target
-    (gb, (g1, g2, inpGs)) <- garbler params c
+    when (verbose opts) $ printf "creating garbler for %s\n" target
+    (gb, (g0, g2)) <- garbler params c
+    let wiresGen = genWiresGen params c g0
 
     when (verbose opts) $ putStrLn "writing params"
     writeFile "params" $ show params
@@ -148,43 +150,28 @@ garble (Garble {..}) = do
         printf "info for garbler\n"
         printCircInfo gb
 
+    when (print_info opts) $ do
+        printf "info for wires-gen.circ\n"
+        printCircInfo wiresGen
+
     when (verbose opts) $ putStrLn "writing gb.acirc2"
     Acirc2.write "gb.acirc2" gb
 
     when (verbose opts) $ putStrLn "writing c.circ"
     Circ.write "c.circ" c
 
-    when (verbose opts) $ putStrLn "writing g1.circ"
-    Circ.write "g1.circ" g1
+    when (verbose opts) $ putStrLn "writing wires-gen.circ"
+    Circ.write "wires-gen.circ" wiresGen
 
     when (verbose opts) $ putStrLn "writing g2.circ"
     Circ.write "g2.circ" g2
 
-    forM_ (zip [0 :: Int ..] inpGs) $ \(i, g) -> do
-        let name = printf "inpg%d.circ" i
-        when (verbose opts) $ printf "writing %s\n" name
-        Circ.write name g
-
-    when (verbose opts) $ putStrLn "ok"
-
-genWires :: SymId -> String -> GlobalOpts -> IO ()
-genWires sym inpStr opts = do
+genSeed :: SymId -> GlobalOpts -> IO ()
+genSeed sym opts = do
     setCurrentDirectory (directory opts)
 
     when (verbose opts) $ putStrLn "reading params"
     params <- readParams
-
-    when (verbose opts) $ putStrLn "reading c.circ"
-    c <- Circ.read "c.circ" :: IO Circ
-
-    when (length inpStr /= symlen c sym) $ do
-        hPrintf stderr "[genWires] symbol %d expects %d inputs, but got %d!\n"
-            (getSymId sym) (symlen c sym) (length inpStr)
-        exitFailure
-
-    let prgName = printf "inpg%d.circ" (getSymId sym)
-    when (verbose opts) $ printf "reading %s\n" prgName
-    g <- Circ.read prgName :: IO Circ
 
     let seedName = printf "seed%d" (getSymId sym)
     when (verbose opts) $ printf "generating %s\n" seedName
@@ -193,19 +180,8 @@ genWires sym inpStr opts = do
     when (verbose opts) $ printf "writing %s\n" seedName
     writeFile seedName (showInts seed)
 
-    when (verbose opts) $ printf "evaluating %s on %s\n" prgName seedName
-    let wires = zipWith choosePair (readInts inpStr) $
-                pairsOf $ safeChunksOf (securityParam params) $
-                plainEval g seed
-
-    let wiresName = printf "wires%d" (getSymId sym)
-    when (verbose opts) $ printf "writing %s\n" wiresName
-    writeFile wiresName $ unlines (map showInts wires)
-
-    when (verbose opts) $ putStrLn "ok"
-
-evalTest :: GlobalOpts -> IO ()
-evalTest opts = do
+evalTest :: GlobalOpts -> [String] -> IO ()
+evalTest opts inps = do
     setCurrentDirectory (directory opts)
 
     when (verbose opts) $ putStrLn "reading params"
@@ -217,31 +193,53 @@ evalTest opts = do
         printf "info for c.circ\n"
         printCircInfo c
 
+    seeds <- forM [0..nsymbols c-1] $ \i -> do
+        let seedName = printf "seed%d" i
+        when (verbose opts) $ printf "reading %s\n" seedName
+        readInts <$> readFile seedName
+
+    when (verbose opts) $ putStrLn "reading wires-gen.circ"
+    wiresGen <- Circ.read "wires-gen.circ" :: IO Circ
+    when (print_info opts) $ do
+        printf "info for wires-gen.circ\n"
+        printCircInfo wiresGen
+
+    when (length inps /= nsymbols c) $ do
+        hPrintf stderr "[evalTest] circuit expects %d symbols, but got %d!\n"
+            (nsymbols c) (length inps)
+        exitFailure
+
+    forM_ (zip [0..] inps) $ \(sym, inp) -> do
+        when (length inp /= symlen c sym) $ do
+            hPrintf stderr "[evalTest] symbol %d expects %d inputs, but got %d!\n"
+                (getSymId sym) (symlen c sym) (length inp)
+            exitFailure
+
+    when (verbose opts) $ putStrLn "evaluating wires-gen.circ on seeds and inputs"
+    let inputs = concatMap readInts inps
+        wires  = safeChunksOf (securityParam params) $
+                    plainEval wiresGen (concat seeds ++ inputs)
+
+    when (verbose opts) $ putStrLn "writing wires"
+    writeFile "wires" $ unlines (map showInts wires)
+
     when (verbose opts) $ putStrLn "reading gb.acirc2"
     gb <- Acirc2.read "gb.acirc2" :: IO Acirc2
     when (print_info opts) $ do
         printf "info for garbler\n"
         printCircInfo gb
 
-    seeds <- forM [0..nsymbols c-1] $ \i -> do
-        let seedName = printf "seed%d" i
-        when (verbose opts) $ printf "reading %s\n" seedName
-        readInts <$> readFile seedName
-
-    let seed = foldr1 (zipWith xorInt) seeds
-
-    when (verbose opts) $ putStrLn "evaluating garbler on combined seed"
+    when (verbose opts) $ putStrLn "evaluating garbler on seeds"
     gs <-
         if gatesPerIndex params < length (garbleableGates c) then do
             when (verbose opts) $ putStrLn "generating every sigma vector combination"
-            --  generate every sigma vector combination
             let indices i  = map (sigmaVector (symlen gb i)) [0..symlen gb i-1]
-                allIndices = map concat $ sequence (map indices [1..SymId (nsymbols gb - 1)])
+                allIndices = map concat $ sequence (map (indices.SymId) [nsymbols c..nsymbols gb - 1])
             forM allIndices $ \ix -> do
-                return $ plainEval gb (seed ++ ix)
+                return $ plainEval gb (concat seeds ++ ix)
         else do
             when (verbose opts) $ putStrLn "evaluating all gates at once"
-            return $ [plainEval gb seed]
+            return $ [plainEval gb (concat seeds)]
 
     when (verbose opts) $ putStrLn "writing gates"
     writeFile "gates" (unlines (map showInts gs))
@@ -268,14 +266,14 @@ eval opts = do
     when (verbose opts) $ putStrLn "reading wires"
     ws <- map readInts <$> lines <$> readFile "wires"
 
+    let inputs  = listArray (0,InputId (ninputs c))   $ take (ninputs c) ws :: Array InputId [Int]
+        consts  = listArray (0,ConstId (nconsts c))   $ take (nconsts c) (drop (ninputs c) ws)
+        secrets = listArray (0,SecretId (nsecrets c)) $ take (nsecrets c) (drop (ninputs c + nconsts c) ws)
+
     when (verbose opts) $ putStrLn "reading gates"
     gs <- IM.fromList . zip (map (getRef.fst) (garbleableGates c)) <$>
           map readInts . safeChunksOf (4*(securityParam params + paddingSize params)) .
           concat . lines <$> readFile "gates"
-
-    let inputs  = listArray (0,InputId (ninputs c))   $ take (ninputs c) ws :: Array InputId [Int]
-        consts  = listArray (0,ConstId (nconsts c))   $ take (nconsts c) (drop (ninputs c) ws)
-        secrets = listArray (0,SecretId (nsecrets c)) $ take (nsecrets c) (drop (ninputs c + nconsts c) ws)
 
     memo  <- newArray_ (0, Ref (nwires c)) :: IO (IOArray Ref [Int])
     stack <- newIORef []
@@ -364,8 +362,6 @@ eval opts = do
         mapM_ (putStrLn.showInts) res
 
     putStrLn $ unwords (map (show.last) res)
-
-    when (verbose opts) $ putStrLn "ok"
 
 openGate :: GarblerParams -> Circ -> [Int] -> [Int] -> [Int] -> [Int]
 openGate (GarblerParams {..}) g2 x y g = plainEval (opener g2) (x ++ y ++ g)
