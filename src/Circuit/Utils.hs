@@ -358,3 +358,6 @@ whenM :: Monad m => m Bool -> m () -> m ()
 whenM cond m = do
     ok <- cond
     if ok then m else return ()
+
+interleave :: [a] -> [a] -> [a]
+interleave xs ys = concat (zipWith (\x y -> [x,y]) xs ys)

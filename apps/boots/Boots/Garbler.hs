@@ -151,8 +151,10 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
 
 genWiresGen :: GarblerParams -> Circ2 -> Circ -> Circ
 genWiresGen (GarblerParams {..}) c g0 = buildCircuit $ do
-    seeds  <- replicateM (nsymbols c) (symbol securityParam)
-    inputs <- concat <$> mapM symbol (c^..circ_symlen.each)
+    (seeds, inputs) <- fmap unzip $ forM [0..nsymbols c-1] $ \sym -> do
+        seed  <- symbol securityParam
+        input <- symbol (symlen c (SymId sym))
+        return (seed, input)
     consts  <- mapM constant (constVals c)
     secrets <- mapM secret (secretVals c)
 
@@ -166,7 +168,7 @@ genWiresGen (GarblerParams {..}) c g0 = buildCircuit $ do
         constWLs  = take (nconsts c) (drop (ninputs c) freshInpWLs)
         secretWLs = take (nsecrets c) (drop (ninputs c + nconsts c) freshInpWLs)
 
-    outputs =<< concat <$> zipWithM bitSelectPairLists inputs  inputWLs
+    outputs =<< concat <$> zipWithM bitSelectPairLists (concat inputs) inputWLs
     outputs =<< concat <$> zipWithM bitSelectPairLists consts  constWLs
     outputs =<< concat <$> zipWithM bitSelectPairLists secrets secretWLs
 

@@ -216,9 +216,9 @@ evalTest opts inps = do
             exitFailure
 
     when (verbose opts) $ putStrLn "evaluating wires-gen.circ on seeds and inputs"
-    let inputs = concatMap readInts inps
+    let inputs = map readInts inps
         wires  = safeChunksOf (securityParam params) $
-                    plainEval wiresGen (concat seeds ++ inputs)
+                    plainEval wiresGen (concat (interleave seeds inputs))
 
     when (verbose opts) $ putStrLn "writing wires"
     writeFile "wires" $ unlines (map showInts wires)

@@ -41,7 +41,7 @@ while getopts "itl:qfhes:p:g:" opt; do
         i) info_only=1;;
         t) use_mife="";;
         l) mmap_secparam=$OPTARG;;
-        v) verbose="";;
+        q) verbose="";;
         f) fail=1;;
         e) use_existing=1;;
         s) gc_secparam="-s $OPTARG";;
@@ -77,6 +77,13 @@ done < $circuit
 ntests=${#test_inp[@]}
 
 ################################################################################
+## checks
+
+if [[ $use_mife ]]; then
+    echo "MIFE currently unsupported!!!!"
+fi
+
+################################################################################
 ## protocol
 
 function unary() {
@@ -101,11 +108,16 @@ fi
 dir=$(readlink -f obf)
 gb=$(readlink -f obf/gb.acirc2)
 
-grep :ninputs $dir/c.circ
-grep :symlens $dir/c.circ
-echo "number of ands:" $(grep -ce "and" $dir/c.circ)
-echo "number of xors:" $(grep -ce "xor" $dir/c.circ)
-[[ $info_only ]] && exit 0
+total_inputs=$(grep :ninputs $dir/c.circ | perl -nE '/(\d+)/; say $1')
+symlens=($(grep :symlens $dir/c.circ | perl -nE '/((:?\s+\d+)+)/; say $1'))
+
+if [[ $verbose ]]; then
+    echo "ninputs:" $total_inputs
+    echo "symlens: ${symlens[@]}"
+    echo "number of ands:" $(grep -ce "and" $dir/c.circ)
+    echo "number of xors:" $(grep -ce "xor" $dir/c.circ)
+    [[ $info_only ]] && exit 0
+fi
 
 # set up mife and generate indices
 if [[ $use_mife ]]; then
@@ -127,11 +139,14 @@ fi
 setup_time=$SECONDS
 
 function encrypt() {
-    [[ $verbose ]] && echo "encrypting $1"
-    inp=$1
-    ./boots wires $inp
+    [[ $verbose ]] && echo "encrypting $2 into slot $1"
+    slot=$1
+    inp=$2
+    ./boots seed $1
     if [[ $use_mife ]]; then
         mio mife encrypt $mmap $gb $(< $dir/seed) 0 >/dev/stderr
+    else
+        echo $inp > "$dir/input$slot"
     fi
 }
 
@@ -154,7 +169,7 @@ function decrypt() {
         fi
     else
         [[ $verbose ]] && echo "running boots test" >/dev/stderr
-        ./boots test
+        cat $dir/input* | xargs ./boots test >/dev/stderr
     fi
     [[ $verbose ]] && echo "running boots eval" >/dev/stderr
     ./boots eval 
@@ -166,8 +181,17 @@ dec_times=()
 for (( i=0; i<${ntests}; i++)); do
     echo "test $((i+1))/$ntests: ${test_inp[$i]} -> ${test_out[$i]}"
 
+    # determine what symbols the test inputs go to
+    unpack_str=""
+    for len in "${symlens[@]}"; do 
+        unpack_str+="A$len"
+    done
+    input_syms=($(perl -nE "say for unpack '$unpack_str'" <<< ${test_inp[$i]}))
+
     SECONDS=0
-    encrypt ${test_inp[$i]}
+    for (( sym=0; sym<${#symlens[@]}; sym++ )); do
+        encrypt $sym ${input_syms[$sym]}
+    done
     enc_times+=($SECONDS)
 
     SECONDS=0
