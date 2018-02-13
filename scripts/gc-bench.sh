@@ -131,7 +131,7 @@ if [[ $use_mife ]]; then
 
     # possibly encrypt indices
     if [[ ! -f "$dir/naive" ]]; then 
-        index_len=$(grep -m1 ":symlens" $gb | perl -nE 'print $1 if /.*(\d+)$/')
+        index_len=$(grep -m1 ":symlens" $gb | perl -nE 'print $1 if /.* (\d+)$/')
         echo -n "encrypting indices ($index_len):"
         for (( i=0; i < $index_len; i++ )); do
             echo -n " $i"
@@ -140,7 +140,7 @@ if [[ $use_mife ]]; then
             mv $gb.$nsyms.ct $gb.$nsyms.ct.ix$i
         done
     fi
-    echo "($((SECONDS-setup_start))s)"
+    echo " ($((SECONDS-setup_start))s)"
 fi
 setup_time=$SECONDS
 
