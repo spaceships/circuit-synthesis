@@ -126,8 +126,8 @@ fi
 if [[ $use_mife ]]; then
     echo "setting up MIFE"
     setup_start=$SECONDS
-    mio mife setup $mmap $secparam_arg $gb
-    mio mife setup $mmap $secparam_arg $wires_gen
+    mio mife setup --npowers 5 $mmap $secparam_arg $gb
+    mio mife setup --npowers 5 $mmap $secparam_arg $wires_gen
 
     # possibly encrypt indices
     if [[ ! -f "$dir/naive" ]]; then 
