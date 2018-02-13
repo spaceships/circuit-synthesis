@@ -8,7 +8,7 @@ function mio() {
 
 function progress() {
     x=$(( $1+1 ))
-    perl -E "\$r=$x/$2; \$n=int(\$r*60); printf(\"%s%s (%d/%d)\\r\", '#'x\$n, ' 'x(60-\$n), $x, $2);"
+    perl -E "\$r=$x/$2; \$n=int(\$r*40); printf(\"        %s%s (%d/%d)\\r\", '#'x\$n, ' 'x(40-\$n), $x, $2);"
 }
 
 use_mife=1
@@ -124,7 +124,7 @@ fi
 
 # set up mife and generate indices
 if [[ $use_mife ]]; then
-    echo -n "setting up MIFE..."
+    echo "setting up MIFE"
     setup_start=$SECONDS
     mio mife setup $mmap $secparam_arg $gb
     mio mife setup $mmap $secparam_arg $wires_gen
@@ -139,9 +139,8 @@ if [[ $use_mife ]]; then
             mio mife encrypt $mmap $gb $ix $nsyms >/dev/stderr
             mv $gb.$nsyms.ct $gb.$nsyms.ct.ix$i
         done
-        echo
     fi
-    echo "$((SECONDS-setup_start))s"
+    echo "($((SECONDS-setup_start))s)"
 fi
 setup_time=$SECONDS
 
@@ -165,23 +164,23 @@ function decrypt() {
     [[ $verbose ]] && echo "decrypting" >/dev/stderr
     if [[ $use_mife ]]; then
         # gen gates
-        [[ $verbose ]] && echo -ne "\trunning gen gates..."
+        [[ $verbose ]] && echo -e "\trunning gen gates..."
         gates_start=$SECONDS
         if [[ -f $dir/naive ]]; then 
             mio mife decrypt $mmap $gb | perl -nE 'say ((split)[1])' > $dir/gates
         else
             rm -f $dir/gates
-            progress 0 $index_len >/dev/stderr
+            progress 0 $index_len
             cp $gb.$nsyms.ct.ix0 $gb.$nsyms.ct
             mio mife decrypt $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
             for (( ix=1; ix < $index_len; ix++ )); do
-                progress $ix $index_len >/dev/stderr
+                progress $ix $index_len
                 cp $gb.$nsyms.ct.ix$ix $gb.$nsyms.ct
                 mio mife decrypt --saved $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
             done
-            echo >/dev/stderr
+            echo
         fi
-        [[ $verbose ]] && echo "$(( SECONDS - gates_start ))s"
+        [[ $verbose ]] && echo -e "\t($(( SECONDS - gates_start ))s)"
 
         [[ $verbose ]] && echo -ne "\trunning gen wires..."
         wires_start=$SECONDS
