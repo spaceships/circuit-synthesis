@@ -30,10 +30,11 @@ data GarblerParams = GarblerParams {
 } deriving (Show, Read)
 
 -- XXX: only fan-out one is secure at the moment
-garbler :: GarblerParams -> Circ2 -> IO (Acirc2, (Circ, Circ))
+garbler :: GarblerParams -> Circ2 -> IO (Acirc2, (Circ, Circ, Bool))
 garbler (GarblerParams {..}) c = runCircuitT $ do
     let numIterations = ceiling (fi (length (garbleableGates c)) / fi gatesPerIndex)
         ixLen = ceiling (fi numIterations ** (1 / fi numIndices))
+        naive = gatesPerIndex >= length (garbleableGates c)
 
     -- seeds to the PRGs. the number of seeds is determined by the number of symbols in c.
     -- each seed corresponds to the inputs for each symbol, and is used to generate their wirelabels
@@ -126,7 +127,7 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
             return (x ++ y ++ z)
 
     gateWLs <-
-        if gatesPerIndex < length (garbleableGates c) then do
+        if not naive then do
             -- relevant wires for this iteration
             let gatePad     = replicate (3*4*securityParam) zero
                 wireBundles = map concat $ chunksOfPad gatesPerIndex gatePad gateWires
@@ -146,10 +147,10 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
             row <- foldM1 (zipWithM circXor) [mx, my, pad ++ z]
             outputs row
 
-    return (g0Save, g2Save) -- the PRGs for evaluation
+    return (g0Save, g2Save, naive) -- the PRGs for evaluation
 
 
-genWiresGen :: GarblerParams -> Circ2 -> Circ -> Circ
+genWiresGen :: GarblerParams -> Circ2 -> Circ -> Acirc2
 genWiresGen (GarblerParams {..}) c g0 = buildCircuit $ do
     (seeds, inputs) <- fmap unzip $ forM [0..nsymbols c-1] $ \sym -> do
         seed  <- symbol securityParam
@@ -159,7 +160,7 @@ genWiresGen (GarblerParams {..}) c g0 = buildCircuit $ do
     secrets <- mapM secret (secretVals c)
 
     combinedSeed <- foldM1 (zipWithM circXor) seeds
-    (delta:rawInpWLs) <- safeChunksOf securityParam <$> subcircuit g0 combinedSeed
+    (delta:rawInpWLs) <- safeChunksOf securityParam <$> subcircuit (toAcirc2 g0) combinedSeed
 
     let deltize f = do { t <- zipWithM circXor f delta; return (t,f) }
     freshInpWLs <- mapM deltize rawInpWLs

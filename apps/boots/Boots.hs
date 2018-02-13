@@ -140,8 +140,11 @@ garble (Garble {..}) = do
     setCurrentDirectory (directory opts)
 
     when (verbose opts) $ printf "creating garbler for %s\n" target
-    (gb, (g0, g2)) <- garbler params c
+    (gb, (g0, g2, naive)) <- garbler params c
     let wiresGen = genWiresGen params c g0
+
+    when (verbose opts) $ putStr "naive: " >> print naive
+    when naive $ writeFile "naive" ""
 
     when (verbose opts) $ putStrLn "writing params"
     writeFile "params" $ show params
@@ -161,7 +164,7 @@ garble (Garble {..}) = do
     Circ.write "c.circ" c
 
     when (verbose opts) $ putStrLn "writing wires-gen.circ"
-    Circ.write "wires-gen.circ" wiresGen
+    Acirc2.write "wires-gen.acirc2" wiresGen
 
     when (verbose opts) $ putStrLn "writing g2.circ"
     Circ.write "g2.circ" g2
@@ -199,9 +202,9 @@ evalTest opts inps = do
         readInts <$> readFile seedName
 
     when (verbose opts) $ putStrLn "reading wires-gen.circ"
-    wiresGen <- Circ.read "wires-gen.circ" :: IO Circ
+    wiresGen <- Acirc2.read "wires-gen.acirc2" :: IO Acirc2
     when (print_info opts) $ do
-        printf "info for wires-gen.circ\n"
+        printf "info for wires-gen.acirc2\n"
         printCircInfo wiresGen
 
     when (length inps /= nsymbols c) $ do
@@ -299,7 +302,7 @@ eval opts = do
         let gate = getGate c ref
 
         when (verbose opts) $ do
-            printf "[eval] gate %d:" (getRef ref)
+            printf "[eval] gate %d: " (getRef ref)
             print gate
 
         val <- case gateGetBase gate of

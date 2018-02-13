@@ -16,8 +16,8 @@ use_existing=""
 verbose=1
 mmap_secparam=""
 fail=""
-gc_secparam=""
-padding=""
+gc_secparam=40
+padding=8
 gates_per_index=1
 info_only=""
 
@@ -44,8 +44,8 @@ while getopts "itl:qfhes:p:g:" opt; do
         q) verbose="";;
         f) fail=1;;
         e) use_existing=1;;
-        s) gc_secparam="-s $OPTARG";;
-        p) padding="-p $OPTARG";;
+        s) gc_secparam=$OPTARG;;
+        p) padding=$OPTARG;;
         g) gates_per_index=$OPTARG;;
         h) usage 0;;
         *) usage 1;;
@@ -77,13 +77,6 @@ done < $circuit
 ntests=${#test_inp[@]}
 
 ################################################################################
-## checks
-
-if [[ $use_mife ]]; then
-    echo "MIFE currently unsupported!!!!"
-fi
-
-################################################################################
 ## protocol
 
 function unary() {
@@ -102,18 +95,21 @@ SECONDS=0
 if [[ ! $use_existing ]]; then 
     echo "creating garbler circuit"
     rm -rf obf
-    eval "./boots garble -g $gates_per_index $circuit $gc_secparam $padding"
+    ./boots garble -i -g $gates_per_index -s $gc_secparam -p $padding $circuit
 fi
 
 dir=$(readlink -f obf)
 gb=$(readlink -f obf/gb.acirc2)
+wires_gen=$(readlink -f obf/wires-gen.acirc2)
 
 total_inputs=$(grep :ninputs $dir/c.circ | perl -nE '/(\d+)/; say $1')
 symlens=($(grep :symlens $dir/c.circ | perl -nE '/((:?\s+\d+)+)/; say $1'))
+nsyms=${#symlens[@]}
 
 if [[ $verbose ]]; then
     echo "ninputs:" $total_inputs
     echo "symlens: ${symlens[@]}"
+    echo "nsyms: $nsyms"
     echo "number of ands:" $(grep -ce "and" $dir/c.circ)
     echo "number of xors:" $(grep -ce "xor" $dir/c.circ)
     [[ $info_only ]] && exit 0
@@ -123,15 +119,17 @@ fi
 if [[ $use_mife ]]; then
     echo "setting up MIFE"
     mio mife setup $mmap $secparam_arg $gb
+    mio mife setup $mmap $secparam_arg $wires_gen
 
-    index_len=$(grep -m1 ":symlens" $gb | perl -nE 'print $1 if /:symlens \d+ (\d+)/')
-    if [[ $index_len ]]; then 
+    # possibly encrypt indices
+    if [[ ! -f "$dir/naive" ]]; then 
+        index_len=$(grep -m1 ":symlens" $gb | perl -nE 'print $1 if /.*(\d+)$/')
         echo -n "encrypting indices ($index_len):"
         for (( i=0; i < $index_len; i++ )); do
             echo -n " $i"
             ix=$(unary $i $index_len)
-            mio mife encrypt $mmap $gb $ix 1 >/dev/stderr
-            mv $gb.1.ct $gb.1.ct.ix$i
+            mio mife encrypt $mmap $gb $ix $nsyms >/dev/stderr
+            mv $gb.$nsyms.ct $gb.$nsyms.ct.ix$i
         done
         echo
     fi
@@ -142,9 +140,11 @@ function encrypt() {
     [[ $verbose ]] && echo "encrypting $2 into slot $1"
     slot=$1
     inp=$2
-    ./boots seed $1
+    ./boots seed $slot
     if [[ $use_mife ]]; then
-        mio mife encrypt $mmap $gb $(< $dir/seed) 0 >/dev/stderr
+        mio mife encrypt $mmap $gb $(< $dir/seed$slot) $slot
+        mio mife encrypt $mmap $wires_gen $(< $dir/seed$slot) $((2*slot))
+        mio mife encrypt $mmap $wires_gen $inp $((2*slot+1))
     else
         echo $inp > "$dir/input$slot"
     fi
@@ -153,26 +153,31 @@ function encrypt() {
 function decrypt() {
     [[ $verbose ]] && echo "decrypting" >/dev/stderr
     if [[ $use_mife ]]; then
-        if [[ $index_len ]]; then 
+        # gen gates
+        if [[ -f $dir/naive ]]; then 
+            mio mife decrypt $mmap $gb | perl -nE 'say ((split)[1])' > $dir/gates
+        else
             rm -f $dir/gates
             progress 0 $index_len >/dev/stderr
-            cp $gb.1.ct.ix0 $gb.1.ct
+            cp $gb.$nsyms.ct.ix0 $gb.$nsyms.ct
             mio mife decrypt $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
-            for (( i=1; i < $index_len; i++ )); do
-                progress $i $index_len >/dev/stderr
-                cp $gb.1.ct.ix$i $gb.1.ct
+            for (( ix=1; ix < $index_len; ix++ )); do
+                progress $ix $index_len >/dev/stderr
+                cp $gb.$nsyms.ct.ix$ix $gb.$nsyms.ct
                 mio mife decrypt --saved $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
             done
             echo >/dev/stderr
-        else
-            mio mife decrypt $mmap $gb | perl -nE 'say ((split)[1])' > $dir/gates
         fi
+
+        # gen wires
+        mio mife decrypt $mmap $wires_gen | 
+            perl -nE "say for unpack '(A$gc_secparam)*', ((split)[1])" > $dir/wires
     else
-        [[ $verbose ]] && echo "running boots test" >/dev/stderr
-        cat $dir/input* | xargs ./boots test >/dev/stderr
+        [[ $verbose ]] && echo "running boots test"
+        cat $dir/input* | xargs ./boots test
     fi
-    [[ $verbose ]] && echo "running boots eval" >/dev/stderr
-    ./boots eval 
+    [[ $verbose ]] && echo "running boots eval"
+    ./boots eval > $dir/result || cat $dir/result 
 }
 
 enc_times=()
@@ -195,14 +200,9 @@ for (( i=0; i<${ntests}; i++)); do
     enc_times+=($SECONDS)
 
     SECONDS=0
-    if ! res=$(decrypt); then
-        echo $res
-        echo "decryption failed, skipping"
-        [[ $fail ]] && exit 1
-        continue
-    fi
+    decrypt
     dec_times+=($SECONDS)
-
+    res=$(cat $dir/result)
     if [[ $res = "${test_out[$i]}" ]]; then
         echo ok
     else
