@@ -20,6 +20,7 @@ gc_secparam=40
 padding=8
 gates_per_index=1
 info_only=""
+max_tests=""
 
 usage () {
     echo "gc-bench.sh: benchmark our scheme"
@@ -33,10 +34,11 @@ usage () {
     echo "  -s NUM      security param for garbler (wire size)"
     echo "  -p NUM      padding size for garbler"
     echo "  -g NUM      gates per index in garbler"
+    echo "  -n NUM      only evaluate NUM tests"
     exit $1
 }
 
-while getopts "itl:qfhes:p:g:" opt; do
+while getopts "itl:qfhes:p:g:n:" opt; do
     case $opt in
         i) info_only=1;;
         t) use_mife="";;
@@ -47,6 +49,7 @@ while getopts "itl:qfhes:p:g:" opt; do
         s) gc_secparam=$OPTARG;;
         p) padding=$OPTARG;;
         g) gates_per_index=$OPTARG;;
+        n) max_tests=$OPTARG;;
         h) usage 0;;
         *) usage 1;;
     esac
@@ -183,7 +186,12 @@ function decrypt() {
 enc_times=()
 dec_times=()
 
-for (( i=0; i<${ntests}; i++)); do
+if [[ $max_tests ]]; then
+    test_cases=$max_tests
+else
+    test_cases=$ntests
+fi
+for (( i = 0; i < $test_cases; i++)); do
     echo "test $((i+1))/$ntests: ${test_inp[$i]} -> ${test_out[$i]}"
 
     # determine what symbols the test inputs go to
