@@ -96,9 +96,10 @@ fi
 
 SECONDS=0
 if [[ ! $use_existing ]]; then 
-    echo "creating garbler circuit"
+    echo -n "creating garbler circuit..."
     rm -rf obf
-    ./boots garble -i -g $gates_per_index -s $gc_secparam -p $padding $circuit
+    ./boots garble -g $gates_per_index -s $gc_secparam -p $padding $circuit
+    echo "${SECONDS}s"
 fi
 
 dir=$(readlink -f obf)
@@ -110,17 +111,21 @@ symlens=($(grep :symlens $dir/c.circ | perl -nE '/((:?\s+\d+)+)/; say $1'))
 nsyms=${#symlens[@]}
 
 if [[ $verbose ]]; then
-    echo "ninputs:" $total_inputs
-    echo "symlens: ${symlens[@]}"
-    echo "nsyms: $nsyms"
-    echo "number of ands:" $(grep -ce "and" $dir/c.circ)
-    echo "number of xors:" $(grep -ce "xor" $dir/c.circ)
+    echo
+    echo "c.circ stats:"
+    echo -e "\tninputs:" $total_inputs
+    echo -e "\tsymlens: ${symlens[@]}"
+    echo -e "\tnsyms: $nsyms"
+    echo -e "\tnumber of ands:" $(grep -ce "and" $dir/c.circ)
+    echo -e "\tnumber of xors:" $(grep -ce "xor" $dir/c.circ)
+    echo
     [[ $info_only ]] && exit 0
 fi
 
 # set up mife and generate indices
 if [[ $use_mife ]]; then
-    echo "setting up MIFE"
+    echo -n "setting up MIFE..."
+    setup_start=$SECONDS
     mio mife setup $mmap $secparam_arg $gb
     mio mife setup $mmap $secparam_arg $wires_gen
 
@@ -136,11 +141,13 @@ if [[ $use_mife ]]; then
         done
         echo
     fi
+    echo "$((SECONDS-setup_start))s"
 fi
 setup_time=$SECONDS
 
 function encrypt() {
-    [[ $verbose ]] && echo "encrypting $2 into slot $1"
+    [[ $verbose ]] && echo -n "encrypting $2 into slot $1..."
+    encrypt_start=$SECONDS
     slot=$1
     inp=$2
     ./boots seed $slot
@@ -151,12 +158,15 @@ function encrypt() {
     else
         echo $inp > "$dir/input$slot"
     fi
+    echo "$((SECONDS-encrypt_start))s"
 }
 
 function decrypt() {
     [[ $verbose ]] && echo "decrypting" >/dev/stderr
     if [[ $use_mife ]]; then
         # gen gates
+        [[ $verbose ]] && echo -ne "\trunning gen gates..."
+        gates_start=$SECONDS
         if [[ -f $dir/naive ]]; then 
             mio mife decrypt $mmap $gb | perl -nE 'say ((split)[1])' > $dir/gates
         else
@@ -171,16 +181,22 @@ function decrypt() {
             done
             echo >/dev/stderr
         fi
+        [[ $verbose ]] && echo "$(( SECONDS - gates_start ))s"
 
-        # gen wires
+        [[ $verbose ]] && echo -ne "\trunning gen wires..."
+        wires_start=$SECONDS
         mio mife decrypt $mmap $wires_gen | 
             perl -nE "say for unpack '(A$gc_secparam)*', ((split)[1])" > $dir/wires
+        [[ $verbose ]] && echo "$(( SECONDS - wires_start ))s"
     else
-        [[ $verbose ]] && echo "running boots test"
+        [[ $verbose ]] && echo -e "\trunning boots test"
         cat $dir/input* | xargs ./boots test
     fi
-    [[ $verbose ]] && echo "running boots eval"
+    
+    eval_start=$SECONDS
+    [[ $verbose ]] && echo -ne "\trunning boots eval..."
     ./boots eval > $dir/result || cat $dir/result 
+    [[ $verbose ]] && echo "$(( SECONDS - eval_start ))s"
 }
 
 enc_times=()
@@ -192,6 +208,7 @@ else
     test_cases=$ntests
 fi
 for (( i = 0; i < $test_cases; i++)); do
+    echo
     echo "test $((i+1))/$ntests: ${test_inp[$i]} -> ${test_out[$i]}"
 
     # determine what symbols the test inputs go to
@@ -212,7 +229,7 @@ for (( i = 0; i < $test_cases; i++)); do
     dec_times+=($SECONDS)
     res=$(cat $dir/result)
     if [[ $res = "${test_out[$i]}" ]]; then
-        echo ok
+        echo "ok (${SECONDS}s)"
     else
         echo "FAILED (got $res)"
         [[ $fail ]] && exit 1
@@ -250,3 +267,5 @@ echo "enc time (avg):  $avg_enc_time s"
 echo "dec time (avg):  $avg_dec_time s"
 echo "key size:        $((keysize/1024)) kb"
 echo "ciphertext size: $((ctsize/1024)) kb"
+echo "gb kappa:        $(mio mife get-kappa $dir/gb.acirc2)"
+echo "wires-gen kappa: $(mio mife get-kappa $dir/wires-gen.acirc2)"
