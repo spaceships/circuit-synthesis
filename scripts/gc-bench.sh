@@ -266,5 +266,8 @@ echo "enc time (avg):  $avg_enc_time s"
 echo "dec time (avg):  $avg_dec_time s"
 echo "key size:        $((keysize/1024)) kb"
 echo "ciphertext size: $((ctsize/1024)) kb"
-echo "gb kappa:        $(mio mife get-kappa $dir/gb.acirc2)"
-echo "wires-gen kappa: $(mio mife get-kappa $dir/wires-gen.acirc2)"
+
+if [[ $use_mife ]]; then 
+    echo "gb kappa:        $(mio mife get-kappa $dir/gb.acirc2)"
+    echo "wires-gen kappa: $(mio mife get-kappa $dir/wires-gen.acirc2)"
+fi

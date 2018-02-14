@@ -12,7 +12,7 @@ import Examples.Goldreich
 import Examples.Simple
 
 import Control.Monad
-import Control.Monad.Trans (liftIO, lift)
+import Control.Monad.Trans
 import Data.Array
 import Data.Array.IO
 import Data.IORef
@@ -22,6 +22,7 @@ import System.Exit
 import System.IO
 import Text.Printf
 import qualified Data.IntMap as IM
+import qualified Data.Map as M
 
 data GarblerParams = GarblerParams {
     securityParam :: Int,
@@ -62,15 +63,7 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
     (g1, _) <- prgGen securityParam (length (garbleableGates c))
 
     -- G2 is used to encrypt garbled rows, wrapper keeps track of which output to use
-    (g2, g2Save) <- do
-        (g,gSave) <- prgGen (securityParam+paddingSize) (2*gatesPerIndex)
-        -- g2 will keep track of what it's been called on, and maintain a counter for them
-        mRef <- liftIO . newIORef $ IM.empty
-        let g' ref wl i = do
-                seen <- fromMaybe 0 . IM.lookup (getRef ref) <$> liftIO (readIORef mRef)
-                liftIO $ modifyIORef mRef (IM.insertWith (+) (getRef ref) 1)
-                (!! (2*seen+i)) <$> g wl
-        return (g',gSave)
+    (g2, g2Save) <- prgGen (securityParam+paddingSize) (2 * maximum (c^..circ_refcount.each))
 
     allWires <- do
         (delta:rawInpWLs) <- g0 combinedSeed
@@ -117,24 +110,29 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
     let pad      = replicate paddingSize zero
         outWires = (replicate securityParam zero, replicate securityParam one)
 
+    count <- fst <$> newRefCounter
+
     allGates <- forM (garbleableGates c) $ \(zref,g) -> do
         let [xref,yref] = gateArgs g
-            get stuff 0 = fst stuff
-            get stuff 1 = snd stuff
+        xoffset <- count xref
+        yoffset <- count yref
+        gx0 <- drop (2*xoffset) <$> g2 (fst (allWires ! xref))
+        gx1 <- drop (2*xoffset) <$> g2 (snd (allWires ! xref))
+        gy0 <- drop (2*yoffset) <$> g2 (fst (allWires ! yref))
+        gy1 <- drop (2*yoffset) <$> g2 (snd (allWires ! yref))
 
         -- randomize the truth table for gate g
         tt <- lift $ randIO $ randomize (permutations 2 [0,1])
 
         -- for each table entry, we need to know whether to encrypt the first or second wirelabel of z
-        fmap concat $ forM tt $ \[i,j] -> do
-            let x = get (allWires ! xref) i
-                y = get (allWires ! yref) j
+        gate <- forM (zip tt (permutations 2 [0,1])) $ \([i,j], [i',j']) -> do
+            let mx = get (gx0, gx1) i !! j'
+                my = get (gy0, gy1) j !! i'
                 z = if isOutputRef c zref
                     then get outWires (gateEval (const undefined) g [i,j])
                     else get (allWires ! zref) (gateEval (const undefined) g [i,j])
-            mx <- g2 xref x j
-            my <- g2 yref y i
             foldM1 (zipWithM circXor) [mx, my, pad ++ z]
+        return (concat gate)
 
     mapM_ saveRef (allGates ^.. each.each)
 
@@ -171,6 +169,10 @@ genWiresGen (GarblerParams {..}) c g0 = buildCircuit $ do
 --------------------------------------------------------------------------------
 -- helpers
 
+get :: (a,a) -> Int -> a
+get stuff 0 = fst stuff
+get stuff 1 = snd stuff
+get _     _ = error "get only defined on 0 and 1!"
 
 isXor :: BoolGate2 -> Bool
 isXor (Bool2Xor _ _) = True
@@ -188,3 +190,13 @@ garbleableGates c = filter garbleMe (gates c)
     garbleMe (ref,g) = not (isXor g) || isOutputRef c ref
 
 fi = fromIntegral
+
+-- used to keep track of which output of G2 to use for encryption
+newRefCounter :: MonadIO m => m ((Ref -> m Int), IORef (IM.IntMap Int))
+newRefCounter = do
+    mRef <- liftIO (newIORef IM.empty)
+    let count ref = do
+            count <- fromMaybe 0 . IM.lookup (getRef ref) <$> liftIO (readIORef mRef)
+            liftIO $ modifyIORef mRef (IM.insertWith (+) (getRef ref) 1)
+            return count
+    return (count, mRef)
