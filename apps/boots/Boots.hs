@@ -25,6 +25,7 @@ import Control.Monad.Loops
 import Data.Array
 import Data.Array.IO
 import Data.IORef
+import Data.Maybe (fromMaybe)
 import Data.Semigroup ((<>))
 import Options.Applicative hiding (Const)
 import System.Directory
@@ -252,13 +253,33 @@ eval opts = do
     setCurrentDirectory (directory opts)
 
     when (verbose opts) $ putStrLn "reading params"
-    params <- readParams
+    GarblerParams {..} <- readParams
 
     when (verbose opts) $ putStrLn "reading c.circ"
     c <- Circ.read "c.circ" :: IO Circ2
 
     when (verbose opts) $ putStrLn "reading g2.circ"
     g2 <- Circ.read "g2.circ" :: IO Circ
+
+
+    openGate <- do
+        mRef <- newIORef IM.empty
+        return $ \xref x yref y g -> do
+            xseen <- fromMaybe 0 . IM.lookup (getRef xref) <$> readIORef mRef
+            yseen <- fromMaybe 0 . IM.lookup (getRef yref) <$> readIORef mRef
+            modifyIORef mRef (IM.insertWith (+) (getRef xref) 1)
+            modifyIORef mRef (IM.insertWith (+) (getRef yref) 1)
+            return $ flip plainEval (x++y++g) $ buildCircuit $ do
+                    x <- inputs securityParam
+                    y <- inputs securityParam
+                    gates <- replicateM 4 $ inputs (securityParam + paddingSize) -- garbled tables
+                    gxs <- safeChunksOf (securityParam+paddingSize) <$> subcircuit g2 x
+                    gys <- safeChunksOf (securityParam+paddingSize) <$> subcircuit g2 y
+                    forM_ (zip gates (permutations 2 [0,1])) $ \(z, [i,j]) -> do
+                        let gx = gxs !! (2*xseen+j)
+                        let gy = gys !! (2*yseen+i)
+                        gz <- foldM1 (zipWithM circXor) [gx, gy, z]
+                        outputs gz
 
     when (print_info opts) $ do
         printf "info for c.circ\n"
@@ -275,16 +296,16 @@ eval opts = do
 
     when (verbose opts) $ putStrLn "reading gates"
     gs <- IM.fromList . zip (map (getRef.fst) (garbleableGates c)) <$>
-          map readInts . safeChunksOf (4*(securityParam params + paddingSize params)) .
+          map readInts . safeChunksOf (4*(securityParam + paddingSize)) .
           concat . lines <$> readFile "gates"
 
     memo  <- newArray_ (0, Ref (nwires c)) :: IO (IOArray Ref [Int])
     stack <- newIORef []
     i     <- newIORef (Ref 0)
 
-    let correctWire w = replicate (paddingSize params) 0 == take (paddingSize params) w
+    let correctWire w = replicate paddingSize 0 == take paddingSize w
 
-        correctOutputWire w = replicate (securityParam params-1) 0 == take (securityParam params-1) w
+        correctOutputWire w = replicate (securityParam-1) 0 == take (securityParam-1) w
 
         backtrack ref = do -- pop stack, move i
             whenM (null <$> readIORef stack) $ do
@@ -311,6 +332,7 @@ eval opts = do
             Just (Secret id) -> return $ secrets ! id
 
             Nothing -> do
+                let [xref,yref] = gateArgs gate
                 [x,y] <- mapM (readArray memo) (gateArgs gate)
 
                 case gate of
@@ -322,9 +344,9 @@ eval opts = do
                             printf "[eval] I tried to read the gate for ref %d, but it wasn't there!!!!\n" (getRef ref)
                             exitFailure
 
-                        let opened  = openGate params g2 x y (gs IM.! getRef ref)
-                            chunks  = safeChunksOf (securityParam params+paddingSize params) opened
-                            choices = map (drop (paddingSize params)) (filter correctWire chunks)
+                        opened <- openGate xref x yref y (gs IM.! getRef ref)
+                        let chunks  = safeChunksOf (securityParam + paddingSize) opened
+                            choices = map (drop paddingSize) (filter correctWire chunks)
 
                         when (verbose opts) $ do
                             mapM_ (putStrLn.showInts) chunks
@@ -365,21 +387,6 @@ eval opts = do
         mapM_ (putStrLn.showInts) res
 
     putStrLn $ unwords (map (show.last) res)
-
-openGate :: GarblerParams -> Circ -> [Int] -> [Int] -> [Int] -> [Int]
-openGate (GarblerParams {..}) g2 x y g = plainEval (opener g2) (x ++ y ++ g)
-  where
-    opener g2 = buildCircuit $ do
-        x <- inputs securityParam
-        y <- inputs securityParam
-        zs <- replicateM 4 $ inputs (securityParam + paddingSize) -- garbled tables
-        let g 0 x = take (securityParam+paddingSize) <$> subcircuit g2 x
-            g 1 x = drop (securityParam+paddingSize) <$> subcircuit g2 x
-        forM_ (zip zs (permutations 2 [0,1])) $ \(z, [i,j]) -> do
-            gx <- g j x
-            gy <- g i y
-            gz <- foldM1 (zipWithM circXor) [gx, gy, z]
-            outputs gz
 
 --------------------------------------------------------------------------------
 

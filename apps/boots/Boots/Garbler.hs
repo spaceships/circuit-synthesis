@@ -63,7 +63,7 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
 
     -- G2 is used to encrypt garbled rows, wrapper keeps track of which output to use
     (g2, g2Save) <- do
-        (g,gSave) <- prgGen (securityParam+paddingSize) (2*maxWidth)
+        (g,gSave) <- prgGen (securityParam+paddingSize) (2*gatesPerIndex)
         -- g2 will keep track of what it's been called on, and maintain a counter for them
         mRef <- liftIO . newIORef $ IM.empty
         let g' ref wl i = do
@@ -110,23 +110,20 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
 
         liftIO (freeze labels)
 
-    mapM_ saveRef (allWires ^.. each.each.each)
-
     -- plaintext outputs for the output gates
     zero <- constant 0
     one  <- constant 1
-    outWires <- do
-        let zs = replicate (securityParam-1) zero
-        return (zs++[zero], zs++[one])
 
-    -- gate wires is a list of lists of the wires needed for the ith garbled gate, in the correct order
-    gateWires <- lift $ randIO $ forM (garbleableGates c) $ \(zref,g) -> do
+    let pad      = replicate paddingSize zero
+        outWires = (replicate securityParam zero, replicate securityParam one)
+
+    allGates <- forM (garbleableGates c) $ \(zref,g) -> do
         let [xref,yref] = gateArgs g
             get stuff 0 = fst stuff
             get stuff 1 = snd stuff
 
         -- randomize the truth table for gate g
-        tt <- randomize (permutations 2 [0,1])
+        tt <- lift $ randIO $ randomize (permutations 2 [0,1])
 
         -- for each table entry, we need to know whether to encrypt the first or second wirelabel of z
         fmap concat $ forM tt $ \[i,j] -> do
@@ -135,27 +132,14 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
                 z = if isOutputRef c zref
                     then get outWires (gateEval (const undefined) g [i,j])
                     else get (allWires ! zref) (gateEval (const undefined) g [i,j])
-            return (x ++ y ++ z)
+            mx <- g2 xref x j
+            my <- g2 yref y i
+            foldM1 (zipWithM circXor) [mx, my, pad ++ z]
 
-    gateWLs <- -- relevant wires for this iteration
-        if not naive then do
-            let gatePad     = replicate (3*4*securityParam) zero
-                wireBundles = map concat $ chunksOfPad gatesPerIndex gatePad gateWires
-            ix <- sigmaProd =<< replicateM numIndices (sigma ixLen) -- the index to evaluate
-            relevantSel <- selectListSigma ix wireBundles
-            return $ safeChunksOf (3*4*securityParam) relevantSel
-        else
-            return gateWires
+    mapM_ saveRef (allGates ^.. each.each)
 
-    let pad = replicate paddingSize zero
-
-    forM_ gateWLs $ \gateWL -> do
-        let ws = safeChunksOf 3 $ safeChunksOf securityParam gateWL
-        forM_ (zip ws (permutations 2 [0,1])) $ \([x,y,z],[i,j]) -> do
-            mx  <- g2 x j
-            my  <- g2 y i
-            row <- foldM1 (zipWithM circXor) [mx, my, pad ++ z]
-            outputs row
+    ix <- sigmaProd =<< replicateM numIndices (sigma ixLen) -- the index to evaluate
+    outputs =<< selectListSigma ix allGates
 
     return (g0Save, g2Save, naive) -- the PRGs for evaluation
 
