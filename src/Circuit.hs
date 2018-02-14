@@ -184,6 +184,7 @@ printCircInfo c = do
                                     . flip IS.member (c^.circ_sigma_vecs)) [0..nsymbols c-1]))
     printf "\tconsts  = %s\n" (unwords (map show (IM.elems (c^.circ_const_vals))))
     printf "\tsecrets = %s\n" (unwords (map show (IM.elems (c^.circ_secret_vals))))
+    printf "\tmax-fanout = %d\n" (maximum (c^..circ_refcount.each))
 
 printTruthTable :: Gate gate => Circuit gate -> IO ()
 printTruthTable c = do

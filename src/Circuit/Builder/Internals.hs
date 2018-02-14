@@ -134,13 +134,13 @@ saveRef :: (Gate g, Monad m) => Ref -> BuilderT g m ()
 saveRef ref = do
     markSave ref
     c <- use bs_circ
-    mapM_ (skipRec c) (gateArgs (getGate c ref))
+    mapM_ skipRec (gateArgs (getGate c ref))
   where
-    skipRec c ref = do
+    skipRec ref = do
         markSkip ref
-        let g = getGate c ref
+        g <- flip getGate ref <$> use bs_circ
         when (gateIsGate g) $
-            mapM_ (skipRec c) (gateArgs g)
+            mapM_ skipRec (gateArgs g)
 
 markSave :: Monad m => Ref -> BuilderT g m ()
 markSave ref = bs_circ . circ_refsave %= IS.insert (getRef ref)
