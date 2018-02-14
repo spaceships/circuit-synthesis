@@ -110,7 +110,7 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
     let pad      = replicate paddingSize zero
         outWires = (replicate securityParam zero, replicate securityParam one)
 
-    count <- fst <$> newRefCounter
+    count <- newRefCounter
 
     allGates <- forM (garbleableGates c) $ \(zref,g) -> do
         let [xref,yref] = gateArgs g
@@ -192,11 +192,10 @@ garbleableGates c = filter garbleMe (gates c)
 fi = fromIntegral
 
 -- used to keep track of which output of G2 to use for encryption
-newRefCounter :: MonadIO m => m ((Ref -> m Int), IORef (IM.IntMap Int))
+newRefCounter :: MonadIO m => m (Ref -> m Int)
 newRefCounter = do
     mRef <- liftIO (newIORef IM.empty)
-    let count ref = do
-            count <- fromMaybe 0 . IM.lookup (getRef ref) <$> liftIO (readIORef mRef)
-            liftIO $ modifyIORef mRef (IM.insertWith (+) (getRef ref) 1)
-            return count
-    return (count, mRef)
+    return $ \ref -> do
+        count <- fromMaybe 0 . IM.lookup (getRef ref) <$> liftIO (readIORef mRef)
+        liftIO $ modifyIORef mRef (IM.insertWith (+) (getRef ref) 1)
+        return count

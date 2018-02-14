@@ -27,6 +27,7 @@ import Data.Array.IO
 import Data.IORef
 import Data.Maybe (fromMaybe)
 import Data.Semigroup ((<>))
+import Lens.Micro.Platform
 import Options.Applicative hiding (Const)
 import System.Directory
 import System.Exit
@@ -261,24 +262,33 @@ eval opts = do
     when (verbose opts) $ putStrLn "reading g2.circ"
     g2 <- Circ.read "g2.circ" :: IO Circ
 
-    (count, countRef) <- newRefCounter
-    openGate <- do
+    (openGate, openerStRef) <- do
+
         let len = securityParam + paddingSize
-        mRef <- newIORef (IM.empty :: IM.IntMap [[Int]])
-        return $ \xref x yref y g -> do
-            m <- readIORef mRef
-            let look ref z = case IM.lookup (getRef ref) m of
+        stRef <- newIORef (IM.empty, IM.empty)
+
+        let count ref = do
+                c <- view (_1.at (getRef ref).non 0) <$> readIORef stRef
+                modifyIORef stRef (over _1 (IM.insertWith (+) (getRef ref) 1))
+                return c
+
+        let look ref z = do
+                m <- snd <$> readIORef stRef
+                case IM.lookup (getRef ref) m of
                     Just stuff -> return stuff
                     Nothing -> do
                         let gzs = safeChunksOf len $ plainEval g2 z
-                        modifyIORef mRef (IM.insert (getRef ref) gzs)
+                        modifyIORef stRef (over _2 (IM.insert (getRef ref) gzs))
                         return gzs
-            gx <- drop . (2*) <$> count xref <*> look xref x
-            gy <- drop . (2*) <$> count yref <*> look yref y
-            let gates = safeChunksOf len g
-            opened <- forM (zip gates (permutations 2 [0,1])) $ \(z, [i,j]) -> do
-                return $ foldr (zipWith xorInt) z [gx !! j, gy !! i]
-            return (concat opened)
+
+        let opener xref x yref y g = do
+                gx <- drop . (2*) <$> count xref <*> look xref x
+                gy <- drop . (2*) <$> count yref <*> look yref y
+                let gates = safeChunksOf len g
+                forM (zip gates (permutations 2 [0,1])) $ \(z, [i,j]) -> do
+                    return $ foldr (zipWith xorInt) z [gx !! j, gy !! i]
+
+        return (opener, stRef)
 
     when (print_info opts) $ do
         printf "info for c.circ\n"
@@ -312,13 +322,13 @@ eval opts = do
             whenM (null <$> readIORef stack) $ do
                 putStrLn "[backtrack: no refs to backtrack to!]"
                 exitFailure
-            (pos, val, oldCount) <- head <$> readIORef stack
+            (pos, val, oldOpenerSt) <- head <$> readIORef stack
             when (verbose opts) $ do
                 printf "[backtrack: popping stack to %d]\n" (getRef pos)
                 putStrLn (showInts val)
             modifyIORef stack tail
             writeIORef i pos
-            writeIORef countRef oldCount
+            writeIORef openerStRef oldOpenerSt
             return val
 
     whileM ((< nwires c) . getRef <$> readIORef i) $ do
@@ -348,11 +358,10 @@ eval opts = do
                             exitFailure
 
                         opened <- openGate xref x yref y (gs IM.! getRef ref)
-                        let chunks  = safeChunksOf (securityParam + paddingSize) opened
-                            choices = map (drop paddingSize) (filter correctWire chunks)
+                        let choices = map (drop paddingSize) (filter correctWire opened)
 
                         when (verbose opts) $ do
-                            mapM_ (putStrLn.showInts) chunks
+                            mapM_ (putStrLn.showInts) opened
 
                         case choices of
                             []  -> backtrack ref
@@ -377,8 +386,8 @@ eval opts = do
                                     when (verbose opts) $ do
                                         printf "[ref %d multiple: %d alternates]\n" (getRef ref) (length ws + 1)
                                         mapM_ putStrLn (map (("    " ++) . showInts) (w:ws))
-                                    countSt <- readIORef countRef
-                                    mapM_ (\val -> modifyIORef stack ((ref,val,countSt):)) ws
+                                    openerSt <- readIORef openerStRef
+                                    mapM_ (\val -> modifyIORef stack ((ref,val,openerSt):)) ws
                                     return w
 
         when (verbose opts) $ do
