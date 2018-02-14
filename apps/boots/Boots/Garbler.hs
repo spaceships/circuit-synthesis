@@ -16,6 +16,7 @@ import Control.Monad.Trans (liftIO, lift)
 import Data.Array
 import Data.Array.IO
 import Data.IORef
+import Data.Maybe (fromMaybe)
 import Lens.Micro.Platform
 import System.Exit
 import System.IO
@@ -34,6 +35,8 @@ garbler :: GarblerParams -> Circ2 -> IO (Acirc2, (Circ, Circ, Bool))
 garbler (GarblerParams {..}) c = runCircuitT $ do
     let numIterations = ceiling (fi (length (garbleableGates c)) / fi gatesPerIndex)
         ixLen = ceiling (fi numIterations ** (1 / fi numIndices))
+
+        -- whether we dont need any indices
         naive = gatesPerIndex >= length (garbleableGates c)
 
     -- seeds to the PRGs. the number of seeds is determined by the number of symbols in c.
@@ -58,8 +61,16 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
     -- G1 is not needed to evaluate the garbled circuit, so we dont save it
     (g1, _) <- prgGen securityParam (length (garbleableGates c))
 
-    -- G2 is used to encrypt garbled rows
-    (g2, g2Save) <- prgGen (securityParam+paddingSize) 2
+    -- G2 is used to encrypt garbled rows, wrapper keeps track of which output to use
+    (g2, g2Save) <- do
+        (g,gSave) <- prgGen (securityParam+paddingSize) (2*maxWidth)
+        -- g2 will keep track of what it's been called on, and maintain a counter for them
+        mRef <- liftIO . newIORef $ IM.empty
+        let g' ref wl i = do
+                seen <- fromMaybe 0 . IM.lookup (getRef ref) <$> liftIO (readIORef mRef)
+                liftIO $ modifyIORef mRef (IM.insertWith (+) (getRef ref) 1)
+                (!! (2*seen+i)) <$> g wl
+        return (g',gSave)
 
     allWires <- do
         (delta:rawInpWLs) <- g0 combinedSeed
@@ -126,9 +137,8 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
                     else get (allWires ! zref) (gateEval (const undefined) g [i,j])
             return (x ++ y ++ z)
 
-    gateWLs <-
+    gateWLs <- -- relevant wires for this iteration
         if not naive then do
-            -- relevant wires for this iteration
             let gatePad     = replicate (3*4*securityParam) zero
                 wireBundles = map concat $ chunksOfPad gatesPerIndex gatePad gateWires
             ix <- sigmaProd =<< replicateM numIndices (sigma ixLen) -- the index to evaluate
@@ -142,8 +152,8 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
     forM_ gateWLs $ \gateWL -> do
         let ws = safeChunksOf 3 $ safeChunksOf securityParam gateWL
         forM_ (zip ws (permutations 2 [0,1])) $ \([x,y,z],[i,j]) -> do
-            mx  <- (!!j) <$> g2 x
-            my  <- (!!i) <$> g2 y
+            mx  <- g2 x j
+            my  <- g2 y i
             row <- foldM1 (zipWithM circXor) [mx, my, pad ++ z]
             outputs row
 

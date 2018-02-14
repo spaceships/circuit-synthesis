@@ -32,12 +32,15 @@ classifier inp = foldl (&&) True (zipWith (<=) xs ys)
   where
     [xs,ys] = split (split inp) : [2][5][8]
 
-substring8_16 : ([16], [8]) -> Bit
-substring8_16 (x,y) = foldl (||) False zs
-  where
-    zs = [ take (x <<< i) == y | i <- [0..7] ]
+/* substring8_16 : ([16], [8]) -> Bit */
+/* substring8_16 (x,y) = foldl (||) False zs */
+/*   where */
+/*     zs = [ take (x <<< i) == y | i <- [0..7] ] */
 
-substring8_32 : ([32], [8]) -> Bit
-substring8_32 (x,y) = foldl (||) False zs
-  where
-    zs = [ take (x <<< i) == y | i <- [0..23] ]
+/* substring8_32 : ([32], [8]) -> Bit */
+/* substring8_32 (x,y) = foldl (||) False zs */
+/*   where */
+/*     zs = [ take (x <<< i) == y | i <- [0..23] ] */
+
+leq128 : [256] -> Bit
+leq128 inp = take `{128} inp < drop `{128} inp
