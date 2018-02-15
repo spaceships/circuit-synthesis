@@ -44,3 +44,6 @@ classifier inp = foldl (&&) True (zipWith (<=) xs ys)
 
 leq128 : [256] -> Bit
 leq128 inp = take `{128} inp < drop `{128} inp
+
+leq256 : [512] -> Bit
+leq256 inp = take `{256} inp < drop `{256} inp

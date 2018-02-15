@@ -32,6 +32,7 @@ export = [ ("simple",    [("simple",)    <$> return simple])
          , ("and-const", [("and-const",) <$> return andConst])
          , ("xor-secret", [("xor-secret",) <$> return xorSecret])
          , ("xor-const", [("xor-const",) <$> return xorConst])
+         , ("negation", [("negation",) <$> return negation])
          ]
 
 xorCirc :: Gate g => Int -> Circuit g
@@ -92,3 +93,6 @@ simpleSym n = buildCircuit $ do
     ys <- symbol n
     zs <- zipWithM circXor xs ys
     output =<< circProd zs
+
+negation :: Gate g => Circuit g
+negation = buildCircuit $ output =<< circNot =<< input

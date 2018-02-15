@@ -174,10 +174,6 @@ get stuff 0 = fst stuff
 get stuff 1 = snd stuff
 get _     _ = error "get only defined on 0 and 1!"
 
-isXor :: BoolGate2 -> Bool
-isXor (Bool2Xor _ _) = True
-isXor _              = False
-
 hasInputArg :: Circ2 -> BoolGate2 -> Bool
 hasInputArg c gate = any isInput $ map (getGate c) (gateArgs gate)
   where

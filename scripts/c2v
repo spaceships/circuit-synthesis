@@ -6,7 +6,7 @@
 set -e
 
 scriptdir=$(dirname $(readlink -f "${BASH_SOURCE[0]}"))
-liberty_file=$scriptdir/../liberties/aig.lib
+liberty_file=$scriptdir/../liberties/gc_cells.lib
 opt_binary=""
 ty="acirc"
 

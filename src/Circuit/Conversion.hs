@@ -1,7 +1,11 @@
+{-# LANGUAGE TupleSections #-}
+
 module Circuit.Conversion where
 
 import Circuit
+import Circuit.Utils
 import qualified Circuit.Builder as B
+import qualified Circuit.Builder.Internals as B
 
 import Control.Monad.State.Strict
 import Lens.Micro.Platform
@@ -47,9 +51,9 @@ class ToCirc2 g where
     toCirc2 :: Circuit g -> Circ2
     toCirc2 = error "no conversion to Circ2 defined"
 
-instance ToCirc2 ArithGate  where toCirc2 = fromAcirc
-instance ToCirc2 ArithGate2 where toCirc2 = fromAcirc . toAcirc
-instance ToCirc2 BoolGate   where toCirc2 = fromCirc
+instance ToCirc2 ArithGate  where toCirc2 = foldNots . fromAcirc
+instance ToCirc2 ArithGate2 where toCirc2 = foldNots . fromAcirc . toAcirc
+instance ToCirc2 BoolGate   where toCirc2 = foldNots
 instance ToCirc2 BoolGate2  where toCirc2 = id
 
 --------------------------------------------------------------------------------
@@ -75,7 +79,10 @@ fromCirc2 c = B.buildCircuit $ do
     ys <- A.listArray (ConstId 0,  ConstId (nconsts c-1))   <$> B.exportConsts c
     zs <- A.listArray (SecretId 0, SecretId (nsecrets c-1)) <$> B.exportSecrets c
     let eval (Bool2Xor _ _) _ [x,y] = B.circAdd x y
-        eval (Bool2And _ _) _ [x,y] = B.circMul x y
+        eval (Bool2And _ negx _ negy) _ [x,y] = do
+            nx <- if negx then B.circNot x else return x
+            ny <- if negy then B.circNot y else return y
+            B.circMul nx ny
         eval (Bool2Base (Input  id)) _ _ = return $ xs A.! id
         eval (Bool2Base (Const  id)) _ _ = return $ ys A.! id
         eval (Bool2Base (Secret id)) _ _ = return $ zs A.! id
@@ -88,8 +95,11 @@ fromAcirc c = B.buildCircuit $ do
     ys <- A.listArray (ConstId 0,  ConstId (nconsts c-1))   <$> B.exportConsts c
     zs <- A.listArray (SecretId 0, SecretId (nsecrets c-1)) <$> B.exportSecrets c
     let eval (ArithAdd _ _) _ [x,y] = B.circAdd x y
-        eval (ArithSub _ _) _ [x,y] = B.circSub x y
         eval (ArithMul _ _) _ [x,y] = B.circMul x y
+        eval (ArithSub x' _) _ [x,y] = case getGate c x' of
+            -- if this is 1-x, then treat it as NOT
+            ArithBase (Const id) | getConst c id == 1 -> B.circNot y
+            _ -> B.circSub x y
         eval (ArithBase (Input  id)) _ _ = return $ xs A.! id
         eval (ArithBase (Const  id)) _ _ = return $ ys A.! id
         eval (ArithBase (Secret id)) _ _ = return $ zs A.! id
@@ -107,4 +117,29 @@ fixInputBits assignments c = B.buildCircuit $ do
             Nothing  -> B.inputBit
             Just val -> B.secret val
     outs <- B.subcircuit' c xs ys zs
+    B.outputs outs
+
+foldNots :: Circ -> Circ2
+foldNots c = B.buildCircuit $ do
+    xs <- A.listArray (InputId 0,  InputId (ninputs c-1)) . concat <$> B.exportSymbols c
+    ys <- A.listArray (ConstId 0,  ConstId (nconsts c-1))   <$> B.exportConsts c
+    zs <- A.listArray (SecretId 0, SecretId (nsecrets c-1)) <$> B.exportSecrets c
+    let eval (BoolXor _ _) _ [(x, nx), (y, ny)] = do
+            z <- B.newGate (Bool2Xor x y)
+            return (z, nx `xor` ny)
+        eval (BoolAnd _ _) _ [(x, nx), (y, ny)] = do
+            z <- B.newGate (Bool2And x nx y ny)
+            return (z, False)
+        eval (BoolNot _) ref [(x, nx)] = return (x, not nx)
+        eval (BoolBase (Input  id)) _ _ = return $ (xs A.! id, False)
+        eval (BoolBase (Const  id)) _ _ = return $ (ys A.! id, False)
+        eval (BoolBase (Secret id)) _ _ = return $ (zs A.! id, False)
+    outPairs <- foldCircM eval c
+
+    outs <- forM outPairs $ \(x, nx) -> do
+        if nx then do
+            B.circNot x
+        else
+            return x
+
     B.outputs outs

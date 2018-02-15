@@ -372,3 +372,15 @@ topoLevels c = nub $ map snd $ M.toAscList $ execState (dfs eval c) M.empty
 
 maxFanOut :: Gate gate => Circuit gate -> Int
 maxFanOut = maximum . toListOf (circ_refcount . each)
+
+isXor :: Gate g => g -> Bool
+isXor g = if not (gateIsGate g)
+             then False
+             else case gateXor 0 0 of
+                    Nothing -> False
+                    Just g' -> if gateArity g /= 2
+                                  then False
+                                  else gateFix g [0,0] == g'
+
+nxors :: Gate g => Circuit g -> Int
+nxors c = length (c^..circ_refmap.each.filtered isXor)

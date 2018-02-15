@@ -74,17 +74,17 @@ data BoolGate =
     | BoolBase !BaseGate
     deriving (Eq, Ord, Show)
 
--- Bool2 has no Not gates
+-- Bool2 has no Not gates, but AND can negate its arguments
 data BoolGate2 =
        Bool2Xor !Ref !Ref
-     | Bool2And !Ref !Ref
+     | Bool2And !Ref Bool !Ref Bool
      | Bool2Base !BaseGate
      deriving (Eq, Ord, Show)
 
-type Acirc = Circuit ArithGate
+type Acirc  = Circuit ArithGate
 type Acirc2 = Circuit ArithGate2
-type Circ = Circuit BoolGate
-type Circ2 = Circuit BoolGate2
+type Circ   = Circuit BoolGate
+type Circ2  = Circuit BoolGate2
 
 ---------------------------------------------------------------------------------------
 -- Gate class allows us to share boilerplate between binary and arithmetic circuits
@@ -105,6 +105,9 @@ class (Eq g, Ord g) => Gate g where
     gateIsGate :: g -> Bool
 
     gateFix :: g -> [Ref] -> g
+
+    gateArity :: g -> Int
+    gateArity g = if gateIsGate g then 2 else 0
 
 instance Gate ArithGate where
     gateArgs (ArithAdd x y)  = [x,y]
@@ -182,30 +185,34 @@ instance Gate BoolGate where
     gateFix (BoolAnd _ _) [x,y] = BoolAnd x y
     gateFix (BoolNot _) [x] = BoolNot x
 
+    gateArity (BoolNot _) = 1
+    gateArity (BoolBase _) = 0
+    gateArity _ = 2
+
 instance Gate BoolGate2 where
     gateArgs (Bool2Xor x y) = [x,y]
-    gateArgs (Bool2And x y) = [x,y]
+    gateArgs (Bool2And x _ y _) = [x,y]
     gateArgs (Bool2Base _) = []
 
     gateGetBase (Bool2Base b) = Just b
     gateGetBase _ = Nothing
 
     gateEval _ (Bool2Xor _ _) [x,y] = b2i (i2b x `xor` i2b y)
-    gateEval _ (Bool2And _ _) [x,y] = b2i (i2b x && i2b y)
+    gateEval _ (Bool2And _ negx _ negy) [x,y] = b2i ((i2b x `xor` negx) && (i2b y `xor` negy))
     gateEval getBase (Bool2Base b) [] = getBase b
 
     gateAdd x y = Bool2Xor x y
     gateSub x y = Bool2Xor x y
-    gateMul x y = Bool2And x y
+    gateMul x y = Bool2And x False y False
     gateXor x y = Just (Bool2Xor x y)
     gateNot _   = Nothing
     gateBase = Bool2Base
 
-    gateIsMul (Bool2And _ _) = True
+    gateIsMul (Bool2And _ _ _ _) = True
     gateIsMul _ = False
 
     gateIsGate (Bool2Base _) = False
     gateIsGate _ = True
 
     gateFix (Bool2Xor _ _) [x,y] = Bool2Xor x y
-    gateFix (Bool2And _ _) [x,y] = Bool2And x y
+    gateFix (Bool2And _ _ _ _) [x,y] = Bool2And x False y False
