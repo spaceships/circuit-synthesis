@@ -21,6 +21,8 @@ padding=8
 gates_per_index=1
 info_only=""
 max_tests=""
+dir="obf"
+progress=1
 
 usage () {
     echo "gc-bench.sh: benchmark our scheme"
@@ -35,10 +37,12 @@ usage () {
     echo "  -p NUM      padding size for garbler"
     echo "  -g NUM      gates per index in garbler"
     echo "  -n NUM      only evaluate NUM tests"
+    echo "  -d DIR      use directory DIR for saving files"
+    echo "  -P          no progress bars"
     exit $1
 }
 
-while getopts "itl:qfhes:p:g:n:" opt; do
+while getopts "itl:qfhes:p:g:n:d:P" opt; do
     case $opt in
         i) info_only=1;;
         t) use_mife="";;
@@ -50,6 +54,8 @@ while getopts "itl:qfhes:p:g:n:" opt; do
         p) padding=$OPTARG;;
         g) gates_per_index=$OPTARG;;
         n) max_tests=$OPTARG;;
+        d) dir=$OPTARG;;
+        P) progress="";;
         h) usage 0;;
         *) usage 1;;
     esac
@@ -98,13 +104,12 @@ SECONDS=0
 if [[ ! $use_existing ]]; then 
     echo -n "creating garbler circuit..."
     rm -rf obf
-    ./boots garble -g $gates_per_index -s $gc_secparam -p $padding $circuit
+    ./boots garble -d $dir -g $gates_per_index -s $gc_secparam -p $padding $circuit
     echo "${SECONDS}s"
 fi
 
-dir=$(readlink -f obf)
-gb=$(readlink -f obf/gb.acirc2)
-wires_gen=$(readlink -f obf/wires-gen.acirc2)
+gb=$(readlink -f $dir/gb.acirc2)
+wires_gen=$(readlink -f $dir/wires-gen.acirc2)
 
 total_inputs=$(grep :ninputs $dir/c.circ | perl -nE '/(\d+)/; say $1')
 symlens=($(grep :symlens $dir/c.circ | perl -nE '/((:?\s+\d+)+)/; say $1'))
@@ -149,7 +154,7 @@ function encrypt() {
     encrypt_start=$SECONDS
     slot=$1
     inp=$2
-    ./boots seed $slot
+    ./boots seed $slot -d $dir
     if [[ $use_mife ]]; then
         mio mife encrypt $mmap $gb $(< $dir/seed$slot) $slot
         mio mife encrypt $mmap $wires_gen $(< $dir/seed$slot) $((2*slot))
@@ -170,11 +175,11 @@ function decrypt() {
             mio mife decrypt $mmap $gb | perl -nE 'say ((split)[1])' > $dir/gates
         else
             rm -f $dir/gates
-            progress 0 $index_len
+            [[ $progress ]] && progress 0 $index_len
             cp $gb.$nsyms.ct.ix0 $gb.$nsyms.ct
             mio mife decrypt $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
             for (( ix=1; ix < $index_len; ix++ )); do
-                progress $ix $index_len
+                [[ $progress ]] && progress $ix $index_len
                 cp $gb.$nsyms.ct.ix$ix $gb.$nsyms.ct
                 mio mife decrypt --saved $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
             done
@@ -189,12 +194,12 @@ function decrypt() {
         [[ $verbose ]] && echo "$(( SECONDS - wires_start ))s"
     else
         [[ $verbose ]] && echo -e "\trunning boots test"
-        cat $dir/input* | xargs ./boots test
+        cat $dir/input* | xargs ./boots test -d $dir
     fi
     
     eval_start=$SECONDS
     [[ $verbose ]] && echo -ne "\trunning boots eval..."
-    ./boots eval > $dir/result || cat $dir/result 
+    ./boots eval -d $dir > $dir/result || cat $dir/result 
     [[ $verbose ]] && echo "$(( SECONDS - eval_start ))s"
 }
 
@@ -266,5 +271,5 @@ echo "enc time (avg):  $avg_enc_time s"
 echo "dec time (avg):  $avg_dec_time s"
 echo "key size:        $((keysize/1024)) kb"
 echo "ciphertext size: $((ctsize/1024)) kb"
-echo "gb kappa:        $(mio mife get-kappa $dir/gb.acirc2)"
-echo "wires-gen kappa: $(mio mife get-kappa $dir/wires-gen.acirc2)"
+echo "gb kappa:        $(mio mife get-kappa $gb)"
+echo "wires-gen kappa: $(mio mife get-kappa $wires_gen)"
