@@ -2,15 +2,12 @@
 
 set -e
 
-function mio() {
-    (cd ../circ-obfuscation; ./mio.sh "$@")
-}
-
 function progress() {
     x=$(( $1+1 ))
     perl -E "\$r=$x/$2; \$n=int(\$r*40); printf(\"        %s%s (%d/%d)\\r\", '#'x\$n, ' 'x(40-\$n), $x, $2);"
 }
 
+mio=../circ-obfuscation/mio.sh
 use_mife=1
 use_existing=""
 verbose=1
@@ -39,10 +36,11 @@ usage () {
     echo "  -n NUM      only evaluate NUM tests"
     echo "  -d DIR      use directory DIR for saving files"
     echo "  -P          no progress bars"
+    echo "  -m FILE     location of mio.sh"
     exit $1
 }
 
-while getopts "itl:qfhes:p:g:n:d:P" opt; do
+while getopts "itl:qfhes:p:g:n:d:Pm:" opt; do
     case $opt in
         i) info_only=1;;
         t) use_mife="";;
@@ -56,6 +54,7 @@ while getopts "itl:qfhes:p:g:n:d:P" opt; do
         n) max_tests=$OPTARG;;
         d) dir=$OPTARG;;
         P) progress="";;
+        m) mio=$OPTARG;;
         h) usage 0;;
         *) usage 1;;
     esac
@@ -131,8 +130,8 @@ fi
 if [[ $use_mife ]]; then
     echo "setting up MIFE"
     setup_start=$SECONDS
-    mio mife setup --npowers 5 $mmap $secparam_arg $gb
-    mio mife setup --npowers 5 $mmap $secparam_arg $wires_gen
+    $mio mife setup --npowers 5 $mmap $secparam_arg $gb
+    $mio mife setup --npowers 5 $mmap $secparam_arg $wires_gen
 
     # possibly encrypt indices
     if [[ ! -f "$dir/naive" ]]; then 
@@ -141,7 +140,7 @@ if [[ $use_mife ]]; then
         for (( i=0; i < $index_len; i++ )); do
             echo -n " $i"
             ix=$(unary $i $index_len)
-            mio mife encrypt $mmap $gb $ix $nsyms >/dev/stderr
+            $mio mife encrypt $mmap $gb $ix $nsyms >/dev/stderr
             mv $gb.$nsyms.ct $gb.$nsyms.ct.ix$i
         done
     fi
@@ -156,9 +155,9 @@ function encrypt() {
     inp=$2
     ./boots seed $slot -d $dir
     if [[ $use_mife ]]; then
-        mio mife encrypt $mmap $gb $(< $dir/seed$slot) $slot
-        mio mife encrypt $mmap $wires_gen $(< $dir/seed$slot) $((2*slot))
-        mio mife encrypt $mmap $wires_gen $inp $((2*slot+1))
+        $mio mife encrypt $mmap $gb $(< $dir/seed$slot) $slot
+        $mio mife encrypt $mmap $wires_gen $(< $dir/seed$slot) $((2*slot))
+        $mio mife encrypt $mmap $wires_gen $inp $((2*slot+1))
     else
         echo $inp > "$dir/input$slot"
     fi
@@ -172,16 +171,16 @@ function decrypt() {
         [[ $verbose ]] && echo -e "\trunning gen gates..."
         gates_start=$SECONDS
         if [[ -f $dir/naive ]]; then 
-            mio mife decrypt $mmap $gb | perl -nE 'say ((split)[1])' > $dir/gates
+            $mio mife decrypt $mmap $gb | perl -nE 'say ((split)[1])' > $dir/gates
         else
             rm -f $dir/gates
             [[ $progress ]] && progress 0 $index_len
             cp $gb.$nsyms.ct.ix0 $gb.$nsyms.ct
-            mio mife decrypt $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
+            $mio mife decrypt $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
             for (( ix=1; ix < $index_len; ix++ )); do
                 [[ $progress ]] && progress $ix $index_len
                 cp $gb.$nsyms.ct.ix$ix $gb.$nsyms.ct
-                mio mife decrypt --saved $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
+                $mio mife decrypt --saved $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
             done
             echo
         fi
@@ -189,7 +188,7 @@ function decrypt() {
 
         [[ $verbose ]] && echo -ne "\trunning gen wires..."
         wires_start=$SECONDS
-        mio mife decrypt $mmap $wires_gen | 
+        $mio mife decrypt $mmap $wires_gen | 
             perl -nE "say for unpack '(A$gc_secparam)*', ((split)[1])" > $dir/wires
         [[ $verbose ]] && echo "$(( SECONDS - wires_start ))s"
     else
@@ -271,5 +270,5 @@ echo "enc time (avg):  $avg_enc_time s"
 echo "dec time (avg):  $avg_dec_time s"
 echo "key size:        $((keysize/1024)) kb"
 echo "ciphertext size: $((ctsize/1024)) kb"
-echo "gb kappa:        $(mio mife get-kappa $gb)"
-echo "wires-gen kappa: $(mio mife get-kappa $wires_gen)"
+echo "gb kappa:        $($mio mife get-kappa $gb)"
+echo "wires-gen kappa: $($mio mife get-kappa $wires_gen)"
