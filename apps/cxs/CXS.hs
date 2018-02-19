@@ -195,6 +195,7 @@ circuitMain opts outputName inputC ts = do
     let c = c' & circ_symlen .~ old_symlen
 
     when (show_info opts) $ do
+        maybe (return ()) (printf "info for %s:\n") outputName
         printCircInfo c
 
     ts <- case ntests opts of

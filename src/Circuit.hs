@@ -175,8 +175,6 @@ genTest c
 
 printCircInfo :: Gate g => Circuit g -> IO ()
 printCircInfo c = do
-    printf "\tcircuit info\n"
-    printf "\t============\n"
     printf "\tninputs=%d noutputs=%d nconsts=%d nsecrets=%d\n" (ninputs c) (noutputs c) (nconsts c) (nsecrets c)
     printf "\tnwires=%d ngates=%d depth=%d degree=%d\n" (nwires c) (ngates c) (depth c) (circDegree c)
     printf "\tsymlens = %s\n" (unwords (map show (IM.elems (c^.circ_symlen))))
