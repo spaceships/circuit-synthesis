@@ -19,6 +19,7 @@ import qualified Circuit.Format.Graphviz as Graphviz
 import qualified Examples.AES             as AES
 import qualified Examples.ApplebaumRaykov as AR
 import qualified Examples.Comparison      as Comparison
+import qualified Examples.DNF             as DNF
 import qualified Examples.Goldreich       as Goldreich
 import qualified Examples.GGM             as GGM
 import qualified Examples.Point           as Point
@@ -104,6 +105,7 @@ chooseMode mode = do
         Compile "acirc" name opts -> runExportedRoutine "acirc" name opts
                 [ Point.export
                 , AR.export
+                , DNF.export
                 , Comparison.export
                 , GGM.export
                 , Goldreich.export
@@ -113,12 +115,14 @@ chooseMode mode = do
 
         Compile "acirc2" name opts -> runExportedRoutine "acirc2" name opts
                 [ Goldreich.export :: Export Acirc2
+                , DNF.export
                 , Simple.export
                 , Substring.export
                 ]
 
         Compile "circ" name opts -> runExportedRoutine "circ" name opts
                 [ Substring.export :: Export Circ
+                , DNF.export
                 , Simple.export
                 ]
 

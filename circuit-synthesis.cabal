@@ -31,6 +31,7 @@ library
                         , Examples.AES
                         , Examples.ApplebaumRaykov
                         , Examples.Comparison
+                        , Examples.DNF
                         , Examples.Goldreich
                         , Examples.GGM
                         , Examples.Point
