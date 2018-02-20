@@ -6,7 +6,7 @@
 set -e
 
 scriptdir=$(dirname $(readlink -f "${BASH_SOURCE[0]}"))
-liberty_file=$scriptdir/../liberties/aig.lib
+liberty_file=$scriptdir/../liberties/gc_cells.lib
 opt_binary=""
 ty="acirc"
 
@@ -102,6 +102,6 @@ yosys yosys.ys -q
 if [ "$opt_binary" ]; then
     cat $func.out.v > $dir/$func.c2v.netlist
 else
-    mv $func.out.v $func.netlist
+    $scriptdir/resolve-netlist-aliases.pl $func.out.v > $func.netlist
     $cxs read $func.netlist -o $dir/$func.c2v.$ty -k "$fixed_input"
 fi

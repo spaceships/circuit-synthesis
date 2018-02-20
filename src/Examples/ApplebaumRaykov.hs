@@ -14,7 +14,6 @@ import Examples.Goldreich
 
 import Control.Monad
 import Control.Monad.Trans
-import Data.List.Split
 
 export :: [(String, [IO (String, Acirc)])]
 export = [("applebaum", [ ("f1_16"    ,) <$> f1 16 1
@@ -89,7 +88,7 @@ genExt :: Int -> Int -> IO Acirc
 genExt ninputs noutputs = buildCircuitT $ do
     key <- lift $ randKeyIO (ninputs * noutputs)
     x <- inputs ninputs
-    a <- chunksOf ninputs <$> secrets key
+    a <- safeChunksOf ninputs <$> secrets key
     z <- matrixTimesVect a x
     outputs z
 
@@ -106,8 +105,8 @@ f3 n m = buildCircuitT $ do
     mapper <- lift $ loadMapper ninputs
     kf <- secrets keyBits
     xs <- subcircuit mapper =<< inputs ninputs
-    zs <- forM (chunksOf (l^(2 :: Int)) xs) $ \x -> do
-        bs <- selects kf (chunksOf l x)
+    zs <- forM (safeChunksOf (l^(2 :: Int)) xs) $ \x -> do
+        bs <- selects kf (safeChunksOf l x)
         xorMaj bs
     ws <- subcircuit ext zs
     outputs ws

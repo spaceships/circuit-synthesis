@@ -61,7 +61,6 @@ library
         parallel-io           >= 0.3.3 && < 0.4,
         parsec                >= 3.1.11 && < 3.2,
         process               >= 1.6.2 && < 1.7,
-        split                 >= 0.2.3 && < 0.3,
         text                  >= 1.2.2 && < 1.3,
         text-show             >= 3.7.1 && < 3.8,
         vector                >= 0.12.0 && < 0.13,
@@ -81,8 +80,8 @@ executable cxs
                         , filepath
                         , microlens-platform
                         , optparse-applicative
-                        , split
                         , text
+                        , split
     ghc-options: -O3 -freverse-errors
 
 executable boots
@@ -99,7 +98,6 @@ executable boots
                         , microlens-platform
                         , monad-loops
                         , optparse-applicative
-                        , split
                         , text
                         , mtl
     ghc-options: -O3 -freverse-errors

@@ -17,7 +17,6 @@ import Crypto.Random.DRBG (CtrDRBG)
 import Crypto.Util (bs2i)
 import Data.Bits ((.&.), shift, Bits)
 import Data.Binary.Get (runGet, getWord64host)
-import Data.List.Split (chunksOf)
 import Text.Printf
 import GHC.Types
 import System.IO
@@ -157,7 +156,7 @@ foldTreeM f xs  = do
     let g ys = if length ys == 1
                   then return (head ys)
                   else f (ys!!0) (ys!!1)
-    zs <- Prelude.mapM g (chunksOf 2 xs)
+    zs <- Prelude.mapM g (safeChunksOf 2 xs)
     foldTreeM f zs
 
 xor :: Bool -> Bool -> Bool

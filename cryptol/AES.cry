@@ -311,7 +311,7 @@ foldl : {a, b, n} (fin n) => (a -> b -> a) -> a -> [n]b -> a
 foldl f acc xs = ys ! 0
   where ys = [acc] # [f a x | a <- ys | x <- xs]
 
-sum : {a,n} (fin n, Arith a) => [n]a -> a
+/* sum : {a,n} (fin n, Arith a) => [n]a -> a */
 sum xs = foldl (+) zero xs
 
 rachaelSubByte : GF28 -> GF28

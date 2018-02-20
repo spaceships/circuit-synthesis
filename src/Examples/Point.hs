@@ -6,7 +6,6 @@ import Circuit hiding (ninputs, symlen)
 import Circuit.Builder
 import Circuit.Utils
 
-import Data.List.Split (chunksOf)
 import Control.Monad
 import Control.Monad.Trans (lift)
 
@@ -19,7 +18,7 @@ point ninputs symlen = buildCircuitT $ do
     thePoint <- lift $ randIntegerModIO q
     let nbits = numBits q
         bs    = num2Bits nbits thePoint
-        ixs   = map bits2Num $ chunksOf (nbits `div` ninputs) bs
+        ixs   = map bits2Num $ safeChunksOf (nbits `div` ninputs) bs
         sels  = map (toSel symlen) ixs
     xs <- replicateM ninputs (symbol symlen)
     ys <- mapM secrets sels

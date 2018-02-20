@@ -10,7 +10,6 @@ import Circuit.Utils
 
 import Control.Monad
 import Control.Monad.Trans
-import Data.List.Split
 
 export :: Gate g => [(String, [IO (String, Circuit g)])]
 export =
@@ -85,7 +84,7 @@ choose ix xs = do
 ggmStep :: (Gate g, Monad m) => Circuit g -> [Ref] -> [Ref] -> BuilderT g m [Ref]
 ggmStep prg seed choice = do
     let n = length seed
-    ws <- chunksOf n <$> subcircuit prg seed
+    ws <- safeChunksOf n <$> subcircuit prg seed
     choose choice ws
 
 ggm :: Gate g => Int -> Int -> Int -> IO (Circuit g)
@@ -94,7 +93,7 @@ ggm inputLength keyLength stretch = buildCircuitT $ do
     keyBits <- lift $ randKeyIO keyLength
     xs   <- inputs inputLength
     seed <- secrets keyBits
-    res  <- foldM (ggmStep g) seed (chunksOf (numBits stretch) xs)
+    res  <- foldM (ggmStep g) seed (safeChunksOf (numBits stretch) xs)
     outputs res
 
 ggmNoPrg :: Gate g => Int -> Int -> Int -> IO (Circuit g)
@@ -105,7 +104,7 @@ ggmNoPrg inputLength keyLength stretch = buildCircuitT $ do
     keyBits <- lift $ randKeyIO keyLength
     xs   <- inputs inputLength
     seed <- secrets keyBits
-    res  <- foldM (ggmStep g) seed (chunksOf (numBits stretch) xs)
+    res  <- foldM (ggmStep g) seed (safeChunksOf (numBits stretch) xs)
     outputs res
 
 --------------------------------------------------------------------------------
@@ -114,7 +113,7 @@ ggmNoPrg inputLength keyLength stretch = buildCircuitT $ do
 ggmStepR :: (Gate g, Monad m) => Circuit g -> [Ref] -> [Ref] -> BuilderT g m [Ref]
 ggmStepR prg seed choice = do
     let n = length seed
-    xs <- chunksOf n <$> subcircuit prg seed
+    xs <- safeChunksOf n <$> subcircuit prg seed
     when (length choice /= length xs) $ error "[ggmStepR] wrong input length"
     ws <- zipWithM (\b x -> mapM (circMul b) x) choice xs
     mapM circSum (transpose ws)
