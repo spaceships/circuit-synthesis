@@ -19,11 +19,13 @@ import qualified Data.IntMap as IM
 import qualified Control.Monad.State.Strict as S
 
 type Wire = Int
+data NetlistOutput = OutputWire Wire
+                   | Passthrough Int -- passthrough input
 
 data NetlistSt = NetlistSt
-               { _nl_gates   :: IM.IntMap (String, [Wire])
-               , _nl_inputs  :: IM.IntMap Wire
-               , _nl_outputs :: IM.IntMap Wire
+               { _nl_gates    :: IM.IntMap (String, [Wire])
+               , _nl_inputs   :: IM.IntMap Wire
+               , _nl_outputs  :: IM.IntMap NetlistOutput
                }
 makeLenses ''NetlistSt
 
@@ -48,9 +50,12 @@ buildNetlist :: Gate g => NetlistSt -> Circuit g
 buildNetlist st = flip S.evalState IM.empty $ buildCircuitT $ do
     inpRefs <- B.inputs (length (st^.nl_inputs))
     lift $ S.put (IM.fromList (zip (IM.elems (st^.nl_inputs)) inpRefs))
-    outRefs <- mapM buildRec (IM.elems (st^.nl_outputs))
+    outRefs <- mapM (build inpRefs) (IM.elems (st^.nl_outputs))
     B.outputs outRefs
   where
+    build _ (OutputWire w) = buildRec w
+    build inps (Passthrough i) = return (inps !! i)
+
     buildRec :: Gate g => Int -> BuilderT g (S.State (IM.IntMap Ref)) Ref
     buildRec !w = lift (use (at w)) >>= \case
         Just ref -> return ref
@@ -58,9 +63,10 @@ buildNetlist st = flip S.evalState IM.empty $ buildCircuitT $ do
             let (ty,args) = st ^. nl_gates . at w . non (error ("[buildNetlist] missing wire " ++ show w))
             args' <- mapM buildRec args
             ref <- case ty of
-                "AND" -> circMul (args'!!0) (args'!!1)
-                "XOR" -> circXor (args'!!0) (args'!!1)
-                "NOT" -> circNot (args'!!0)
+                "AND"  -> circMul (args'!!0) (args'!!1)
+                "XOR"  -> circXor (args'!!0) (args'!!1)
+                "NOT"  -> circNot (args'!!0)
+                "BUFF" -> return (args'!!0)
             lift (at w ?= ref)
             return ref
 
@@ -117,7 +123,7 @@ binaryGate = do
 
 unaryGate :: ParseNetlist g ()
 unaryGate = do
-    ty <- string "NOT"
+    ty <- string "NOT" <|> string "BUFF" <?> "unkonwn gate"
     spaces
     char '_'
     wire <- int
@@ -133,7 +139,7 @@ assignment :: ParseNetlist g ()
 assignment = do
     string "assign"
     spaces
-    input <|> output <?> "unknown assignment"
+    input <|> try output <|> inputToOutput <?> "unknown assignment"
   where
     input = do
         char '_'
@@ -148,4 +154,11 @@ assignment = do
         string " = _"
         w <- int
         string "_;"
-        modifySt $ nl_outputs . at i ?~ w
+        modifySt $ nl_outputs . at i ?~ OutputWire w
+    inputToOutput = do
+        string "po"
+        out <- int
+        string " = pi"
+        inp <- int
+        char ';'
+        modifySt $ nl_outputs . at out ?~ Passthrough inp
