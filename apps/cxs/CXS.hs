@@ -109,7 +109,7 @@ chooseMode mode = do
                 , Comparison.export
                 , GGM.export
                 , Goldreich.export
-                , AES.export
+                , AES.exportAcirc
                 , Simple.export
                 ]
 
@@ -118,6 +118,7 @@ chooseMode mode = do
                 , DNF.export
                 , Simple.export
                 , Substring.export
+                , AES.exportAcirc2
                 ]
 
         Compile "circ" name opts -> runExportedRoutine "circ" name opts

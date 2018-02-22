@@ -32,6 +32,14 @@ export = [ ("simple",    [("simple",)    <$> return simple])
          , ("and-const", [("and-const",) <$> return andConst])
          , ("xor-secret", [("xor-secret",) <$> return xorSecret])
          , ("xor-const", [("xor-const",) <$> return xorConst])
+         , ("andtree", [ ("andtree8",) <$> return (andTree 8)
+                       , ("andtree16",) <$> return (andTree 16)
+                       , ("andtree32",) <$> return (andTree 32)
+                       , ("andtree64",) <$> return (andTree 64)
+                       , ("andtree128",) <$> return (andTree 128)
+                       , ("andtree256",) <$> return (andTree 256)
+                       , ("andtree512",) <$> return (andTree 512)
+                       ])
          ]
 
 xorCirc :: Gate g => Int -> Circuit g
@@ -92,3 +100,11 @@ simpleSym n = buildCircuit $ do
     ys <- symbol n
     zs <- zipWithM circXor xs ys
     output =<< circProd zs
+
+andTree :: Gate g => Int -> Circuit g
+andTree n = buildCircuit $ do
+    xs <- symbol n
+    ys <- symbol n
+    zs <- symbol n
+    ws <- zipWithM circXor xs =<< zipWithM circXor ys zs
+    output =<< circProd ws

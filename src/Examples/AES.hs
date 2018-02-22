@@ -30,7 +30,7 @@ exportAcirc =   [ ("aes", [ ("aes1r"      ,) <$> buildAesRound 128
                 ]
 
 exportAcirc2 :: [(String, [IO (String, Acirc2)])]
-exportAcirc2 =  [ ("aes", [ ("aes1r",) <$> buildAesRoundA2 128 ])]
+exportAcirc2 =  [ ("aes1r", [ ("aes1r",) <$> buildAesRoundA2 128 ])]
 
 sbox :: V.Vector (V.Vector Bool)-- {{{
 sbox =

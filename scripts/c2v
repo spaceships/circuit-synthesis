@@ -103,5 +103,5 @@ if [ "$opt_binary" ]; then
     cat $func.out.v > $dir/$func.c2v.netlist
 else
     $scriptdir/resolve-netlist-aliases.pl $func.out.v > $func.netlist
-    $cxs read $func.netlist -o $dir/$func.c2v.$ty -k "$fixed_input"
+    $cxs read $func.netlist -i -o $dir/$func.c2v.$ty -k "$fixed_input"
 fi

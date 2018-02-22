@@ -30,6 +30,21 @@ dnf256 = dnf
 dnf3 : {a} (fin a) => [a] -> [a] -> [a] -> Bit
 dnf3 xs ys zs = foldl (||) False [ x && y && z | x <- xs | y <- ys | z <- zs ]
 
+dnf3_4096 : [4096*3] -> Bit
+dnf3_4096 inp = dnf3 xs ys zs
+  where
+    [xs,ys,zs] = split inp : [3][4096]
+
+dnf3_2048 : [2048*3] -> Bit
+dnf3_2048 inp = dnf3 xs ys zs
+  where
+    [xs,ys,zs] = split inp : [3][2048]
+
+dnf3_1024 : [1024*3] -> Bit
+dnf3_1024 inp = dnf3 xs ys zs
+  where
+    [xs,ys,zs] = split inp : [3][1024]
+
 dnf3_512 : [512*3] -> Bit
 dnf3_512 inp = dnf3 xs ys zs
   where
