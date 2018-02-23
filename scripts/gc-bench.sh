@@ -103,7 +103,7 @@ SECONDS=0
 if [[ ! $use_existing ]]; then 
     echo -n "creating garbler circuit..."
     rm -rf obf
-    ./boots garble -d $dir -g $gates_per_index -s $gc_secparam -p $padding $circuit
+    ./boots garble -i -d $dir -g $gates_per_index -s $gc_secparam -p $padding $circuit
     echo "${SECONDS}s"
 fi
 

@@ -15,6 +15,8 @@ export = [ ("3dnf", [ ("3dnf_8",) <$> return (dnf 8)
                     , ("3dnf_128",) <$> return (dnf 128)
                     , ("3dnf_256",) <$> return (dnf 256)
                     , ("3dnf_512",) <$> return (dnf 512)
+                    , ("3dnf_1024",) <$> return (dnf 1024)
+                    , ("3dnf_2048",) <$> return (dnf 2048)
                     ])]
 
 
