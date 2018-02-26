@@ -118,6 +118,7 @@ chooseMode mode = do
                 , DNF.export
                 , Simple.export
                 , Substring.export
+                , GGM.export
                 , AES.exportAcirc2
                 ]
 
