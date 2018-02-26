@@ -156,7 +156,7 @@ foldTreeM f xs  = do
     let g ys = if length ys == 1
                   then return (head ys)
                   else f (ys!!0) (ys!!1)
-    zs <- Prelude.mapM g (safeChunksOf 2 xs)
+    zs <- Prelude.mapM g (chunksOf 2 xs)
     foldTreeM f zs
 
 xor :: Bool -> Bool -> Bool
@@ -329,6 +329,10 @@ pairsOf :: [a] -> [(a,a)]
 pairsOf [] = []
 pairsOf (x:y:xs) = (x,y) : pairsOf xs
 pairsOf _ = error "[pairsOf] odd number of inputs!"
+
+chunksOf :: Int -> [a] -> [[a]]
+chunksOf _ [] = []
+chunksOf n xs = take n xs : chunksOf n (drop n xs)
 
 safeChunksOf :: Int -> [a] -> [[a]]
 safeChunksOf _ [] = []

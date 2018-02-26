@@ -30,7 +30,7 @@ data GarblerParams = GarblerParams {
 } deriving (Show, Read)
 
 -- XXX: only fan-out one is secure at the moment
-garbler :: GarblerParams -> Circ2 -> IO (Acirc2, (Circ, Circ, Bool))
+garbler :: (Gate g, ToCirc g) => GarblerParams -> Circ2 -> IO (Circuit g, (Circ, Circ, Bool))
 garbler (GarblerParams {..}) c = runCircuitT $ do
     let numIterations = ceiling (fi (length (garbleableGates c)) / fi gatesPerIndex)
         ixLen = ceiling (fi numIterations ** (1 / fi numIndices))
