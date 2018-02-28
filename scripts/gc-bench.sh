@@ -261,14 +261,18 @@ function sizes() {
     echo $total
 }
 
-keysize=$(sizes $dir/*.circ $dir/*.acirc2 $dir/*.1.ct.ix* $dir/*.ek)
-ctsize=$(sizes $dir/wires $dir/*.0.ct)
+eksize=$(sizes $dir/*.circ $dir/*.acirc2 $dir/*.ek)
+if [[ ! -f $dir/naive ]]; then 
+    eksize=$(( eksize + $(sizes $dir/*.$nsyms.ct.ix*) ))
+fi
+sksize=$(sizes $dir/*.sk)
+ctsize=$(sizes $dir/gb.acirc2.0.ct $dir/wires-gen.acirc2.0.ct $dir/wires-gen.acirc2.1.ct)
 
 echo
 echo "setup time:      $setup_time s"
 echo "enc time (avg):  $avg_enc_time s"
 echo "dec time (avg):  $avg_dec_time s"
-echo "key size:        $((keysize/1024)) kb"
+echo "eval key size:   $((eksize/1024)) kb"
 echo "ciphertext size: $((ctsize/1024)) kb"
 echo "gb kappa:        $($mio mife get-kappa $gb)"
 echo "wires-gen kappa: $($mio mife get-kappa $wires_gen)"
