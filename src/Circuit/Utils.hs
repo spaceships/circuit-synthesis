@@ -6,12 +6,8 @@
 
 module Circuit.Utils where
 
-import Control.DeepSeq (deepseq)
 import Control.Monad
-import Control.Monad.Parallel
 import Control.Monad.State.Strict
-import Control.Parallel
-import Control.Parallel.Strategies
 import Crypto.Random (newGenIO, genBytes, splitGen)
 import Crypto.Random.DRBG (CtrDRBG)
 import Crypto.Util (bs2i)
@@ -44,15 +40,6 @@ sumMod xs q = foldl (\x y -> addMod x y q) 0 xs
 
 prodMod :: [Integer] -> Integer -> Integer
 prodMod xs q = foldl (\x y -> mulMod x y q) 1 xs
-
-pmap :: NFData b => (a -> b) -> [a] -> [b]
-pmap = parMap rdeepseq
-
-plist :: NFData n => [n] -> [n]
-plist = withStrategy (parList rdeepseq)
-
-forceM :: (Monad m, NFData a) => a -> m ()
-forceM x = x `deepseq` return ()
 
 b2i :: Integral a => Bool -> a
 b2i False = 0
@@ -174,13 +161,6 @@ xorInt x y = b2i (i2b x `xor` i2b y)
 type Rng  = CtrDRBG
 type Rand = State Rng
 
-instance MonadParallel Rand where
-    bindM2 f a b = do
-        [r1, r2] <- splitRand 2
-        let (x,_) = runRand a r1
-            (y,_) = x `par` runRand b r2
-        f x y
-
 runRand :: Rand a -> Rng -> (a, Rng)
 runRand = runState
 
@@ -271,29 +251,6 @@ randIntMod q = flip mod q <$> randInt
 
 randIntModIO :: Int -> IO Int
 randIntModIO q = randIO (randIntMod q)
-
-randPrimes :: Int -> Int -> Rand [Integer]
-randPrimes nprimes nbits = do
-    rngs <- splitRand nprimes
-    let ps = pmap (GMP.nextPrimeInteger . fst . flip randInteger_ nbits) rngs
-    return ps
-
-randInv :: Integer -> Rand (Integer, Integer)
-randInv q = try (100 :: Int)
-  where
-    try 0 = error "[randInv] ran out of tries!"
-    try n = do
-        x <- randIntegerMod q
-        let xinv = invMod x q
-        if x == 0 || xinv == 0
-            then try (n-1)
-            else return (x, xinv)
-
-randInvs :: Int -> Integer -> Rand [(Integer, Integer)]
-randInvs ninvs modulus = do
-    rngs <- splitRand ninvs
-    let invs = pmap fst (map (runRand (randInv modulus)) rngs)
-    return invs
 
 splitRand :: Int -> Rand [Rng]
 splitRand 0 = return []
