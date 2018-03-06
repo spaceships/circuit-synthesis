@@ -30,7 +30,7 @@ data GarblerParams = GarblerParams {
 } deriving (Show, Read)
 
 -- XXX: only fan-out one is secure at the moment
-garbler :: (Gate g, ToCirc g) => GarblerParams -> Circ2 -> IO (Circuit g, (Circ, Circ, Bool))
+garbler :: (Gate g, ToCirc g) => GarblerParams -> Circ2 -> IO (Circuit g, (Circ, Circ))
 garbler (GarblerParams {..}) c = runCircuitT $ do
     let numIterations = ceiling (fi (length (garbleableGates c)) / fi gatesPerIndex)
         ixLen = ceiling (fi numIterations ** (1 / fi numIndices))
@@ -126,16 +126,13 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
                     else get (allWires ! zref) (gateEval (const undefined) g [i,j])
             return (x ++ y ++ z)
 
-    gateWLs <-
-        if not naive then do
-            -- relevant wires for this iteration
-            let gatePad     = replicate (3*4*securityParam) zero
-                wireBundles = map concat $ chunksOfPad gatesPerIndex gatePad gateWires
-            ix <- sigmaProd =<< replicateM numIndices (sigma ixLen) -- the index to evaluate
-            relevantSel <- selectListSigma ix wireBundles
-            return $ safeChunksOf (3*4*securityParam) relevantSel
-        else
-            return gateWires
+    gateWLs <- do
+        -- relevant wires for this iteration
+        let gatePad     = replicate (3*4*securityParam) zero
+            wireBundles = map concat $ chunksOfPad gatesPerIndex gatePad gateWires
+        ix <- sigmaProd =<< replicateM numIndices (sigma ixLen) -- the index to evaluate
+        relevantSel <- selectListSigma ix wireBundles
+        return $ safeChunksOf (3*4*securityParam) relevantSel
 
     let pad = replicate paddingSize zero
 
@@ -147,7 +144,7 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
             row <- foldM1 (zipWithM circXor) [mx, my, pad ++ z]
             outputs row
 
-    return (g0Save, g2Save, naive) -- the PRGs for evaluation
+    return (g0Save, g2Save) -- the PRGs for evaluation
 
 
 genWiresGen :: GarblerParams -> Circ2 -> Circ -> Acirc2

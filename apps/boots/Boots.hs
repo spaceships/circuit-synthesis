@@ -6,6 +6,7 @@
 module Main where
 
 import Boots.Garbler
+import Boots.NaiveGarbler
 
 import Circuit
 import Circuit.Builder
@@ -140,7 +141,13 @@ garble (Garble {..}) = do
     setCurrentDirectory (directory opts)
 
     when (verbose opts) $ printf "creating garbler for %s\n" target
-    (gb, (g0, g2, naive)) <- garbler params c
+
+    let naive = gatesPerIndex params >= length (garbleableGates c)
+
+    (gb, (g0, g2)) <- if naive
+                         then naiveGarbler params c
+                         else garbler params c
+
     let wiresGen = genWiresGen params c g0
 
     when (verbose opts) $ putStr "naive: " >> print naive

@@ -20,6 +20,7 @@ info_only=""
 max_tests=""
 dir="obf"
 progress=1
+no_index=""
 
 usage () {
     echo "gc-bench.sh: benchmark our scheme"
@@ -33,6 +34,7 @@ usage () {
     echo "  -s NUM      security param for garbler (wire size)"
     echo "  -p NUM      padding size for garbler"
     echo "  -g NUM      gates per index in garbler"
+    echo "  -N          do not use indexing"
     echo "  -n NUM      only evaluate NUM tests"
     echo "  -d DIR      use directory DIR for saving files"
     echo "  -P          no progress bars"
@@ -40,7 +42,7 @@ usage () {
     exit $1
 }
 
-while getopts "itl:qfhes:p:g:n:d:Pm:" opt; do
+while getopts "itl:qfhes:p:g:n:d:Pm:N" opt; do
     case $opt in
         i) info_only=1;;
         t) use_mife="";;
@@ -55,6 +57,7 @@ while getopts "itl:qfhes:p:g:n:d:Pm:" opt; do
         d) dir=$OPTARG;;
         P) progress="";;
         m) mio=$OPTARG;;
+        N) no_index=1;;
         h) usage 0;;
         *) usage 1;;
     esac
@@ -71,6 +74,9 @@ if [[ ! -f $1 ]]; then
 fi
 
 circuit=$(readlink -f $1)
+if [[ $no_index ]]; then
+    gates_per_index=$(wc -l $circuit | cut -d' ' -f1)
+fi
 
 test_inp=()
 test_out=()
