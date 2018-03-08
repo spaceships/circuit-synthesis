@@ -5,7 +5,6 @@
 module Circuit.Format.Circ where
 
 import Circuit
-import Circuit.Conversion
 import Circuit.Utils
 import Circuit.Parser
 import qualified Circuit.Builder as B
@@ -43,20 +42,17 @@ read = fmap fst . readWithTests
 readWithTests :: Gate g => FilePath -> IO (Circuit g, [TestCase])
 readWithTests fp = parse <$> readFile fp
 
-write :: (Show g, ToCirc g) => FilePath -> Circuit g -> IO ()
+write :: FilePath -> Circ -> IO ()
 write fp c = T.writeFile fp (showWithTests c [])
 
-writeWithTests :: (Show g, ToCirc g) => FilePath -> Circuit g -> IO ()
-writeWithTests fp c' = do
-    let c = toCirc c'
+writeWithTests :: FilePath -> Circ -> IO ()
+writeWithTests fp c = do
     ts <- replicateM 10 (genTest c)
     T.writeFile fp (showWithTests c ts)
 
-showWithTests :: (Show g, ToCirc g) => Circuit g -> [TestCase] -> T.Text
-showWithTests !c' !ts = T.unlines (header ++ inputs ++ secrets ++ consts ++ gates)
+showWithTests :: Circ -> [TestCase] -> T.Text
+showWithTests !c !ts = T.unlines (header ++ inputs ++ secrets ++ consts ++ gates)
   where
-    c = toCirc c'
-
     header = [ T.append ":ninputs " (showt (ninputs c))
              , T.append ":outputs " (T.unwords (map (showt.getRef) (outputRefs c)))
              , T.append ":symlens " (T.unwords (map showt (c^..circ_symlen.each)))

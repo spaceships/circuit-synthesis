@@ -168,7 +168,7 @@ garble (Garble {..}) = do
     Acirc2.write "gb.acirc2" gb
 
     when (verbose opts) $ putStrLn "writing c.circ"
-    Circ.write "c.circ" c
+    Circ.write "c.circ" (toCirc c)
 
     when (verbose opts) $ putStrLn "writing wires-gen.circ"
     Acirc2.write "wires-gen.acirc2" wiresGen
