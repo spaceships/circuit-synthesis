@@ -111,8 +111,6 @@ fi
 SECONDS=0
 if [[ ! $use_existing ]]; then 
     echo -n "creating garbler circuit..."
-    rm -rf $dir
-    mkdir -p $dir
     if [[ $garbler ]]; then
         $garbler $circuit $gc_secparam $padding $dir
         touch $dir/naive
