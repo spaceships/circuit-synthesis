@@ -21,7 +21,7 @@ max_tests=""
 dir="obf"
 progress=1
 no_index=""
-rust=""
+garbler=""
 
 usage () {
     echo "gc-bench.sh: benchmark our scheme"
@@ -40,11 +40,11 @@ usage () {
     echo "  -d DIR      use directory DIR for saving files"
     echo "  -P          no progress bars"
     echo "  -m FILE     location of mio.sh"
-    echo "  -r          use installed version of rust garbler"
+    echo "  -a APP      use APP as alternate boots garbler"
     exit $1
 }
 
-while getopts "itl:qfhes:p:g:n:d:Pm:Nr" opt; do
+while getopts "itl:qfhes:p:g:n:d:Pm:Na:" opt; do
     case $opt in
         i) info_only=1;;
         t) use_mife="";;
@@ -60,7 +60,7 @@ while getopts "itl:qfhes:p:g:n:d:Pm:Nr" opt; do
         P) progress="";;
         m) mio=$OPTARG;;
         N) no_index=1;;
-        r) rust=1;;
+        a) garbler=$OPTARG;;
         h) usage 0;;
         *) usage 1;;
     esac
@@ -113,8 +113,8 @@ if [[ ! $use_existing ]]; then
     echo -n "creating garbler circuit..."
     rm -rf $dir
     mkdir -p $dir
-    if [[ $rust ]]; then
-        boots $circuit $gc_secparam $padding $dir
+    if [[ $garbler ]]; then
+        $garbler $circuit $gc_secparam $padding $dir
         touch $dir/naive
         echo "GarblerParams {securityParam = $gc_secparam, paddingSize = $padding, numIndices = 1, gatesPerIndex = $gates_per_index}" > $dir/params
         cp $circuit $dir/c.acirc2
