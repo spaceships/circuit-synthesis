@@ -30,7 +30,7 @@ data GarblerParams = GarblerParams {
 } deriving (Show, Read)
 
 -- XXX: only fan-out one is secure at the moment
-garbler :: (Gate g, ToCirc g) => GarblerParams -> Circ2 -> IO (Circuit g, (Circ, Circ))
+garbler :: (Gate g, ToAcirc2 g) => GarblerParams -> Acirc2 -> IO (Circuit g, (Acirc2, Acirc2))
 garbler (GarblerParams {..}) c = runCircuitT $ do
     let numIterations = ceiling (fi (length (garbleableGates c)) / fi gatesPerIndex)
         ixLen = ceiling (fi numIterations ** (1 / fi numIndices))
@@ -49,7 +49,7 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
             g <- prgBuilder securityParam (chunkSize * n) 5 xorAnd
             let g' xs = safeChunksOf chunkSize <$> g xs
             asCirc <- lift $ buildCircuitT (inputs securityParam >>= g >>= outputs)
-            return (g', toCirc asCirc)
+            return (g', toAcirc2 asCirc)
 
     -- G0 is used to generate input/const/secret wirelabels and delta
     (g0, g0Save) <- prgGen securityParam (1 + ninputs c + nconsts c + nsecrets c)
@@ -83,11 +83,11 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
                 return z
 
         forM_ (wires c) $ \(zref, g) -> case g of
-            (Bool2Base (Input  id)) -> do liftIO $ writeArray labels zref (inputWLs  ! id)
-            (Bool2Base (Const  id)) -> do liftIO $ writeArray labels zref (constWLs  ! id)
-            (Bool2Base (Secret id)) -> do liftIO $ writeArray labels zref (secretWLs ! id)
+            (ArithGate2 (ArithBase (Input  id))) -> do liftIO $ writeArray labels zref (inputWLs  ! id)
+            (ArithGate2 (ArithBase (Const  id))) -> do liftIO $ writeArray labels zref (constWLs  ! id)
+            (ArithGate2 (ArithBase (Secret id))) -> do liftIO $ writeArray labels zref (secretWLs ! id)
 
-            (Bool2Xor xref yref) | not (isOutputRef c zref) -> do
+            (ArithGate2 (ArithAdd xref yref)) | not (isOutputRef c zref) -> do
                 x <- fst <$> liftIO (readArray labels xref)
                 y <- fst <$> liftIO (readArray labels yref)
                 (f,t) <- deltize =<< zipWithM circXor x y
@@ -147,7 +147,7 @@ garbler (GarblerParams {..}) c = runCircuitT $ do
     return (g0Save, g2Save) -- the PRGs for evaluation
 
 
-genWiresGen :: GarblerParams -> Circ2 -> Circ -> Acirc2
+genWiresGen :: GarblerParams -> Acirc2 -> Acirc2 -> Acirc2
 genWiresGen (GarblerParams {..}) c g0 = buildCircuit $ do
     (seeds, inputs) <- fmap unzip $ forM [0..nsymbols c-1] $ \sym -> do
         seed  <- symbol securityParam
@@ -175,17 +175,17 @@ genWiresGen (GarblerParams {..}) c g0 = buildCircuit $ do
 -- helpers
 
 
-isXor :: BoolGate2 -> Bool
-isXor (Bool2Xor _ _) = True
-isXor _              = False
+isXor :: ArithGate2 -> Bool
+isXor (ArithGate2 (ArithAdd _ _)) = True
+isXor _ = False
 
-hasInputArg :: Circ2 -> BoolGate2 -> Bool
+hasInputArg :: Acirc2 -> ArithGate2 -> Bool
 hasInputArg c gate = any isInput $ map (getGate c) (gateArgs gate)
   where
-    isInput (Bool2Base (Input _)) = True
+    isInput (ArithGate2 (ArithBase (Input _))) = True
     isInput _ = False
 
-garbleableGates :: Circ2 -> [(Ref, BoolGate2)]
+garbleableGates :: Acirc2 -> [(Ref, ArithGate2)]
 garbleableGates c = filter garbleMe (gates c)
   where
     garbleMe (ref,g) = not (isXor g) || isOutputRef c ref

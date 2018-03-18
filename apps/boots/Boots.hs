@@ -130,11 +130,12 @@ readFormat inp = case takeExtension inp of
 -- produce a garbler for a circuit, then put everything in a nice directory for later
 garble :: Mode -> IO ()
 garble (Garble {..}) = do
+    putStrLn "hello world"
     when (verbose opts) $ printf "reading %s\n" target
-    (c :: Circ2, ts) <- readFormat target
+    (c :: Acirc2, ts) <- readFormat target
 
     when (print_info opts) $ do
-        printf "info for %s as Circ2\n" target
+        printf "info for %s as Acirc2\n" target
         printCircInfo c
 
     createDirectoryIfMissing False (directory opts)
@@ -161,20 +162,20 @@ garble (Garble {..}) = do
         printCircInfo gb
 
     when (print_info opts) $ do
-        printf "info for wires-gen.circ\n"
+        printf "info for wires-gen.acirc2\n"
         printCircInfo wiresGen
 
     when (verbose opts) $ putStrLn "writing gb.acirc2"
     Acirc2.write "gb.acirc2" gb
 
-    when (verbose opts) $ putStrLn "writing c.circ"
-    Circ.write "c.circ" (toCirc c)
+    when (verbose opts) $ putStrLn "writing c.acirc2"
+    Acirc2.write "c.acirc2" c
 
-    when (verbose opts) $ putStrLn "writing wires-gen.circ"
+    when (verbose opts) $ putStrLn "writing wires-gen.acirc2"
     Acirc2.write "wires-gen.acirc2" wiresGen
 
-    when (verbose opts) $ putStrLn "writing g2.circ"
-    Circ.write "g2.circ" g2
+    when (verbose opts) $ putStrLn "writing g2.acirc2"
+    Acirc2.write "g2.acirc2" g2
 
 genSeed :: SymId -> GlobalOpts -> IO ()
 genSeed sym opts = do
@@ -197,10 +198,10 @@ evalTest opts inps = do
     when (verbose opts) $ putStrLn "reading params"
     params <- readParams
 
-    when (verbose opts) $ putStrLn "reading c.circ"
-    c <- Circ.read "c.circ" :: IO Circ2
+    when (verbose opts) $ putStrLn "reading c.acirc2"
+    c <- Acirc2.read "c.acirc2" :: IO Acirc2
     when (print_info opts) $ do
-        printf "info for c.circ\n"
+        printf "info for c.acirc2\n"
         printCircInfo c
 
     seeds <- forM [0..nsymbols c-1] $ \i -> do
@@ -208,7 +209,7 @@ evalTest opts inps = do
         when (verbose opts) $ printf "reading %s\n" seedName
         readInts <$> readFile seedName
 
-    when (verbose opts) $ putStrLn "reading wires-gen.circ"
+    when (verbose opts) $ putStrLn "reading wires-gen.acirc2"
     wiresGen <- Acirc2.read "wires-gen.acirc2" :: IO Acirc2
     when (print_info opts) $ do
         printf "info for wires-gen.acirc2\n"
@@ -225,7 +226,7 @@ evalTest opts inps = do
                 (getSymId sym) (symlen c sym) (length inp)
             exitFailure
 
-    when (verbose opts) $ putStrLn "evaluating wires-gen.circ on seeds and inputs"
+    when (verbose opts) $ putStrLn "evaluating wires-gen.acirc2 on seeds and inputs"
     let inputs = map readInts inps
         wires  = safeChunksOf (securityParam params) $
                     plainEval wiresGen (concat (interleave seeds inputs))
@@ -261,16 +262,16 @@ eval opts = do
     when (verbose opts) $ putStrLn "reading params"
     params <- readParams
 
-    when (verbose opts) $ putStrLn "reading c.circ"
-    c <- Circ.read "c.circ" :: IO Circ2
+    when (verbose opts) $ putStrLn "reading c.acirc2"
+    c <- Acirc2.read "c.acirc2" :: IO Acirc2
 
-    when (verbose opts) $ putStrLn "reading g2.circ"
-    g2 <- Circ.read "g2.circ" :: IO Circ
+    when (verbose opts) $ putStrLn "reading g2.acirc2"
+    g2 <- Acirc2.read "g2.acirc2" :: IO Acirc2
 
     when (print_info opts) $ do
-        printf "info for c.circ\n"
+        printf "info for c.acirc2\n"
         printCircInfo c
-        printf "info for g2.circ\n"
+        printf "info for g2.acirc2\n"
         printCircInfo g2
 
     when (verbose opts) $ putStrLn "reading wires"
@@ -321,7 +322,7 @@ eval opts = do
                 [x,y] <- mapM (readArray memo) (gateArgs gate)
 
                 case gate of
-                    Bool2Xor _ _ | not (isOutputRef c ref) -> do
+                    (ArithGate2 (ArithAdd _ _)) | not (isOutputRef c ref) -> do
                         return $ zipWith xorInt x y
 
                     _ -> do
@@ -373,7 +374,7 @@ eval opts = do
 
     putStrLn $ unwords (map (show.last) res)
 
-openGate :: GarblerParams -> Circ -> [Int] -> [Int] -> [Int] -> [Int]
+openGate :: GarblerParams -> Acirc2 -> [Int] -> [Int] -> [Int] -> [Int]
 openGate (GarblerParams {..}) g2 x y g = plainEval (opener g2) (x ++ y ++ g)
   where
     opener g2 = buildCircuit $ do

@@ -21,6 +21,7 @@ max_tests=""
 dir="obf"
 progress=1
 no_index=""
+rust=""
 
 usage () {
     echo "gc-bench.sh: benchmark our scheme"
@@ -39,10 +40,11 @@ usage () {
     echo "  -d DIR      use directory DIR for saving files"
     echo "  -P          no progress bars"
     echo "  -m FILE     location of mio.sh"
+    echo "  -r          use installed version of rust garbler"
     exit $1
 }
 
-while getopts "itl:qfhes:p:g:n:d:Pm:N" opt; do
+while getopts "itl:qfhes:p:g:n:d:Pm:Nr" opt; do
     case $opt in
         i) info_only=1;;
         t) use_mife="";;
@@ -58,6 +60,7 @@ while getopts "itl:qfhes:p:g:n:d:Pm:N" opt; do
         P) progress="";;
         m) mio=$OPTARG;;
         N) no_index=1;;
+        r) rust=1;;
         h) usage 0;;
         *) usage 1;;
     esac
@@ -108,16 +111,24 @@ fi
 SECONDS=0
 if [[ ! $use_existing ]]; then 
     echo -n "creating garbler circuit..."
-    rm -rf obf
-    ./boots garble -i -d $dir -g $gates_per_index -s $gc_secparam -p $padding $circuit
+    rm -rf $dir
+    mkdir -p $dir
+    if [[ $rust ]]; then
+        boots $circuit $gc_secparam $padding $dir
+        touch $dir/naive
+        echo "GarblerParams {securityParam = $gc_secparam, paddingSize = $padding, numIndices = 1, gatesPerIndex = $gates_per_index}" > $dir/params
+        cp $circuit $dir/c.acirc2
+    else
+        ./boots garble -i -d $dir -g $gates_per_index -s $gc_secparam -p $padding $circuit
+    fi
     echo "${SECONDS}s"
 fi
 
 gb=$(readlink -f $dir/gb.acirc2)
 wires_gen=$(readlink -f $dir/wires-gen.acirc2)
 
-total_inputs=$(grep :ninputs $dir/c.circ | perl -nE '/(\d+)/; say $1')
-symlens=($(grep :symlens $dir/c.circ | perl -nE '/((:?\s+\d+)+)/; say $1'))
+total_inputs=$(grep :ninputs $circuit | perl -nE '/(\d+)/; say $1')
+symlens=($(grep :symlens $circuit | perl -nE '/((:?\s+\d+)+)/; say $1'))
 nsyms=${#symlens[@]}
 
 if [[ $verbose ]]; then
@@ -126,8 +137,8 @@ if [[ $verbose ]]; then
     echo -e "\tninputs:" $total_inputs
     echo -e "\tsymlens: ${symlens[@]}"
     echo -e "\tnsyms: $nsyms"
-    echo -e "\tnumber of ands:" $(grep -ce "and" $dir/c.circ)
-    echo -e "\tnumber of xors:" $(grep -ce "xor" $dir/c.circ)
+    echo -e "\tnumber of ands:" $(grep -ce "and\|mul" $circuit)
+    echo -e "\tnumber of xors:" $(grep -ce "xor\|add" $circuit)
     echo
     [[ $info_only ]] && exit 0
 fi
