@@ -65,7 +65,9 @@ data ArithGate =
     deriving (Eq, Ord, Show)
 
 -- Acirc2 is Acirc mod 2
-newtype ArithGate2 = ArithGate2 { getArithGate :: ArithGate } deriving (Eq, Ord, Show)
+newtype ArithGate2 = ArithGate2 { getArithGate :: ArithGate } deriving (Eq, Ord)
+
+instance Show ArithGate2 where show = show . getArithGate
 
 data BoolGate =
       BoolXor !Ref !Ref
