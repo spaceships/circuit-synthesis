@@ -10,6 +10,8 @@ import Control.Monad
 
 export :: Gate g => [(String, [IO (String, Circuit g)])]
 export = [ ("simple",    [("simple",)    <$> return simple])
+         , ("sub1",      [("sub1",)      <$> return (subCirc 1)])
+         , ("sub10",     [("sub10",)     <$> return (subCirc 10)])
          , ("and1",      [("and1",)      <$> return (andCirc 1)])
          , ("and10",     [("and10",)     <$> return (andCirc 10)])
          , ("and100",    [("and100",)    <$> return (andCirc 100)])
@@ -29,13 +31,13 @@ export = [ ("simple",    [("simple",)    <$> return simple])
          , ("sym10",  [("sym10",)  <$> return (simpleSym 10)])
          , ("sym100", [("sym100",) <$> return (simpleSym 100)])
          , ("and-secret", [("and-secret",) <$> return andSecret])
-         , ("and-const", [("and-const",) <$> return andConst])
+         , ("and-const",  [("and-const",)  <$> return andConst])
          , ("xor-secret", [("xor-secret",) <$> return xorSecret])
-         , ("xor-const", [("xor-const",) <$> return xorConst])
-         , ("andtree", [ ("andtree8",) <$> return (andTree 8)
-                       , ("andtree16",) <$> return (andTree 16)
-                       , ("andtree32",) <$> return (andTree 32)
-                       , ("andtree64",) <$> return (andTree 64)
+         , ("xor-const",  [("xor-const",)  <$> return xorConst])
+         , ("andtree", [ ("andtree8",)   <$> return (andTree 8)
+                       , ("andtree16",)  <$> return (andTree 16)
+                       , ("andtree32",)  <$> return (andTree 32)
+                       , ("andtree64",)  <$> return (andTree 64)
                        , ("andtree128",) <$> return (andTree 128)
                        , ("andtree256",) <$> return (andTree 256)
                        , ("andtree512",) <$> return (andTree 512)
@@ -47,6 +49,9 @@ xorCirc n = buildCircuit (symbol (n+1) >>= foldM1 circXor >>= output)
 
 andCirc :: Gate g => Int -> Circuit g
 andCirc n = buildCircuit (symbol (n+1) >>= foldM1 circMul >>= output)
+
+subCirc :: Gate g => Int -> Circuit g
+subCirc n = buildCircuit (symbol (n+1) >>= foldM1 circSub >>= output)
 
 andSecret :: Gate g => Circuit g
 andSecret = buildCircuit $ do
@@ -85,7 +90,7 @@ simple = buildCircuit $ do
     one <- constant 1
     w   <- circProd =<< zipWithM circAdd (x1++x2) ys
     w'  <- circNot w
-    z   <- circAdd w' one
+    z   <- circSub w' one
     output z
 
 simple2 :: Gate g => Circuit g

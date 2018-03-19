@@ -383,11 +383,20 @@ openGate (GarblerParams {..}) g2 x y g = plainEval (opener g2) (x ++ y ++ g)
         zs <- replicateM 4 $ inputs (securityParam + paddingSize) -- garbled tables
         let g 0 x = take (securityParam+paddingSize) <$> subcircuit g2 x
             g 1 x = drop (securityParam+paddingSize) <$> subcircuit g2 x
-        forM_ (zip zs (permutations 2 [0,1])) $ \(z, [i,j]) -> do
-            gx <- g j x
-            gy <- g i y
-            gz <- foldM1 (zipWithM circXor) [gx, gy, z]
-            outputs gz
+
+        -- XXX: ordering is not given from current version of boots: try every combination
+        forM_ zs $ \z -> do
+            forM_ (permutations 2 [0,1]) $ \[i,j] -> do
+                gx <- g j x
+                gy <- g i y
+                gz <- foldM1 (zipWithM circXor) [gx, gy, z]
+                outputs gz
+
+        -- forM_ (zip zs (permutations 2 [0,1])) $ \(z, [i,j]) -> do
+        --     gx <- g j x
+        --     gy <- g i y
+        --     gz <- foldM1 (zipWithM circXor) [gx, gy, z]
+        --     outputs gz
 
 --------------------------------------------------------------------------------
 

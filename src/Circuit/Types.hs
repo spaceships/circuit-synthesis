@@ -144,7 +144,7 @@ instance Gate ArithGate2 where
     gateGetBase = gateGetBase . getArithGate
     gateEval b g a = gateEval b (getArithGate g) a `mod` 2
     gateAdd x y = ArithGate2 (gateAdd x y)
-    gateSub x y = ArithGate2 (gateSub x y)
+    gateSub x y = ArithGate2 (gateAdd x y)
     gateMul x y = ArithGate2 (gateMul x y)
     gateXor x y = Just $ ArithGate2 (gateAdd x y)
     gateNot _   = Nothing
