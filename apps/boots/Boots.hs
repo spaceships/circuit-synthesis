@@ -305,6 +305,14 @@ eval opts = do
             writeIORef i pos
             return val
 
+    -- TODO: have to unwind timesUsedMemo if backtracking happens
+    timesUsed <- do
+        timesUsedMemo <- newArray (0, Ref (nwires c)) 0 :: IO (IOArray Ref Int)
+        return $ \ref -> do
+            n <- readArray timesUsedMemo ref
+            writeArray timesUsedMemo ref (n+1)
+            return n
+
     whileM ((< nwires c) . getRef <$> readIORef i) $ do
         ref <- readIORef i
         let gate = getGate c ref
@@ -319,6 +327,7 @@ eval opts = do
             Just (Secret id) -> return $ secrets ! id
 
             Nothing -> do
+                let [xref, yref] = gateArgs gate
                 [x,y] <- mapM (readArray memo) (gateArgs gate)
 
                 case gate of
@@ -330,7 +339,10 @@ eval opts = do
                             printf "[eval] I tried to read the gate for ref %d, but it wasn't there!!!!\n" (getRef ref)
                             exitFailure
 
-                        let opened  = openGate params g2 x y (gs IM.! getRef ref)
+                        xix <- timesUsed xref
+                        yix <- timesUsed yref
+
+                        let opened  = openGate params g2 xix yix x y (gs IM.! getRef ref)
                             chunks  = safeChunksOf (securityParam params+paddingSize params) opened
                             choices = map (drop (paddingSize params)) (filter correctWire chunks)
 
@@ -374,29 +386,30 @@ eval opts = do
 
     putStrLn $ unwords (map (show.last) res)
 
-openGate :: GarblerParams -> Acirc2 -> [Int] -> [Int] -> [Int] -> [Int]
-openGate (GarblerParams {..}) g2 x y g = plainEval (opener g2) (x ++ y ++ g)
+openGate :: GarblerParams -> Acirc2 -> Int -> Int -> [Int] -> [Int] -> [Int] -> [Int]
+openGate (GarblerParams {..}) g2 xIx yIx x y g = plainEval (opener g2) (x ++ y ++ g)
   where
+    opener :: Acirc2 -> Acirc2
     opener g2 = buildCircuit $ do
         x <- inputs securityParam
         y <- inputs securityParam
         zs <- replicateM 4 $ inputs (securityParam + paddingSize) -- garbled tables
-        let g 0 x = take (securityParam+paddingSize) <$> subcircuit g2 x
-            g 1 x = drop (securityParam+paddingSize) <$> subcircuit g2 x
+
+        let maskLen = securityParam + paddingSize
+
+        let g ix val inp = do raw <- subcircuit g2 inp
+                              let masks = drop (2 * ix * maskLen) raw
+                              return $ if val == 0
+                                 then take maskLen masks
+                                 else drop maskLen masks
 
         -- XXX: ordering is not given from current version of boots: try every combination
         forM_ zs $ \z -> do
             forM_ (permutations 2 [0,1]) $ \[i,j] -> do
-                gx <- g j x
-                gy <- g i y
+                gx <- g xIx i x
+                gy <- g yIx j y
                 gz <- foldM1 (zipWithM circXor) [gx, gy, z]
                 outputs gz
-
-        -- forM_ (zip zs (permutations 2 [0,1])) $ \(z, [i,j]) -> do
-        --     gx <- g j x
-        --     gy <- g i y
-        --     gz <- foldM1 (zipWithM circXor) [gx, gy, z]
-        --     outputs gz
 
 --------------------------------------------------------------------------------
 

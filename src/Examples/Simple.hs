@@ -90,7 +90,8 @@ simple = buildCircuit $ do
     one <- constant 1
     w   <- circProd =<< zipWithM circAdd (x1++x2) ys
     w'  <- circNot w
-    z   <- circSub w' one
+    z   <- circMul w' w
+    z   <- circMul z w
     output z
 
 simple2 :: Gate g => Circuit g
