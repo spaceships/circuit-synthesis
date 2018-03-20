@@ -290,6 +290,14 @@ eval opts = do
     stack <- newIORef []
     i     <- newIORef (Ref 0)
 
+    timesUsedRef <- newIORef (listArray (0, Ref (nwires c)) (repeat 0))
+    timesUsed <- do
+        return $ \ref -> do
+            arr <- readIORef timesUsedRef
+            let n = arr ! ref
+            writeIORef timesUsedRef (arr // [(ref, n+1)])
+            return n
+
     let correctWire w = replicate (paddingSize params) 0 == take (paddingSize params) w
 
         correctOutputWire w = replicate (securityParam params-1) 0 == take (securityParam params-1) w
@@ -298,20 +306,13 @@ eval opts = do
             whenM (null <$> readIORef stack) $ do
                 putStrLn "[backtrack: no refs to backtrack to!]"
                 exitFailure
-            (pos, val) <- head <$> readIORef stack
+            (pos, val, arr) <- head <$> readIORef stack
             when (verbose opts) $ do
                 printf "[backtrack: popping stack to %d]\n" (getRef pos)
             modifyIORef stack tail
             writeIORef i pos
+            writeIORef timesUsedRef arr
             return val
-
-    -- TODO: have to unwind timesUsedMemo if backtracking happens
-    timesUsed <- do
-        timesUsedMemo <- newArray (0, Ref (nwires c)) 0 :: IO (IOArray Ref Int)
-        return $ \ref -> do
-            n <- readArray timesUsedMemo ref
-            writeArray timesUsedMemo ref (n+1)
-            return n
 
     whileM ((< nwires c) . getRef <$> readIORef i) $ do
         ref <- readIORef i
@@ -371,7 +372,8 @@ eval opts = do
                                 else do
                                     when (verbose opts) $ do
                                         printf "[ref %d multiple: %d alternates]\n" (getRef ref) (length ws + 1)
-                                    mapM_ (\val -> modifyIORef stack ((ref,val):)) ws
+                                    arr <- readIORef timesUsedRef
+                                    mapM_ (\val -> modifyIORef stack ((ref, val, arr):)) ws
                                     return w
 
         ref' <- readIORef i -- potentially changed! (this was a fun bug to find)
