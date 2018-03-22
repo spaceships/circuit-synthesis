@@ -21,7 +21,7 @@ max_tests=""
 dir="obf"
 progress=1
 no_index=""
-garbler=""
+alt_boots=""
 
 usage () {
     echo "gc-bench.sh: benchmark our scheme"
@@ -40,7 +40,7 @@ usage () {
     echo "  -d DIR      use directory DIR for saving files"
     echo "  -P          no progress bars"
     echo "  -m FILE     location of mio.sh"
-    echo "  -a APP      use APP as alternate boots garbler"
+    echo "  -a APP      use APP as alternate boots"
     exit $1
 }
 
@@ -60,7 +60,7 @@ while getopts "itl:qfhes:p:g:n:d:Pm:Na:" opt; do
         P) progress="";;
         m) mio=$OPTARG;;
         N) no_index=1;;
-        a) garbler=$OPTARG;;
+        a) alt_boots=$OPTARG;;
         h) usage 0;;
         *) usage 1;;
     esac
@@ -111,11 +111,8 @@ fi
 SECONDS=0
 if [[ ! $use_existing ]]; then 
     echo "creating garbler circuit..."
-    if [[ $garbler ]]; then
-        $garbler $circuit $gc_secparam $padding $dir
-        touch $dir/naive
-        echo "GarblerParams {securityParam = $gc_secparam, paddingSize = $padding, numIndices = 1, gatesPerIndex = $gates_per_index}" > $dir/params
-        cp $circuit $dir/c.acirc2
+    if [[ $alt_boots ]]; then
+        $alt_boots garble -d $dir -s $gc_secparam -p $padding $circuit
     else
         ./boots garble -i -d $dir -g $gates_per_index -s $gc_secparam -p $padding $circuit
     fi
