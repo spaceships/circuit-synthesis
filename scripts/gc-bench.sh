@@ -210,7 +210,11 @@ function decrypt() {
     
     eval_start=$SECONDS
     [[ $verbose ]] && echo -ne "\trunning boots eval..."
-    ./boots eval -d $dir > $dir/result || cat $dir/result 
+    if [[ $alt_boots ]]; then
+        $alt_boots eval -d $dir > $dir/result || cat $dir/result
+    else
+        ./boots eval -d $dir > $dir/result || cat $dir/result
+    fi
     [[ $verbose ]] && echo "$(( SECONDS - eval_start ))s"
 }
 
