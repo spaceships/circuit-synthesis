@@ -112,7 +112,7 @@ SECONDS=0
 if [[ ! $use_existing ]]; then 
     echo "creating garbler circuit..."
     if [[ $alt_boots ]]; then
-        $alt_boots garble -d $dir -s $gc_secparam -p $padding $circuit
+        $alt_boots garble -d $dir -s $gc_secparam $circuit
     else
         ./boots garble -i -d $dir -g $gates_per_index -s $gc_secparam -p $padding $circuit
     fi
@@ -200,8 +200,7 @@ function decrypt() {
 
         [[ $verbose ]] && echo -ne "\trunning gen wires..."
         wires_start=$SECONDS
-        $mio mife decrypt $mmap $wires_gen | 
-            perl -nE "say for unpack '(A$gc_secparam)*', ((split)[1])" > $dir/wires
+        $mio mife decrypt $mmap $wires_gen | perl -nE 'say ((split)[1])' > $dir/wires
         [[ $verbose ]] && echo "$(( SECONDS - wires_start ))s"
     else
         [[ $verbose ]] && echo -e "\trunning boots test"
@@ -211,7 +210,7 @@ function decrypt() {
     eval_start=$SECONDS
     [[ $verbose ]] && echo -ne "\trunning boots eval..."
     if [[ $alt_boots ]]; then
-        $alt_boots eval -d $dir > $dir/result || cat $dir/result
+        $alt_boots eval -v -d $dir > $dir/result || cat $dir/result
     else
         ./boots eval -d $dir > $dir/result || cat $dir/result
     fi
