@@ -15,7 +15,7 @@ mmap_secparam=""
 fail=""
 gc_secparam=40
 padding=8
-gates_per_index=1
+indexed_garbler=""
 info_only=""
 max_tests=""
 dir="obf"
@@ -34,7 +34,7 @@ usage () {
     echo "  -e          use exising garbler circuit"
     echo "  -s NUM      security param for garbler (wire size)"
     echo "  -p NUM      padding size for garbler"
-    echo "  -g NUM      gates per index in garbler"
+    echo "  -g          use indexed garbler"
     echo "  -N          do not use indexing"
     echo "  -n NUM      only evaluate NUM tests"
     echo "  -d DIR      use directory DIR for saving files"
@@ -44,7 +44,7 @@ usage () {
     exit $1
 }
 
-while getopts "itl:qfhes:p:g:n:d:Pm:Na:" opt; do
+while getopts "itl:qfhes:p:gn:d:Pm:Na:" opt; do
     case $opt in
         i) info_only=1;;
         t) use_mife="";;
@@ -54,7 +54,7 @@ while getopts "itl:qfhes:p:g:n:d:Pm:Na:" opt; do
         e) use_existing=1;;
         s) gc_secparam=$OPTARG;;
         p) padding=$OPTARG;;
-        g) gates_per_index=$OPTARG;;
+        g) indexed_garbler=1;;
         n) max_tests=$OPTARG;;
         d) dir=$OPTARG;;
         P) progress="";;
@@ -77,9 +77,6 @@ if [[ ! -f $1 ]]; then
 fi
 
 circuit=$(readlink -f $1)
-if [[ $no_index ]]; then
-    gates_per_index=$(wc -l $circuit | cut -d' ' -f1)
-fi
 
 test_inp=()
 test_out=()
@@ -112,9 +109,13 @@ SECONDS=0
 if [[ ! $use_existing ]]; then 
     echo "creating garbler circuit..."
     if [[ $alt_boots ]]; then
-        $alt_boots garble -d $dir -s $gc_secparam $circuit
+        if [[ $indexed_garbler ]]; then 
+            $alt_boots garble -i -d $dir -s $gc_secparam $circuit
+        else
+            $alt_boots garble -d $dir -s $gc_secparam $circuit
+        fi
     else
-        ./boots garble -i -d $dir -g $gates_per_index -s $gc_secparam -p $padding $circuit
+        ./boots garble -i -d $dir -g1 -s $gc_secparam -p $padding $circuit
     fi
     echo "${SECONDS}s"
 fi
@@ -188,11 +189,11 @@ function decrypt() {
             rm -f $dir/gates
             [[ $progress ]] && progress 0 $index_len
             cp $gb.$nsyms.ct.ix0 $gb.$nsyms.ct
-            $mio mife decrypt $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
+            $mio mife decrypt $mmap $gb | perl -nE 'print ((split)[1])' >> $dir/gates
             for (( ix=1; ix < $index_len; ix++ )); do
                 [[ $progress ]] && progress $ix $index_len
                 cp $gb.$nsyms.ct.ix$ix $gb.$nsyms.ct
-                $mio mife decrypt --saved $mmap $gb | perl -nE 'say ((split)[1])' >> $dir/gates
+                $mio mife decrypt --saved $mmap $gb | perl -nE 'print ((split)[1])' >> $dir/gates
             done
             echo
         fi
@@ -210,7 +211,7 @@ function decrypt() {
     eval_start=$SECONDS
     [[ $verbose ]] && echo -ne "\trunning boots eval..."
     if [[ $alt_boots ]]; then
-        $alt_boots eval -v -d $dir > $dir/result || cat $dir/result
+        $alt_boots eval -d $dir > $dir/result || cat $dir/result
     else
         ./boots eval -d $dir > $dir/result || cat $dir/result
     fi
