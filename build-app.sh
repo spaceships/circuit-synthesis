@@ -2,7 +2,7 @@
 
 set -e
 
-apps="cxs boots"
+apps="cxs"
 
 sandbox=""
 profiling=""
