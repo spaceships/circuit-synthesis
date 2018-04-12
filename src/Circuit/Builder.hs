@@ -251,11 +251,10 @@ selectsPT xs sels = map look sels
 
 selectPT :: (Gate g, Monad m) => [Ref] -> [Bool] -> BuilderT g m [Ref]
 selectPT xs bs = do
-    one <- constant 1
     when (length xs /= length bs) $ error "[select] unequal length inputs"
-    let set _   (x, True)  = return x
-        set one (x, False) = circSub one x
-    mapM (set one) (zip xs bs)
+    let set x True  = return x
+        set x False = circNot x
+    zipWithM set xs bs
 
 bitSelectPairLists :: (Gate g, Monad m) => Ref -> ([Ref],[Ref]) -> BuilderT g m [Ref]
 bitSelectPairLists b (xs,ys) = do
@@ -290,9 +289,11 @@ sigmaProd sels = mapM circProd (sequence sels)
 
 lookupTable :: (Gate g, Monad m) => ([Bool] -> Bool) -> [Ref] -> BuilderT g m Ref
 lookupTable f xs = do
+    -- we build a selection vector representing the bits of x
+    -- then, for each 1 in the truth table of f, see if that 1 is set in x
     sel <- selectionVector xs
-    let tt   = f <$> booleanPermutations (length xs)
-        vars = snd <$> filter (\(i,_) -> tt !! i) (zip [0..] sel)
+    let tt   = map f $ booleanPermutations (length xs)
+        vars = map snd $ filter (\(i,_) -> tt !! i) (zip [0..] sel)
     circSum vars
 
 lookupTableMultibit :: (Gate g, Monad m) => ([Bool] -> [Bool]) -> [Ref] -> BuilderT g m [Ref]

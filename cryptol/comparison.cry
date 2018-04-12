@@ -8,11 +8,25 @@ zip xs ys = [(x,y) | x <- xs | y <- ys]
 zipWith : {a,b,c,n} (a -> b -> c) -> [n]a -> [n]b -> [n]c
 zipWith f xs ys = [f x y | x <- xs | y <- ys]
 
+leq_256 : [512] -> Bit
+leq_256 inp = x <= y
+  where
+    [x,y] = split inp
+
+leq_1024 : [2048] -> Bit
+leq_1024 inp = x <= y
+  where
+    [x,y] = split inp
+
+leq_2048 : [4096] -> Bit
+leq_2048 inp = x <= y
+  where
+    [x,y] = split inp
+
 leq : {a} (fin a) => [a*8] -> [a*8] -> Bit
 leq x y = res.0 || res.1
   where
     res = foldl f (True, False) (bs x y)
-
     f (acc_eq, acc_lt) (z_eq, z_lt) = (eq, lt)
       where
         eq = acc_eq && z_eq
@@ -32,12 +46,12 @@ classifier inp = foldl (&&) True (zipWith (<=) xs ys)
   where
     [xs,ys] = split (split inp) : [2][5][8]
 
-substring8_16 : ([16], [8]) -> Bit
-substring8_16 (x,y) = foldl (||) False zs
-  where
-    zs = [ take (x <<< i) == y | i <- [0..7] ]
+/* substring8_16 : ([16], [8]) -> Bit */
+/* substring8_16 (x,y) = foldl (||) False zs */
+/*   where */
+/*     zs = [ take (x <<< i) == y | i <- [0..7] ] */
 
-substring8_32 : ([32], [8]) -> Bit
-substring8_32 (x,y) = foldl (||) False zs
-  where
-    zs = [ take (x <<< i) == y | i <- [0..23] ]
+/* substring8_32 : ([32], [8]) -> Bit */
+/* substring8_32 (x,y) = foldl (||) False zs */
+/*   where */
+/*     zs = [ take (x <<< i) == y | i <- [0..23] ] */
