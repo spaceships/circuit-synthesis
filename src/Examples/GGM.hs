@@ -10,6 +10,7 @@ import Circuit.Utils
 
 import Control.Monad
 import Control.Monad.Trans
+import Text.Printf
 
 export :: Gate g => [(String, [IO (String, Circuit g)])]
 export =
@@ -28,6 +29,13 @@ export =
               , ("ggm_3_128" ,) <$> ggm 12 128 16
               , ("ggm_4_128" ,) <$> ggm 16 128 16
               ] )
+
+    , ("ggm_sigma_more", map (\(niter, keysize, stretch) ->
+                            let name = printf "ggm_sigma_%d_%d_%d" niter stretch keysize
+                            in (name ,) <$> ggmSigma niter keysize stretch)
+                        [ (niter, keysize, stretch) | niter <- [1..4], keysize <- [32,64,128], stretch <- [16,32,64,128,256] ]
+                        )
+
 
     , ("ggm_sigma", [ ("ggm_sigma_1_16_32"  ,) <$> ggmSigma 1  32 16
                     , ("ggm_sigma_2_16_32"  ,) <$> ggmSigma 2  32 16

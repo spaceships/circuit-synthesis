@@ -26,6 +26,7 @@ export = [ ("simple",    [("simple",)    <$> return simple])
          , ("xorand100",    [("xorand100",)    <$> return (xorAndCirc 100)])
          , ("xorand1000",   [("xorand1000",)   <$> return (xorAndCirc 1000)])
          , ("simple2",   [("simple2",)   <$> return simple2])
+         , ("sym3",   [("sym3",)   <$> return simpleSym3])
          , ("sym1",   [("sym1",)   <$> return (simpleSym 1)])
          , ("sym2",   [("sym2",)   <$> return (simpleSym 2)])
          , ("sym10",  [("sym10",)  <$> return (simpleSym 10)])
@@ -105,6 +106,15 @@ simpleSym n = buildCircuit $ do
     xs <- symbol n
     ys <- symbol n
     zs <- zipWithM circXor xs ys
+    output =<< circProd zs
+
+simpleSym3 :: Gate g => Circuit g
+simpleSym3 = buildCircuit $ do
+    let n = 10
+    xs <- symbol n
+    ys <- symbol n
+    ws <- symbol n
+    zs <- zipWithM circXor ws =<< zipWithM circXor xs ys
     output =<< circProd zs
 
 andTree :: Gate g => Int -> Circuit g
