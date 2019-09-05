@@ -32,6 +32,9 @@ leq x y = res.0 || res.1
         eq = acc_eq && z_eq
         lt = acc_lt || acc_eq && z_lt
 
+leq8 : [16] -> Bit
+leq8 x = leq (take x : [8]) (drop x : [8])
+
 bs : {a} (fin a) => [a*8] -> [a*8] -> [a](Bit,Bit)
 bs x y = zip eqs lts
   where

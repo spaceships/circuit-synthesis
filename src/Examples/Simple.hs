@@ -80,8 +80,8 @@ xorConst = buildCircuit $ do
 
 xorAndCirc :: Gate g => Int -> Circuit g
 xorAndCirc n = buildCircuit $ do
-    [x,y] <- safeChunksOf (div n 2) <$> symbol n
-    output =<< circProd =<< zipWithM circXor x y
+    cs <- safeChunksOf (div n 2) <$> symbol n
+    output =<< circProd =<< zipWithM circXor (cs !! 0) (cs !! 1)
 
 simple :: Gate g => Circuit g
 simple = buildCircuit $ do
@@ -97,8 +97,8 @@ simple = buildCircuit $ do
 
 simple2 :: Gate g => Circuit g
 simple2 = buildCircuit $ do
-    [x,y] <- safeChunksOf 4 <$> symbol 8
-    d <- zipWithM circXor x y
+    cs <- safeChunksOf 4 <$> symbol 8
+    d <- zipWithM circXor (cs !! 0) (cs !! 1)
     output =<< circProd d
 
 simpleSym :: Gate g => Int -> Circuit g
