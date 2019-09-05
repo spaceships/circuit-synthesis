@@ -65,23 +65,26 @@ parseOutput = do
     modifySt $ b_outputs %~ (`V.snoc` wire)
     endLine
 
+name :: Gate g => ParseBench g String
+name = many1 (alphaNum <|> char '_') <?> "variable name"
+
 parseGate :: Gate g => ParseBench g ()
 parseGate = do
-    zwire <- many1 alphaNum
+    zwire <- name
     spaces
     char '='
     spaces
     let parseNot = do string "NOT"
-                      xwire <- between (char '(') (char ')') (many1 alphaNum)
+                      xwire <- between (char '(') (char ')') name
                       xref  <- view (b_gates . at xwire . non (error "[parseGate] unknown argument")) <$> getSt
                       lift $ B.circNot xref
 
     let parseAnd = do string "AND"
                       char '('
-                      xwire <- many1 alphaNum
+                      xwire <- name
                       char ','
                       spaces
-                      ywire <- many1 alphaNum
+                      ywire <- name
                       char ')'
                       xref <- view (b_gates . at xwire . non (error "[parseGate] unknown argument")) <$> getSt
                       yref <- view (b_gates . at ywire . non (error "[parseGate] unknown argument")) <$> getSt
