@@ -2,7 +2,7 @@
 
 use strict;
 use warnings;
-use 5.17.0;
+use 5.16.0;
 
 open(my $fh, '<', $ARGV[0]) or die "could not open file $ARGV[0]";
 
