@@ -87,7 +87,7 @@ emptyLine = spaces <?> "empty line"
 comment :: ParseNetlist g ()
 comment = commentType "(*" "*)" <|> commentType "/*" "*/" <?> "comment"
   where
-    commentText = void $ many (alphaNum <|> oneOf " -_.(),=\":")
+    commentText = void $ many (alphaNum <|> oneOf " -_.(),=\":+")
     commentType begin end = between (string begin) (string end) commentText
 
 moduleDeclaration :: ParseNetlist g ()

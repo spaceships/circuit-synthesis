@@ -60,6 +60,21 @@ add_16 (x,y) = x + y
 eq_8 : ([16], [0]) -> Bit
 eq_8 (xs, y) = take `{8} xs == drop `{8} xs
 
+mod_16 : ([32], [0]) -> [16]
+mod_16 (inps, _) = x % y
+  where
+    [x,y] = split inps
+
+mod_32 : ([64], [0]) -> [32]
+mod_32 (inps, _) = x % y
+  where
+    [x,y] = split inps
+
+mod_64 : ([128], [0]) -> [64]
+mod_64 (inps, _) = x % y
+  where
+    [x,y] = split inps
+
 mod_4096 : ([8192], [0]) -> [4096]
 mod_4096 (inps, _) = x % y
   where
