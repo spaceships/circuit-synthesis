@@ -16,6 +16,7 @@ usage () {
     echo "  -b              output binary netlist instead of acirc"
     echo "  -l LIBERTY      use liberty file LIBERTY"
     echo "  -t TYPE         type of circuit to produce from cxs [default=$ty]"
+    echo "  -Y              skip yosys step"
     exit $1
 }
 
@@ -38,6 +39,10 @@ while [[ $# -gt 0 ]]; do
         -t)
             ty=$2
             shift
+            shift
+            ;;
+        -Y)
+            skip_yosys=1
             shift
             ;;
         *)
@@ -76,10 +81,17 @@ f <- cryptol_extract m "$func";
 write_aig "${func}.aig" f;
 EOM
 
+if [[ "$skip_yosys" ]]; then
+cat > abccmds.abc <<- EOM
+read "${func}.aig"
+write "${func}.bench"
+EOM
+else
 cat > abccmds.abc <<- EOM
 read "${func}.aig"
 write_verilog "${func}.in.v"
 EOM
+fi
 
 cat > yosys.ys <<- EOM
 read_verilog "${func}.in.v"
@@ -112,13 +124,19 @@ fi
 
 echo "running abc..."
 abc -f abccmds.abc
-echo "running yosys..."
-yosys yosys.ys
+if [[ ! "$skip_yosys" ]]; then
+    echo "running yosys..."
+    yosys yosys.ys
+fi
 
 if [ "$opt_binary" ]; then
     cat $func.out.v > $dir/$func.c2v.netlist
 else
-    $scriptdir/resolve-netlist-aliases.pl $func.out.v > $func.netlist
-    echo "running cxs..."
-    $cxs read $func.netlist -i -o $dir/$func.c2v.$ty -k "$fixed_input"
+    if [[ ! "$skip_yosys" ]]; then
+        $scriptdir/resolve-netlist-aliases.pl $func.out.v > $func.netlist
+        echo "running cxs..."
+        $cxs read $func.netlist -i -o $dir/$func.c2v.$ty -k "$fixed_input"
+    else
+        $cxs read $func.bench -i -o $dir/$func.c2v.$ty -k "$fixed_input"
+    fi
 fi
