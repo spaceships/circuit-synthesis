@@ -3,9 +3,9 @@
 # Cryptol to acirc optimized by ABC
 #
 
-set -ex
+set -e
 
-scriptdir=$(dirname $(readlink -f "${BASH_SOURCE[0]}"))
+scriptdir=$(dirname $(realpath "${BASH_SOURCE[0]}"))
 liberty_file=$scriptdir/../liberties/gc_cells.lib
 opt_binary=""
 ty="acirc"
@@ -60,9 +60,10 @@ if ! [ -f cxs ]; then
     echo "[c2a] ERROR: cxs not present! maybe you should run ./build_cxs.sh" >/dev/stderr
     exit 1
 fi
-cxs=$(readlink -f cxs)
+cxs=$(realpath cxs)
 
 filename=$(realpath $1)
+echo "filename = $filename"
 if [[ ${1##*.} == 'aig' ]]; then
     file=$(basename $1)
     func=${file%.*}
