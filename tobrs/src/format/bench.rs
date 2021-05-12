@@ -9,8 +9,6 @@ use std::collections::HashMap;
 type RefMap = HashMap<String, usize>;
 
 pub fn read(filename: &str) -> Circuit {
-    println!("bench::read(filename={})", filename);
-
     let f = BufReader::new(File::open(filename).unwrap());
 
     let mut circuit = Circuit::new();

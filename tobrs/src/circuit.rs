@@ -1,4 +1,3 @@
-
 pub enum Gate {
     Input,
     And(usize, usize),
@@ -6,9 +5,9 @@ pub enum Gate {
 }
 
 pub struct Circuit {
-    gates: Vec<Gate>,
-    inputs: Vec<usize>,
-    outputs: Vec<usize>,
+    pub gates: Vec<Gate>,
+    pub inputs: Vec<usize>,
+    pub outputs: Vec<usize>,
 }
 
 impl Circuit {
@@ -37,5 +36,17 @@ impl Circuit {
         let r = self.gates.len();
         self.gates.push(Gate::And(x, y));
         r
+    }
+
+    pub fn nwires(&self) -> usize {
+        self.gates.len()
+    }
+
+    pub fn ninputs(&self) -> usize {
+        self.inputs.len()
+    }
+
+    pub fn noutputs(&self) -> usize {
+        self.outputs.len()
     }
 }
