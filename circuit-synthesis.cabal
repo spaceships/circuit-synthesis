@@ -61,7 +61,8 @@ library
         optparse-applicative ,
         text-show            ,
         wl-pprint-text       ,
-        split
+        split                ,
+        transformers
 
     default-extensions:   DoAndIfThenElse
     ghc-options: -O2 -fwarn-unused-imports -freverse-errors

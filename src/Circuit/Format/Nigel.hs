@@ -25,7 +25,7 @@ import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Control.Monad.State.Strict as S
-import qualified Control.Monad.Writer.Strict as W
+import qualified Control.Monad.Trans.Writer.CPS as W
 import qualified Formatting as F
 
 read :: Gate g => FilePath -> IO (Circuit g)
@@ -42,8 +42,8 @@ write fp c = T.writeFile fp (showCirc (toCirc c))
 
 showCirc :: Circ -> T.Text
 showCirc c = W.execWriter $ flip S.runStateT initial $ do
-    W.tell (T.append header1 (T.pack "\n"))
-    W.tell (T.append header2 (T.pack "\n\n"))
+    lift $ W.tell (T.append header1 (T.pack "\n"))
+    lift $ W.tell (T.append header2 (T.pack "\n\n"))
     foldCircM eval c
   where
     header1 = T.unwords $ map (T.pack . show) [nwires c - ninputs c, nwires c]
@@ -60,16 +60,16 @@ showCirc c = W.execWriter $ flip S.runStateT initial $ do
             (BoolXor x y) -> do
                 a <- use (_1 . at x . non (error "oops"))
                 b <- use (_1 . at y . non (error "oops"))
-                W.tell $ F.sformat ("2 1 " % F.int % " " % F.int % " " % F.int % " XOR\n") a b w
+                lift $ W.tell $ F.sformat ("2 1 " % F.int % " " % F.int % " " % F.int % " XOR\n") a b w
                 _1 . at ref ?= w
             (BoolAnd x y) -> do
                 a <- use (_1 . at x . non (error "oops"))
                 b <- use (_1 . at y . non (error "oops"))
-                W.tell $ F.sformat ("2 1 " % F.int % " " % F.int % " " % F.int % " AND\n") a b w
+                lift $ W.tell $ F.sformat ("2 1 " % F.int % " " % F.int % " " % F.int % " AND\n") a b w
                 _1 . at ref ?= w
             (BoolNot x) -> do
                 a <- use (_1 . at x . non (error "oops"))
-                W.tell $ F.sformat ("1 1 " % F.int % " " % F.int % " INV\n") a w
+                lift $ W.tell $ F.sformat ("1 1 " % F.int % " " % F.int % " INV\n") a w
                 _1 . at ref ?= w
             _ -> return ()
 
